@@ -1,8 +1,8 @@
 # NEXT ACTIONS
 
 **Phase 3.64 (production canary deploy) is live** - public URL:
-`https://wtc.54.179.188.61.nip.io`. Agents closed: devops, security, tests, and bot-integration. The server now runs release
-`5522900` as `wtc-ecosystem-canary` on `127.0.0.1:8301`, with nginx/TLS on the `nip.io` hostname. Browser/curl HTTPS smokes
+operator-known `https://<wtc-canary-host>`. Agents closed: devops, security, tests, and bot-integration. The server now runs release
+`5522900` as `wtc-ecosystem-canary` on `127.0.0.1:8301`, with nginx/TLS on the canary hostname. Browser/curl HTTPS smokes
 passed, real registration/login passed, GitHub Actions for `5522900` passed, local `npm run ci:local` passed, and the
 canary uses secure/httpOnly `__Host-wtc_session` cookies. Both live bots stayed up. `wtc-bot-api-firewall.service` now blocks
 external access to bot API ports: external probe shows `8000/8080` timeout while server-local probes still open.

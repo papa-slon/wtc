@@ -1,10 +1,10 @@
 # STATUS
 
 _Latest update: 2026-06-02 - Phase 3.64 Production canary deploy._
-WTC is now live as an HTTPS production canary at `https://wtc.54.179.188.61.nip.io`. Four read-only agents ran before
+WTC is now live as an HTTPS production canary at the operator-known `https://<wtc-canary-host>`. Four read-only agents ran before
 deploy work and were closed: devops, security, tests, and bot-integration. The canary release is commit `5522900`, deployed
 on the server as `wtc-ecosystem-canary` on `127.0.0.1:8301`; nginx routes the WTC canary hostname to it, and Let's Encrypt
-TLS is active for the `nip.io` hostname. The canary DB is `wtc_platform_canary_20260602_1412`, created from the existing WTC
+TLS is active for the operator-known canary hostname. The canary DB is `wtc_platform_canary_20260602_1412`, created from the existing WTC
 preview DB and then migrated/seeded. GitHub Actions for `5522900` passed, local `npm run ci:local` passed, public HTTPS
 smokes passed, real browser registration/login passed, and the session cookie is secure/httpOnly `__Host-wtc_session`.
 Both existing bots remained running: `turtle-bot.service` is active, tmux session `bot` exists, and server-local

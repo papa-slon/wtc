@@ -3,7 +3,7 @@
 Last updated: 2026-06-02, Phase 3.64 production canary deploy.
 
 Phase 3.64 changed the current production status: WTC is now publicly live as an HTTPS production canary at
-`https://wtc.54.179.188.61.nip.io`, backed by release `5522900`, canary DB `wtc_platform_canary_20260602_1412`, nginx/TLS,
+the operator-known `https://<wtc-canary-host>`, backed by release `5522900`, canary DB `wtc_platform_canary_20260602_1412`, nginx/TLS,
 and a secure-cookie browser registration/login smoke. Both existing bots remained running, and the bot API ports are now
 firewalled from the public internet while still open locally on the server. This clears the "no public deployed site" blocker
 for canary review.

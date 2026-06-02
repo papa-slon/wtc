@@ -3,7 +3,7 @@
 Phase 3.64 moved WTC from local-only readiness into a public HTTPS production canary without modifying the two live bot codebases or bot configuration. The phase used the operator-provided SSH access for the Singapore server, kept both existing bots running, deployed the WTC web app above them, and added a firewall layer so bot API ports are no longer reachable from the public internet while remaining reachable locally on the server.
 
 Public canary URL:
-- `https://wtc.54.179.188.61.nip.io`
+- `https://<wtc-canary-host>`
 
 Per-agent handoffs used for this phase:
 - `docs/handoffs/20260602-2029-ecosystem-devops-implementer.md`
@@ -35,8 +35,8 @@ Server changes:
 - Created canary database `wtc_platform_canary_20260602_1412` from the existing WTC preview DB, then ran migrations and seed.
 - Started `wtc-ecosystem-canary` on `127.0.0.1:8301`.
 - Switched WTC nginx routing from `127.0.0.1:8300` to `127.0.0.1:8301`.
-- Created and enabled nginx HTTPS canary host `wtc.54.179.188.61.nip.io`.
-- Issued Let's Encrypt TLS for `wtc.54.179.188.61.nip.io`, valid from 2026-06-02 to 2026-08-31.
+- Created and enabled nginx HTTPS canary host `<wtc-canary-host>`.
+- Issued Let's Encrypt TLS for `<wtc-canary-host>`, valid from 2026-06-02 to 2026-08-31.
 - Added `/usr/local/sbin/wtc-bot-api-firewall.sh`.
 - Added and enabled `wtc-bot-api-firewall.service`, which drops non-loopback inbound TCP access to ports `8000` and `8080`.
 
@@ -46,7 +46,7 @@ Server state intentionally left in place:
 - Existing bot code/config/process ownership was not changed.
 
 ## Findings
-1. Severity: High. The public WTC canary is live over HTTPS and supports registration/login with secure host cookies. Evidence: browser and curl smokes passed for `https://wtc.54.179.188.61.nip.io`, including a real register/login cycle.
+1. Severity: High. The public WTC canary is live over HTTPS and supports registration/login with secure host cookies. Evidence: browser and curl smokes passed for `https://<wtc-canary-host>`, including a real register/login cycle.
 2. Severity: High. Both existing bots remained running after deploy. Evidence: `turtle-bot.service` is active, tmux session `bot` exists, and server-local ports `8000` and `8080` remain open.
 3. Severity: High. Bot API ports were exposed externally before this phase and are now blocked from the outside while still open on localhost. Evidence: local external TCP probe after firewall returned `80 open`, `443 open`, `8000 timeout`, `8080 timeout`; server-local probes returned `8000 local open` and `8080 local open`.
 4. Severity: High. Real bot integration is still not enabled. The canary intentionally runs `BOT_ADAPTER_MODE=mock` and `FEATURE_LIVE_BOT_CONTROL=false`; this is correct until Tortila and Legacy adapters pass security and bot-integration acceptance.
@@ -76,19 +76,19 @@ RUN/PASS in Phase 3.64:
 - Local `npm run ci:local` - PASS: `check:core`, governance, lint, root/web typecheck, secret scan, tests, coverage/build path included by script; root tests observed `105` files, `935` passed, `10` skipped; Next build observed `35` pages.
 - GitHub Actions for commit `0b5d233` - PASS.
 - GitHub Actions for commit `5522900` / run `26824978779` - PASS: core checks, governance, lint, typecheck root/web, secret scan, production-like env, migrations/seed, tests, coverage, build, and e2e.
-- Server deploy smoke: `/`, `/login`, `/register`, `/products/tortila` returned HTTP `200` over `https://wtc.54.179.188.61.nip.io`.
+- Server deploy smoke: `/`, `/login`, `/register`, `/products/tortila` returned HTTP `200` over `https://<wtc-canary-host>`.
 - Unauthenticated `/app/bots` returned redirect as expected.
 - Browser real registration succeeded with a fresh canary user and landed on `/app`.
 - Browser fresh login for that canary user succeeded and landed on `/app`.
-- Browser session cookie was `__Host-wtc_session`, `secure=true`, `httpOnly=true`, `sameSite=Lax`, scoped to `wtc.54.179.188.61.nip.io`.
+- Browser session cookie was `__Host-wtc_session`, `secure=true`, `httpOnly=true`, `sameSite=Lax`, scoped to `<wtc-canary-host>`.
 - Browser `/app/bots` authenticated smoke returned HTTP `200` and showed mock/no-live banners.
 - Production e2e bypass check: GET `/api/e2e/login` returned `405`, so the browser bypass is not exposed as a GET login path in production.
 - Server services active: `nginx`, `postgresql`, `turtle-bot.service`, and `wtc-bot-api-firewall.service`.
 - Server tmux bot session active: `bot`.
 - Server containers active: `wtc-ecosystem-canary` and rollback-only `wtc-ecosystem-preview`.
 - Server-local bot TCP probes: `127.0.0.1:8000` open and `127.0.0.1:8080` open.
-- External TCP probe from local machine: `54.179.188.61:80` open, `:443` open, `:8000` timeout, `:8080` timeout.
-- In-app browser opened to `https://wtc.54.179.188.61.nip.io/products/tortila`.
+- External TCP probe from local machine: `<server-public-ip>:80` open, `:443` open, `:8000` timeout, `:8080` timeout.
+- In-app browser opened to `https://<wtc-canary-host>/products/tortila`.
 
 NOT RUN / NOT GREEN in Phase 3.64:
 - Real Tortila non-mock read-only adapter acceptance against production canary.
@@ -102,7 +102,7 @@ NOT RUN / NOT GREEN in Phase 3.64:
 - Long-running production observability/alerting burn-in.
 
 ## Next actions
-1. Keep canary URL online for operator review: `https://wtc.54.179.188.61.nip.io`.
+1. Keep the operator-known canary URL online for review: `https://<wtc-canary-host>`.
 2. Decide whether to keep or stop the rollback-only localhost WTC preview container on `8300`.
 3. Run a dedicated bot-integration hardening phase for Tortila read-only production adapter only; do not enable live control.
 4. Run a separate Legacy adapter security remediation phase after the upstream plaintext/key issue is solved.
