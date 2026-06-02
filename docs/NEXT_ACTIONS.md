@@ -1,5 +1,20 @@
 # NEXT ACTIONS
 
+**Phase 3.65 (Tortila DB-backed read-only canary) is live** - public URL remains the operator-known
+`https://<wtc-canary-host>`. Agents closed: bot-integration, security, and tests/devops. Tortila now uses real read-only data
+through WTC DB snapshots/imports: Tortila journal -> `wtc-ecosystem-worker` -> WTC Postgres -> web/admin UI. Current release:
+commit `4487b3d`, server release `20260602-1816-4487b3d`. Verified in browser: public Tortila product page, authenticated
+Tortila dashboard, positions, trades, equity, journal, statistics, `/admin/bots`, and `/admin/system-health`. Verified gates:
+local `npm run ci:local` PASS, root `npm test` PASS (`105` files, `936` passed, `10` skipped), web build PASS, secret scan
+PASS, and GitHub Actions CI PASS for `4487b3d`. Existing bot services stayed up; live controls stayed disabled.
+Aggregate: [`docs/handoffs/20260603-0124-phase-3-65-tortila-db-readonly-canary.md`](handoffs/20260603-0124-phase-3-65-tortila-db-readonly-canary.md).
+
+**Do not call this full production for the whole platform.** Tortila read-only canary is accepted only through WTC DB
+snapshots. Still blocked/not green: provider-side journal bearer-auth proof, Legacy non-mock integration, live bot
+start/stop/apply-config, Stripe checkout/webhook acceptance, Axioma live bridge/download/account-link, live LMS
+object-store/scanner, branded-domain DNS/TLS, long production burn-in/alerting, and direct intended append-only audit-role
+proof. Next phase should be exactly one of these blockers; do not bundle them.
+
 **Phase 3.64 (production canary deploy) is live** - public URL:
 operator-known `https://<wtc-canary-host>`. Agents closed: devops, security, tests, and bot-integration. The server now runs release
 `5522900` as `wtc-ecosystem-canary` on `127.0.0.1:8301`, with nginx/TLS on the canary hostname. Browser/curl HTTPS smokes

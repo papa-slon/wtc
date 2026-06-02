@@ -1,5 +1,26 @@
 # STATUS
 
+_Latest update: 2026-06-03 - Phase 3.65 Tortila DB-backed read-only canary._
+Tortila is now connected to the production canary with real read-only data through WTC Postgres snapshots, not mock data and
+not direct journal reads from user page renders. Current accepted shape: Tortila journal -> `wtc-ecosystem-worker` ->
+WTC DB snapshots/imports -> web/admin UI. The canary release is commit `4487b3d`, deployed on the server as
+`20260602-1816-4487b3d`; `wtc-ecosystem-canary` serves the web canary, and `wtc-ecosystem-worker` refreshes Tortila
+read-only snapshots. Existing bot services remained active, and only WTC canary/worker containers were changed.
+
+Observed production-canary proof: worker logs showed repeated Tortila snapshot success in read-only mode; canary DB aggregates
+showed `worker` and `tortila-journal` health rows, metric snapshots, position snapshots, and `13` imported trades; browser
+checks passed for public Tortila product page, authenticated Tortila dashboard, positions, trades, equity, journal,
+statistics, admin bots, and admin system-health. Public product copy now marks Tortila available for live read-only
+monitoring; authenticated bot pages show `REAL DATA`; live controls remain disabled. Local `npm run ci:local` passed,
+root `npm test` passed (`105` files, `936` passed, `10` skipped), web build passed, `npm run secret:scan` passed, and
+GitHub Actions CI for `4487b3d` passed.
+
+This is **TORTILA REAL READ-ONLY CANARY LIVE**, not full production for all products. Still **NOT GREEN**: provider-side
+journal bearer-auth acceptance, any live bot control, Legacy non-mock integration, Tortila `/api/marks` / `/api/overview`
+consumption, Stripe self-serve billing, Axioma live bridge/download/account-link, live LMS object-store/scanner,
+branded-domain DNS/TLS, production burn-in/alerting, and direct intended production append-only audit-role proof. Aggregate:
+[`docs/handoffs/20260603-0124-phase-3-65-tortila-db-readonly-canary.md`](handoffs/20260603-0124-phase-3-65-tortila-db-readonly-canary.md).
+
 _Latest update: 2026-06-02 - Phase 3.64 Production canary deploy._
 WTC is now live as an HTTPS production canary at the operator-known `https://<wtc-canary-host>`. Four read-only agents ran before
 deploy work and were closed: devops, security, tests, and bot-integration. The canary release is commit `5522900`, deployed

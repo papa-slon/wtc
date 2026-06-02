@@ -1,5 +1,32 @@
 # Implemented files (current code vs. target contracts)
 
+## 2026-06-03 Phase 3.65 additions (Tortila DB-backed read-only canary)
+- `apps/web/src/features/bots/data.tsx` - production Tortila reads are DB-first: health, metric snapshots, position snapshots,
+  closed-trade imports, equity curve reconstruction, and persistent Tortila warnings come from WTC DB instead of direct
+  journal fetches from user page renders.
+- `apps/web/src/features/bots/journal.ts` - Postgres journal mode is DB-only and no longer falls back to the live adapter
+  when imports are empty.
+- `apps/web/src/app/(app)/app/bots/[bot]/page.tsx` - runtime config read unavailability no longer creates a false top-level
+  adapter-unavailable banner for the DB-backed canary.
+- `apps/web/src/lib/product-status.ts`, `apps/web/src/app/(public)/products/page.tsx`,
+  `apps/web/src/app/(public)/products/[slug]/page.tsx`, `apps/web/src/features/cabinet/loader.ts`, and
+  `apps/web/src/features/admin/queries.ts` - Tortila availability now reflects the live read-only monitoring canary when
+  adapter mode is non-mock.
+- `tests/integration/bot-read-safety-static.test.ts` and `tests/integration/admin-responsive.test.ts` - static/integration
+  coverage for the production Tortila DB-backed path and availability helper.
+- `docs/handoffs/20260603-0052-ecosystem-bot-integration-auditor.md`,
+  `docs/handoffs/20260603-0053-ecosystem-security-auditor.md`,
+  `docs/handoffs/20260603-0056-ecosystem-tests-runner.md`, and
+  `docs/handoffs/20260603-0124-phase-3-65-tortila-db-readonly-canary.md` - three per-agent handoffs plus aggregate Phase
+  3.65 handoff.
+- Verified: local `npm run ci:local` PASS; root `npm test` PASS (`105` files, `936` passed, `10` skipped);
+  `npm run build -w @wtc/web` PASS; `npm run secret:scan` PASS; GitHub Actions CI PASS for commit `4487b3d`; server release
+  `20260602-1816-4487b3d` built/deployed; managed worker `wtc-ecosystem-worker` wrote Tortila health/snapshot/import rows;
+  browser checks passed for public Tortila, authenticated Tortila bot pages, statistics, admin bots, and admin system-health.
+  NOT RUN / NOT GREEN: provider-side journal bearer-auth proof, live bot control, Legacy non-mock, Stripe, Axioma live,
+  live LMS object-store/scanner, branded-domain DNS/TLS, production burn-in/alerting, and direct intended append-only
+  audit-role proof.
+
 ## 2026-06-02 Phase 3.63 additions (production-readiness gap closure)
 - `.github/workflows/ci.yml` - staged CI now generates production-like Stripe test env and ES256 Axioma key/kid material and
   validates config loading under staging/production-like env. This is still not GitHub CI evidence until the repo is
