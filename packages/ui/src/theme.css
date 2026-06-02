@@ -1,0 +1,224 @@
+/* WTC premium terminal-first design system. Tokens from docs/DESIGN_SYSTEM.md (v2-terminal-os). */
+:root {
+  --bg: #050a12;
+  --bg2: #08101d;
+  --panel: #0b1423;
+  --panel2: #0e1a2b;
+  --stroke: rgba(148, 163, 184, 0.16);
+  --stroke-gold: rgba(213, 169, 79, 0.34);
+  --text: #f1f5f9;
+  --muted: #94a3b8;
+  --dim: #64748b;
+  --gold: #d5a94f;
+  --gold2: #f2d78f;
+  --cyan: #69e2ff;
+  --green: #54d6a1;
+  --red: #ff6b74;
+  --amber: #f5c451;
+  --radius: 18px;
+  --radius-lg: 26px;
+  --max: 1240px;
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: Georgia, "Times New Roman", serif;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+
+.wtc-appbg {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 72% 2%, rgba(105, 226, 255, 0.12), transparent 28%),
+    radial-gradient(circle at 10% 16%, rgba(213, 169, 79, 0.13), transparent 34%),
+    linear-gradient(180deg, #050a12, #07101c 48%, #04070c);
+}
+.wtc-container { max-width: var(--max); margin: 0 auto; padding: 0 22px; }
+
+/* typography */
+.wtc-h1 { font-size: clamp(40px, 6vw, 78px); letter-spacing: -0.06em; line-height: 0.95; margin: 0 0 18px; }
+.wtc-h1 em { font-family: var(--font-serif); font-style: italic; color: var(--gold2); }
+.wtc-h2 { font-size: clamp(26px, 3.4vw, 40px); letter-spacing: -0.04em; margin: 0 0 10px; }
+.wtc-kicker { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--gold2); font-weight: 800; }
+.wtc-lead { font-size: 17px; line-height: 1.7; color: #b8c2d2; margin: 0 0 22px; }
+.wtc-muted { color: var(--muted); }
+.wtc-dim { color: var(--dim); }
+.wtc-mono { font-variant-numeric: tabular-nums; }
+
+/* surfaces */
+.wtc-card {
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, rgba(14, 26, 43, 0.7), rgba(7, 15, 28, 0.55));
+  padding: 22px;
+}
+.wtc-card-tight { padding: 16px; border-radius: var(--radius); }
+.wtc-grid { display: grid; gap: 14px; }
+.wtc-grid-2 { grid-template-columns: repeat(2, 1fr); }
+.wtc-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.wtc-grid-4 { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 1050px) { .wtc-grid-3, .wtc-grid-4 { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px) { .wtc-grid-2, .wtc-grid-3, .wtc-grid-4 { grid-template-columns: 1fr; } }
+
+/* metric */
+.wtc-metric { border: 1px solid var(--stroke); border-radius: var(--radius); padding: 14px 16px; background: rgba(255, 255, 255, 0.025); }
+.wtc-metric .label { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); }
+.wtc-metric .value { font-size: 24px; margin-top: 8px; font-variant-numeric: tabular-nums; }
+.wtc-up { color: var(--green); }
+.wtc-down { color: var(--red); }
+
+/* pills / badges */
+.wtc-pill { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--stroke); border-radius: 999px; padding: 6px 11px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.wtc-pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.wtc-pill.ok { border-color: rgba(84, 214, 161, 0.32); color: #b9ffe5; }
+.wtc-pill.ok i { background: var(--green); box-shadow: 0 0 12px var(--green); }
+.wtc-pill.warn { border-color: rgba(245, 196, 81, 0.34); color: #ffe7ad; }
+.wtc-pill.warn i { background: var(--amber); }
+.wtc-pill.bad { border-color: rgba(255, 107, 116, 0.34); color: #ffc7cb; }
+.wtc-pill.bad i { background: var(--red); }
+.wtc-pill.gold { border-color: var(--stroke-gold); color: var(--gold2); }
+.wtc-pill.gold i { background: var(--gold); }
+
+/* buttons — min-height 44px is unconditional (PG9 F-04): cabinet/wizard CTAs sit outside any
+ * .wtc-table-wrap context, so the 44px touch target must come from the base rule, not a media query. */
+.wtc-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 14px; padding: 12px 16px; min-height: 44px; font-weight: 700; font-size: 14px; border: 1px solid transparent; cursor: pointer; }
+.wtc-btn-primary { background: linear-gradient(180deg, var(--gold), #b7842a); color: #0b0f16; box-shadow: 0 14px 36px rgba(213, 169, 79, 0.16); }
+.wtc-btn-secondary { border-color: var(--stroke-gold); color: var(--gold2); background: rgba(213, 169, 79, 0.08); }
+.wtc-btn-ghost { border-color: var(--stroke); color: var(--text); background: rgba(255, 255, 255, 0.03); }
+.wtc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* warning banner */
+.wtc-warning { border-radius: var(--radius); padding: 13px 15px; border: 1px solid; margin: 8px 0; display: flex; gap: 12px; align-items: flex-start; }
+.wtc-warning.error { border-color: rgba(255, 107, 116, 0.4); background: rgba(255, 107, 116, 0.07); }
+.wtc-warning.warning { border-color: rgba(245, 196, 81, 0.4); background: rgba(245, 196, 81, 0.06); }
+.wtc-warning.info { border-color: var(--stroke); background: rgba(255, 255, 255, 0.03); }
+.wtc-warning .w-title { font-weight: 700; font-size: 14px; }
+.wtc-warning .w-detail { color: var(--muted); font-size: 13px; margin-top: 3px; line-height: 1.5; }
+
+/* table */
+.wtc-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.wtc-table th { text-align: left; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); padding: 10px 12px; border-bottom: 1px solid var(--stroke); }
+.wtc-table td { padding: 11px 12px; border-bottom: 1px solid rgba(148, 163, 184, 0.08); font-variant-numeric: tabular-nums; }
+.wtc-table tr:hover td { background: rgba(255, 255, 255, 0.02); }
+
+/* ── Responsive table: card-stack at 640px (PG8 — DESIGN_SYSTEM.md §14) ──────
+ * Usage: wrap <table className="wtc-table"> in <div className="wtc-table-wrap">.
+ * Every <td> carries data-label="Column Header" to render the label in the card
+ * view; an Action cell adds className="wtc-td-action". Pure CSS, no JavaScript —
+ * each row becomes a self-contained label/value card so there is NO horizontal
+ * page scroll at 375px regardless of column count (the 10-column TV queue included). */
+.wtc-table-wrap { width: 100%; }
+
+@media (max-width: 640px) {
+  .wtc-table-wrap table,
+  .wtc-table-wrap thead,
+  .wtc-table-wrap tbody,
+  .wtc-table-wrap th,
+  .wtc-table-wrap td,
+  .wtc-table-wrap tr { display: block; }
+
+  /* Original column headers hidden — labels come from each td's data-label. */
+  .wtc-table-wrap thead { display: none; }
+
+  /* Each row becomes a bordered card. */
+  .wtc-table-wrap tbody tr {
+    border: 1px solid var(--stroke);
+    border-radius: var(--radius);
+    margin-bottom: 12px;
+    padding: 12px;
+    background: rgba(14, 26, 43, 0.6);
+  }
+  .wtc-table-wrap tbody tr:last-child { margin-bottom: 0; }
+
+  /* Each cell: label (left) / value (right). */
+  .wtc-table-wrap td {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.07);
+    font-size: 13px;
+    /* Break long unbreakable values (mono ids, action codes, targetType:targetId) so the value flex
+     * item can shrink instead of forcing the card — and the page — wider than 375px. */
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .wtc-table-wrap td:last-child { border-bottom: none; padding-bottom: 0; }
+  .wtc-table-wrap td:first-child { padding-top: 0; }
+
+  .wtc-table-wrap td::before {
+    content: attr(data-label);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--dim);
+    flex-shrink: 0;
+    padding-top: 2px;
+    min-width: 90px;
+  }
+
+  /* The Action cell: full-width stacked forms (no label). */
+  .wtc-table-wrap td.wtc-td-action { flex-direction: column; align-items: stretch; gap: 6px; }
+  .wtc-table-wrap td.wtc-td-action::before { display: none; }
+  .wtc-table-wrap td.wtc-td-action form { width: 100%; }
+  .wtc-table-wrap td.wtc-td-action .wtc-input { font-size: 13px; }
+  .wtc-table-wrap td.wtc-td-action .wtc-btn { width: 100%; justify-content: center; }
+
+  /* Touch targets + let any fixed-minWidth inline input shrink to fit a 375px viewport.
+   * !important is required to beat inline style={{ minWidth }} on admin forms.
+   * (.wtc-btn min-height is now unconditional in the base rule — PG9 F-04.) */
+  .wtc-input { min-height: 44px; min-width: 0 !important; }
+  .wtc-table-wrap td > .wtc-input { max-width: min(180px, 100%); flex: 1 1 0; }
+}
+
+/* ── Setup wizard stepper (PG9 — DESIGN_SYSTEM.md §15) ───────────────────────
+ * A horizontal step indicator + per-step body for mobile-first onboarding (e.g. bot
+ * exchange-key setup). Steps are LINKS (GET navigation, ?step=) — no client JS. The steps
+ * row scrolls WITHIN ITSELF (overflow-x:auto) so the page never scrolls horizontally at
+ * 375px regardless of step count. Compose with .wtc-card for each step body. */
+.wtc-wizard-steps { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.wtc-step { display: inline-flex; align-items: center; gap: 9px; flex: 0 0 auto; border: 1px solid var(--stroke); border-radius: 999px; padding: 7px 14px; min-height: 44px; color: var(--muted); }
+.wtc-step .wtc-step-circle { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--stroke); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; flex-shrink: 0; }
+.wtc-step .wtc-step-label { font-size: 12px; letter-spacing: 0.04em; white-space: nowrap; }
+.wtc-step.active { border-color: var(--stroke-gold); color: var(--gold2); }
+.wtc-step.active .wtc-step-circle { border-color: var(--stroke-gold); background: rgba(213, 169, 79, 0.12); color: var(--gold2); }
+.wtc-step.done { color: #b9ffe5; border-color: rgba(84, 214, 161, 0.32); }
+.wtc-step.done .wtc-step-circle { border-color: rgba(84, 214, 161, 0.4); background: rgba(84, 214, 161, 0.12); color: var(--green); }
+.wtc-step.locked { opacity: 0.55; }
+
+/* Cabinet product-card sub-rows (PG9): a thin labelled row inside .wtc-card for setup/activity/blockers. */
+.wtc-card-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 7px 0; border-top: 1px solid rgba(148, 163, 184, 0.08); font-size: 13px; }
+.wtc-card-row .k { color: var(--dim); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; flex-shrink: 0; }
+.wtc-card-row .v { text-align: right; overflow-wrap: anywhere; }
+
+/* empty / loading / error */
+.wtc-empty { border: 1px dashed var(--stroke); border-radius: var(--radius); padding: 28px; text-align: center; color: var(--muted); }
+.wtc-skeleton { border-radius: 10px; background: linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.08), rgba(255,255,255,0.04)); height: 14px; }
+
+/* forms */
+.wtc-field { display: block; margin-bottom: 14px; }
+.wtc-field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; letter-spacing: 0.04em; }
+.wtc-input { width: 100%; border: 1px solid var(--stroke); background: rgba(5, 10, 18, 0.6); color: var(--text); border-radius: 12px; padding: 12px 13px; font-size: 14px; font-family: inherit; }
+.wtc-input:focus { outline: none; border-color: var(--stroke-gold); }
+
+/* app shell */
+/* minmax(0, 1fr) (not 1fr) so the content track can shrink below its content's min-content — prevents a
+ * wide child (e.g. a wizard stepper / metric row) from blowing the column past the viewport and forcing
+ * a horizontal page scroll at 375px (PG9). The content column also gets min-width:0 for the same reason. */
+.wtc-shell { display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: 100vh; }
+.wtc-shell > :not(.wtc-sidenav):not(.wtc-mobile-nav) { min-width: 0; }
+@media (max-width: 900px) { .wtc-shell { grid-template-columns: minmax(0, 1fr); } .wtc-sidenav { display: none; } }
+.wtc-sidenav { border-right: 1px solid var(--stroke); padding: 20px 14px; background: rgba(8, 16, 29, 0.5); }
+.wtc-sidenav a { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; color: #b8c2d2; font-size: 14px; }
+.wtc-sidenav a:hover, .wtc-sidenav a.active { background: rgba(255, 255, 255, 0.045); color: #fff; }
+.wtc-topbar { height: 64px; border-bottom: 1px solid var(--stroke); display: flex; align-items: center; justify-content: space-between; padding: 0 22px; background: rgba(5, 10, 18, 0.7); position: sticky; top: 0; z-index: 20; backdrop-filter: blur(14px); }
+.wtc-main { padding: 26px 22px 60px; }
+.wtc-brand { font-weight: 800; letter-spacing: 0.18em; font-size: 15px; }
+.wtc-brand span { color: var(--gold2); }

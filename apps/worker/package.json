@@ -1,0 +1,19 @@
+{
+  "name": "@wtc/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "tick": "tsx src/tick-once.ts"
+  },
+  "dependencies": {
+    "@wtc/entitlements": "*",
+    "@wtc/tradingview-access": "*",
+    "@wtc/audit": "*",
+    "@wtc/bot-adapters": "*",
+    "@wtc/db": "*",
+    "@wtc/lms": "*"
+  }
+}

@@ -1,0 +1,113 @@
+# Credential Acceptance Blockers Current
+
+Last updated: 2026-06-02, Phase 3.63 production-readiness gap closure.
+
+This packet is the current operator-facing blocker list after Phase 3.63. The LMS DB browser managed gate, active managed
+real-Postgres proof, local managed throwaway audit-role proof, local site-readiness proof, and local auth DB-backed
+production-profile browser proof are now **RUN/PASS** with
+operator-approved local sources where needed. Remaining live or credentialed gates are still **NOT RUN** unless explicitly
+marked otherwise below. Do not treat local dry-runs, PGlite tests, visual inventory, or `node scripts/gates.mjs full` as
+substitutes for the remaining gates.
+
+## Current Evidence
+
+Observed in this session:
+
+- `git rev-parse --show-toplevel` -> not a git repository.
+- `C:\Users\maxib\GTE BOT\bot\.env` had Postgres connection fields; the connection and `CREATE DATABASE` permission were
+  checked without printing values.
+- `LMS_E2E_ADMIN_DATABASE_URL` was built only in-process for the managed runner and removed from the shell after the run.
+- Final `npm run e2e:lms:db:managed` -> **PASS**: created `wtc_test_lms_20260602101117_cc7889`, applied 17 migrations plus
+  seed data, ran LMS DB Playwright desktop/mobile (`2 passed`), ran LMS DB artifact scanner PASS, and dropped the throwaway DB.
+- Retained screenshot review -> **PASS** with
+  `logs/retained-visual-artifacts/20260602-1713-lms-db/visual-review.json` for
+  `tests/e2e/screenshots/lms-db-material-lesson-lms-db-mobile.png`.
+- Root `npm run typecheck`, `npm run lint`, `npm run secret:scan`, and `npm run governance:check` -> **PASS**.
+- `REAL_POSTGRES_ADMIN_DATABASE_URL` was built only in-process from the same existing-bot source for
+  `npm run accept:real-pg:managed`; the value was not printed or persisted.
+- Final `npm run accept:real-pg:managed` -> **PASS**: created `wtc_test_realpg20260602105824d18bef`, ran active real-PG
+  tests (`14 passed`), and dropped the throwaway DB.
+- Focused safety/helper Vitest, root typecheck, web typecheck, lint, secret scan, and governance check -> **PASS** after
+  Phase 3.60 docs/code updates.
+- `AUDIT_APPEND_ONLY_ADMIN_DATABASE_URL` was built only in-process from the same existing-bot source for
+  `npm run accept:audit:append-only-role:managed`; the value was not printed or persisted.
+- Final `npm run accept:audit:append-only-role:managed` -> **PASS**: created `wtc_test_audit_20260602113142_0aa15f`,
+  applied `17` migrations, created temporary role `wtc_app_role_20260602113142_97bf21`, proved
+  `select=true insert=true update=false delete=false truncate=false probe=inserted`, and dropped both the DB and role.
+- Phase 3.62 local site-readiness -> **PASS**: root `npm test` (`921` passed, `10` skipped), web build, default e2e
+  (`44` passed, `8` skipped), local preview HTTP smoke at `http://127.0.0.1:3000`, core smoke, DB generate, and visual
+  inventory all passed in their stated scopes.
+- Phase 3.63 production-readiness gap closure -> **PASS in local scope**: no-network Stripe webhook/checkout dry-runs,
+  no-network Axioma dry-run, no-network LMS object-store/scanner dry-runs, retained preflight evidence scan, root `npm test`
+  (`934` passed, `10` skipped), web build, core smoke, root/web typecheck, lint, secret scan, default e2e (`44` passed,
+  `6` skipped), auth production-profile e2e (`2` passed), and managed auth DB e2e against existing-bot Postgres source
+  (`wtc_test_auth_20260602130742_099899` created/dropped, 17 migrations plus seed, Playwright `2` passed).
+- No provider network call, SSH, nginx/systemd, bot service, deploy, or GitHub CI command was run.
+
+Previously checked env vars without printing values in Phase 3.58; remaining gates still require these names unless a later
+phase supplies them:
+
+```text
+LMS_E2E_ADMIN_DATABASE_URL=NOT_SET
+LMS_E2E_DATABASE_URL=NOT_SET
+AUDIT_APPEND_ONLY_DATABASE_URL=NOT_SET
+AUDIT_APPEND_ONLY_EXPECTED_ROLE=NOT_SET
+AUDIT_APPEND_ONLY_PREFLIGHT_ACCEPT=NOT_SET
+AUDIT_APPEND_ONLY_PREFLIGHT_NON_THROWAWAY_APPROVED=NOT_SET
+LMS_FILE_STORAGE_PROVIDER=NOT_SET
+LMS_PUBLIC_UPLOADS_ENABLED=NOT_SET
+LMS_OBJECT_STORAGE_ENDPOINT=NOT_SET
+LMS_OBJECT_STORAGE_BUCKET=NOT_SET
+LMS_OBJECT_STORAGE_REGION=NOT_SET
+LMS_OBJECT_STORAGE_ACCESS_KEY_ID=NOT_SET
+LMS_OBJECT_STORAGE_SECRET_ACCESS_KEY=NOT_SET
+LMS_OBJECT_STORAGE_LIVE_ACCEPTANCE=NOT_SET
+LMS_OBJECT_STORAGE_LIVE_THROWAWAY=NOT_SET
+LMS_FILE_SCANNER_MODE=NOT_SET
+LMS_FILE_SCANNER_ENDPOINT=NOT_SET
+LMS_FILE_SCANNER_TOKEN=NOT_SET
+LMS_FILE_SCANNER_LIVE_ACCEPTANCE=NOT_SET
+LMS_FILE_SCANNER_LIVE_EICAR=NOT_SET
+BILLING_PROVIDER=NOT_SET
+STRIPE_SECRET_KEY=NOT_SET
+STRIPE_WEBHOOK_SECRET=NOT_SET
+STRIPE_PRICE_MAP=NOT_SET
+AXIOMA_HANDOFF_SIGNING_KEY=NOT_SET
+AXIOMA_HANDOFF_KEY_ID=NOT_SET
+AXIOMA_BRIDGE_API_TOKEN=NOT_SET
+```
+
+## Blocked Gates
+
+| Gate | Command | Required operator input | Current state | Evidence required to clear |
+|---|---|---|---|---|
+| LMS DB browser acceptance | `npm run e2e:lms:db:managed` | Existing-bot Postgres source approved by operator; in-process `LMS_E2E_ADMIN_DATABASE_URL`, value never printed | **RUN/PASS in Phase 3.59** - final throwaway DB `wtc_test_lms_20260602101117_cc7889` created/dropped, Playwright `2 passed`, artifact scanner PASS, retained screenshot visual review PASS | Cleared for local managed LMS DB browser acceptance; rerun only if code/DB path changes or operator requests fresh proof |
+| Active real-Postgres proof | `npm run accept:real-pg:managed` or `npm test -- tests/integration/db-real-postgres.test.ts` | Existing-bot Postgres source approved by operator; in-process `REAL_POSTGRES_ADMIN_DATABASE_URL`, value never printed | **RUN/PASS in Phase 3.60** - final throwaway DB `wtc_test_realpg20260602105824d18bef` created/dropped, active real-PG harness `14 passed` | Cleared for local active managed real-PG proof; rerun only if DB/migration/concurrency path changes or operator requests fresh proof |
+| Local managed append-only audit DB-role proof | `npm run accept:audit:append-only-role:managed` | Existing-bot Postgres source approved by operator; in-process `AUDIT_APPEND_ONLY_ADMIN_DATABASE_URL`, value never printed | **RUN/PASS in Phase 3.61** - final throwaway DB `wtc_test_audit_20260602113142_0aa15f` and temporary role `wtc_app_role_20260602113142_97bf21` created/dropped, preflight proved SELECT/INSERT only | Cleared for local generated-role throwaway proof; rerun only if audit role/preflight/migration path changes or operator requests fresh proof |
+| Production/preview intended append-only audit DB-role proof | `npm run accept:audit:append-only-role` | Intended restricted app-role `AUDIT_APPEND_ONLY_DATABASE_URL`, expected role, and `AUDIT_APPEND_ONLY_PREFLIGHT_ACCEPT=1`; non-throwaway flag only with explicit approval | **NOT RUN** - intended restricted role URL and consent absent | Command exits 0 against intended restricted role/database, proving SELECT/INSERT allowed and UPDATE/DELETE/TRUNCATE denied |
+| LMS object-store live preflight | `npm run accept:lms:object-storage -- --live` | `LMS_FILE_STORAGE_PROVIDER=s3-r2`, private throwaway object-store config, `LMS_PUBLIC_UPLOADS_ENABLED=false`, `LMS_OBJECT_STORAGE_LIVE_ACCEPTANCE=1`, `LMS_OBJECT_STORAGE_LIVE_THROWAWAY=1` | **NOT RUN** - config and consent flags absent | Live PUT/read/DELETE/cleanup observations pass against approved throwaway target, retained summary scans clean |
+| LMS external scanner live preflight | `npm run accept:lms:external-scanner -- --live` | `LMS_FILE_SCANNER_MODE=external`, HTTPS endpoint/token, `LMS_PUBLIC_UPLOADS_ENABLED=false`, `LMS_FILE_SCANNER_LIVE_ACCEPTANCE=1`, `LMS_FILE_SCANNER_LIVE_EICAR=1` | **NOT RUN** - config and consent flags absent | Live clean/quarantine/failure/timeout observations pass against approved scanner, retained summary scans clean |
+| Stripe test checkout and webhook acceptance | Stripe test checkout plus `npm run accept:billing:stripe-webhook` / `npm run accept:billing:stripe-checkout` as scoped | Billing-provider decision, test `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_MAP`, Stripe CLI/Dashboard replay setup | **NOT RUN** - provider and Stripe envs absent | Test-mode checkout reaches `pending_payment` -> `active`, real webhook replay passes, retained evidence scans clean |
+| Axioma live bridge / handoff acceptance | `npm run accept:axioma:handoff-preflight` plus live endpoint-shape/account-link/download checks as scoped | Confirmed Axioma endpoint shapes, `AXIOMA_HANDOFF_SIGNING_KEY`, `AXIOMA_HANDOFF_KEY_ID`, bridge token where required | **NOT RUN** - ES256 key/kid and bridge token absent | ES256/JWKS/handoff/account-link/download acceptance passes with confirmed endpoint shapes and retained evidence scans clean |
+| Local site-readiness / safe-preview smoke | `npm test`; `npm run build -w @wtc/web`; `npm run e2e`; `npm run preview:safe` or scoped preview smoke | Local demo/mock preview scope; no live bot/provider/deploy mutation | **RUN/PASS in Phase 3.62** - root tests `921` passed, web build PASS, default e2e `44` passed / `8` skipped, `http://127.0.0.1:3000` returned `200` with a title containing `WTC Ecosystem` and `World Trader Club` | Cleared for local manual demo/mock website review only; screenshot inventory is not screenshot acceptance |
+| Local auth DB-backed browser acceptance | `npm run e2e:auth:db:managed` | Existing-bot Postgres source approved by operator; in-process `AUTH_E2E_ADMIN_DATABASE_URL`, value never printed | **RUN/PASS in Phase 3.63** - throwaway DB `wtc_test_auth_20260602130742_099899` created/dropped, 17 migrations plus seed, real register/login Playwright `2` passed | Cleared for local auth registration/login DB-backed acceptance; not a production DB/server/deploy proof |
+| Live/server preview smoke | Approved server/preview target smoke | Operator-approved server target, retained evidence plan, rollback/cleanup plan if needed | **NOT RUN** - no server/SSH/nginx/systemd/deploy target approved in Phase 3.62 | Approved smoke actually runs on intended target; retained evidence is compact, redacted, scanner-clean, and screenshot-reviewed if retained |
+| GitHub CI | GitHub Actions workflow on push/PR | Git repo initialization, remote, pushed branch/PR | **NOT RUN** - current folder is not git-backed | A real GitHub Actions run exits 0; local gates alone are not CI |
+| Deploy/server checks | Approved deploy checklist | Explicit operator approval, server target, secrets, rollback plan | **NOT RUN** - forbidden in this phase | Approved deploy/SSH/nginx/systemd checks execute and are documented without secrets |
+
+## Safe Run Order When Credentials Arrive
+
+1. Prefer the exact credentialed gate that matches the supplied credential. Do not broaden the phase.
+2. Run one acceptance phase per session and launch read-only agents before edits or mutation.
+3. Keep raw credential values out of chat, docs, logs, test fixtures, screenshots, and retained artifacts.
+4. Archive only redacted command summaries, relative `logs/.../summary-*.json` paths, scanned text artifacts, and reviewed visual evidence.
+5. After any live or credentialed run, record exact gates RUN and NOT RUN in the aggregate handoff and status docs.
+
+## Not Production Ready
+
+The standing production truth is unchanged: WTC is **not production-ready** until the remaining credentialed
+DB/provider/server/CI gates above are observed green in their intended environments. Phase 3.59 cleared local managed LMS DB
+browser acceptance; Phase 3.60 cleared local active managed real-PG proof; Phase 3.61 cleared local generated-role
+append-only audit proof, not the production/preview intended-role proof; Phase 3.62 cleared local demo/mock site-readiness;
+Phase 3.63 cleared local production-readiness harness gaps and DB-backed auth browser acceptance, not live/server production
+readiness.

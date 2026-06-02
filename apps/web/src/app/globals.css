@@ -1,0 +1,18 @@
+/* Local overrides on top of @wtc/ui/theme.css (imported in layout). */
+:focus-visible { outline: 2px solid var(--gold2); outline-offset: 2px; }
+.wtc-link { color: var(--cyan); }
+.wtc-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.wtc-spread { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.wtc-stack { display: flex; flex-direction: column; gap: 14px; }
+
+/* Mobile navigation — the sidenav is hidden below 900px, so this bottom bar replaces it. */
+.wtc-mobile-nav { display: none; }
+@media (max-width: 900px) {
+  .wtc-mobile-nav {
+    display: flex; gap: 6px; overflow-x: auto; position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+    background: rgba(5, 10, 18, 0.94); backdrop-filter: blur(14px); border-top: 1px solid var(--stroke); padding: 8px 10px;
+  }
+  .wtc-mobile-nav a { white-space: nowrap; font-size: 12px; color: #b8c2d2; border: 1px solid var(--stroke); border-radius: 999px; padding: 8px 12px; }
+  .wtc-mobile-nav a.active { background: rgba(255, 255, 255, 0.06); color: #fff; border-color: var(--stroke-gold); }
+  .wtc-main { padding-bottom: 88px; }
+}

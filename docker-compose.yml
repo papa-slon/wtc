@@ -1,0 +1,19 @@
+# Local development services only. Does NOT deploy or touch any live server.
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: wtc_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: wtc
+      POSTGRES_PASSWORD: wtc
+      POSTGRES_DB: wtc
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wtc -d wtc"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

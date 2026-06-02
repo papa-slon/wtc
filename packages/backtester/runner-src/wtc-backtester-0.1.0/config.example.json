@@ -1,0 +1,15 @@
+{
+  "symbols": ["ETH/USDT:USDT"],
+  "timeframe": "1h",
+  "system": 2,
+  "risk_pct": 0.005,
+  "stop_n": 2.0,
+  "add_step": 0.5,
+  "max_units": 4,
+  "atr_period": 20,
+  "initial_equity": 10000,
+  "fee_rate": 0.0005,
+  "slippage": 0.0003,
+  "data_dir": "data"
+}
+

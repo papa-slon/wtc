@@ -1,0 +1,44 @@
+{
+  "total": 2,
+  "page": 1,
+  "page_size": 50,
+  "pages": 1,
+  "rows": [
+    {
+      "id": 1,
+      "symbol": "BTC-USDT",
+      "side": "long",
+      "units": 1,
+      "qty": null,
+      "entry": 62000.0,
+      "exit": 63800.0,
+      "gross_pnl": 142.50,
+      "fees_pnl": -5.60,
+      "funding_pnl": 0.80,
+      "net_pnl": 137.70,
+      "opened_at": "2026-05-28T10:00:00+00:00",
+      "closed_at": "2026-05-28T16:00:00+00:00",
+      "hold_hours": 6.0,
+      "exit_reason": "take_profit",
+      "ret_pct": 2.90
+    },
+    {
+      "id": 2,
+      "symbol": "ETH-USDT",
+      "side": "short",
+      "units": 1,
+      "qty": null,
+      "entry": 3200.0,
+      "exit": 3320.0,
+      "gross_pnl": -38.20,
+      "fees_pnl": -2.80,
+      "funding_pnl": -0.60,
+      "net_pnl": -41.60,
+      "opened_at": "2026-05-29T08:00:00+00:00",
+      "closed_at": "2026-05-29T11:00:00+00:00",
+      "hold_hours": 3.0,
+      "exit_reason": "stop",
+      "ret_pct": -3.75
+    }
+  ]
+}

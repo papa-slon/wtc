@@ -1,0 +1,161 @@
+# CI is staged: this repo is not yet a git repo / has no GitHub remote. Local gate equivalent: npm run ci:local. CI pending.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: wtc
+          POSTGRES_PASSWORD: wtc
+          POSTGRES_DB: wtc
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U wtc -d wtc"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      DATABASE_URL: postgres://wtc:wtc@localhost:5432/wtc
+      # Real-Postgres opt-in harness (tests/integration/db-real-postgres.test.ts) runs against a SEPARATE
+      # throwaway DB so it never collides with the db:migrate/db:seed above. STAGED + UNVERIFIED: CI is
+      # inert (not a git repo / no remote) — confirm on the first real CI run. The harness applies raw
+      # migrations (CREATE TABLE, not idempotent), so each suite run needs a FRESH wtc_test — it is
+      # dropped/created below before Test AND before Coverage (which re-runs the suite).
+      REAL_POSTGRES_DATABASE_URL: postgres://wtc:wtc@localhost:5432/wtc_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check core (smoke)
+        run: npm run check:core
+
+      - name: Governance check
+        run: npm run governance:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck (root)
+        run: npm run typecheck
+
+      - name: Typecheck @wtc/web
+        run: npm run typecheck -w @wtc/web
+
+      - name: Secret scan
+        run: npm run secret:scan
+
+      - name: Generate ephemeral secrets
+        run: |
+          echo "SESSION_SECRET=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+          echo "SECRET_VAULT_KEK=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+          stripe_mode=test
+          echo "STRIPE_SECRET_KEY=sk_${stripe_mode}_ci_$(openssl rand -hex 12)" >> "$GITHUB_ENV"
+          echo "STRIPE_WEBHOOK_SECRET=whsec_ci_$(openssl rand -hex 12)" >> "$GITHUB_ENV"
+          echo "STRIPE_PRICE_MAP=tortila_monthly=price_ci_tortila,education_lifetime=price_ci_education,bundle_starter=price_ci_bundle" >> "$GITHUB_ENV"
+          {
+            echo "AXIOMA_HANDOFF_SIGNING_KEY<<EOF"
+            openssl ecparam -name prime256v1 -genkey -noout
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+          echo "AXIOMA_HANDOFF_KEY_ID=ci-axioma-es256" >> "$GITHUB_ENV"
+          echo "CSRF_SECRET=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+
+      - name: Validate production-like env fences
+        env:
+          APP_ENV: staging
+          NODE_ENV: production
+          BILLING_PROVIDER: stripe
+        run: node --experimental-strip-types --input-type=module -e "import { loadEnv } from '@wtc/config'; loadEnv(); console.log('production-like env config ok')"
+
+      - name: Run DB migrations
+        run: npm run db:migrate -w @wtc/db
+
+      - name: Seed DB
+        run: npm run db:seed -w @wtc/db
+
+      # Fresh throwaway DB for the real-Postgres harness (separate from the migrated `wtc` above).
+      - name: Create wtc_test (real-Postgres harness)
+        run: PGPASSWORD=wtc psql -h localhost -U wtc -d wtc -c 'DROP DATABASE IF EXISTS wtc_test' -c 'CREATE DATABASE wtc_test'
+
+      - name: Test
+        run: npm test
+
+      # Coverage re-runs the whole suite, and the harness re-applies raw migrations, so it needs a fresh DB.
+      - name: Recreate wtc_test (real-Postgres harness, for the coverage re-run)
+        run: PGPASSWORD=wtc psql -h localhost -U wtc -d wtc -c 'DROP DATABASE IF EXISTS wtc_test' -c 'CREATE DATABASE wtc_test'
+
+      - name: Coverage
+        run: npm run coverage
+
+      - name: Build @wtc/web
+        run: npm run build -w @wtc/web
+
+  e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run e2e tests
+        run: npm run e2e
+        env:
+          CI: true
+
+      - name: Inventory retained visual artifacts
+        if: always()
+        run: npm run evidence:visual -- --inventory tests/e2e/screenshots
+
+      - name: Validate reviewed visual evidence manifests
+        if: always()
+        shell: bash
+        run: |
+          shopt -s globstar nullglob
+          manifests=(logs/retained-visual-artifacts/**/visual-review*.json)
+          if [ "${#manifests[@]}" -eq 0 ]; then
+            echo "No reviewed visual evidence manifest present; skipping visual evidence upload."
+            exit 0
+          fi
+          for manifest in "${manifests[@]}"; do
+            npm run evidence:visual -- --manifest "$manifest" tests/e2e/screenshots
+          done
+
+      - name: Upload reviewed visual evidence manifests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-visual-evidence
+          path: logs/retained-visual-artifacts/**/visual-review*.json
+          if-no-files-found: ignore
+          retention-days: 3

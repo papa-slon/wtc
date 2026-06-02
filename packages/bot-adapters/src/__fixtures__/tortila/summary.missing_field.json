@@ -1,0 +1,23 @@
+{
+  "now": "2026-05-30T13:55:00+00:00",
+  "trades_total": 5,
+  "open_positions": 0,
+  "net_pnl": 50.0,
+  "max_dd_pct": 3.0,
+  "current_dd_pct": 1.0,
+  "last_equity": 1050.0,
+  "first_equity": 1000.0,
+  "pnl_pct_since_start": 5.0,
+  "wins": 3,
+  "losses": 2,
+  "win_rate_pct": 60.0,
+  "best_trade": 30.0,
+  "worst_trade": -15.0,
+  "return_dd_ratio": 1.67,
+  "at_ath": false,
+  "fees_total": -5.0,
+  "funding_total": 0.2,
+  "start_date": null,
+  "mode": "live",
+  "open_position_summaries": []
+}

@@ -1,0 +1,38 @@
+{
+  "now": "2026-05-30T13:55:00+00:00",
+  "trades_total": 42,
+  "open_positions": 1,
+  "net_pnl": 215.80,
+  "net_pnl_with_fees": 198.40,
+  "max_dd_pct": 8.2,
+  "current_dd_pct": 2.1,
+  "last_equity": 1298.00,
+  "first_equity": 1000.00,
+  "pnl_pct_since_start": 29.8,
+  "wins": 28,
+  "losses": 14,
+  "win_rate_pct": 66.67,
+  "best_trade": 142.50,
+  "worst_trade": -38.20,
+  "return_dd_ratio": 3.63,
+  "at_ath": false,
+  "fees_total": -17.40,
+  "funding_total": 0.80,
+  "start_date": "2026-01-15T00:00:00+00:00",
+  "mode": "live",
+  "open_position_summaries": [
+    {
+      "symbol": "NEAR-USDT",
+      "side": "long",
+      "units": 2,
+      "total_qty": 120.0,
+      "avg_entry": 5.42,
+      "last_entry": 5.55,
+      "stop": 5.10,
+      "stop_dist_pct": 5.90,
+      "has_tp": true,
+      "system": 1,
+      "opened_at": "2026-05-30T05:55:00+00:00"
+    }
+  ]
+}

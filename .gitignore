@@ -1,0 +1,43 @@
+# deps
+node_modules/
+.pnp.*
+# build
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+apps/web/.next-e2e/
+apps/web/.next-e2e-auth/
+apps/web/.next-e2e-auth-db/
+apps/web/.next-e2e-db/
+.next-e2e-auth/
+.next-e2e-auth-db/
+dev-server.log
+.runtime/
+logs/
+logs/preview-safe*.log
+logs/retained-visual-artifacts/
+# env / secrets — NEVER commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+# test artifacts
+coverage/
+test-results/
+playwright-report/
+tests/e2e/screenshots/*.tmp.png
+visual-*.png
+# local db
+*.sqlite
+*.db
+pgdata/
+# os / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

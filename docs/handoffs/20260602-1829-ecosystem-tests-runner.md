@@ -1,0 +1,71 @@
+# ecosystem-tests-runner handoff
+## Scope
+Read-only tests-runner audit for the next post-Phase 3.60 credentialed gate: append-only audit DB-role proof via `npm run accept:audit:append-only-role`.
+
+This audit read the required protocol/status docs and inspected package scripts, `scripts/audit-append-only-role-preflight.mjs`, the current managed helper, focused tests, and acceptance docs. No DB-mutating command was run. No product code was edited. No background agents were spawned in this per-agent audit, so none required cleanup.
+## Files inspected
+`AGENTS.md`, `docs/SESSION_PROTOCOL.md`, `docs/handoffs/0000-orchestrator-seed.md`, `docs/STATUS.md`, `docs/NEXT_ACTIONS.md`, `docs/PRODUCTION_BLOCKERS_CURRENT.md`, `docs/CREDENTIAL_ACCEPTANCE_BLOCKERS_CURRENT.md`, `docs/NEXT_SESSION_PROMPT_AFTER_PHASE_3_60_20260602.md`, `docs/handoffs/20260602-1802-phase-3-60-existing-bot-real-pg-managed-acceptance.md`, `docs/DEPLOYMENT.md`, `docs/AUDIT_LOG_SCHEMA.md`, `docs/ACCEPTANCE_MATRIX_MASTER.md`, `.env.example`, `package.json`, `packages/db/package.json`, `packages/db/migrations`, `packages/db/src/schema.ts`, `packages/db/src/repositories.ts`, `scripts/audit-append-only-role-preflight.mjs`, `scripts/run-audit-append-only-role-managed.mjs`, `scripts/gates.mjs`, `scripts/redacted-child-process.mjs`, `tests/integration/audit-append-only-role-preflight.test.ts`, and related `rg` hits for `AUDIT_APPEND_ONLY_*`, `wtc_app_role`, `audit_logs`, `GRANT`, `REVOKE`, `TRUNCATE`, and `system.health_check`.
+## Files changed
+None - read-only audit
+## Findings
+1. Severity: High. Evidence: `docs/CREDENTIAL_ACCEPTANCE_BLOCKERS_CURRENT.md:38`, `docs/CREDENTIAL_ACCEPTANCE_BLOCKERS_CURRENT.md:39`, `docs/CREDENTIAL_ACCEPTANCE_BLOCKERS_CURRENT.md:40`, `docs/CREDENTIAL_ACCEPTANCE_BLOCKERS_CURRENT.md:41`, `docs/CREDENTIAL_ACCEPTANCE_BLOCKERS_CURRENT.md:71`, `docs/STATUS.md:14`, `docs/NEXT_ACTIONS.md:12`, `docs/NEXT_ACTIONS.md:17`. Recommendation: keep append-only audit DB-role proof marked NOT RUN until the intended restricted role/database is supplied and the command exits 0 in the current session. Target part: gate truth.
+2. Severity: High. Evidence: `package.json:36`, `scripts/audit-append-only-role-preflight.mjs:10`, `scripts/audit-append-only-role-preflight.mjs:11`, `scripts/audit-append-only-role-preflight.mjs:12`, `scripts/audit-append-only-role-preflight.mjs:13`, `.env.example:19`, `.env.example:23`, `.env.example:24`, `.env.example:25`, `.env.example:26`. Recommendation: direct run prerequisites are `AUDIT_APPEND_ONLY_DATABASE_URL` for the restricted app role, `AUDIT_APPEND_ONLY_EXPECTED_ROLE` (defaults to `wtc_app_role`), and `AUDIT_APPEND_ONLY_PREFLIGHT_ACCEPT=1`; set `AUDIT_APPEND_ONLY_PREFLIGHT_NON_THROWAWAY_APPROVED=1` only for an explicitly approved non-`wtc_test*` target. Target part: credential/consent admission.
+3. Severity: High. Evidence: `scripts/audit-append-only-role-preflight.mjs:68`, `scripts/audit-append-only-role-preflight.mjs:72`, `scripts/audit-append-only-role-preflight.mjs:73`, `scripts/audit-append-only-role-preflight.mjs:74`, `scripts/audit-append-only-role-preflight.mjs:77`, `scripts/audit-append-only-role-preflight.mjs:78`. Recommendation: expected refusal semantics are help exits 0, missing consent/invalid args/invalid URL/admin-looking role/non-throwaway target exits 2 before DB connection, and accepted valid-looking runs connect with `postgres` max pool 1. Target part: preflight failure modes.
+4. Severity: High. Evidence: `scripts/audit-append-only-role-preflight.mjs:84`, `scripts/audit-append-only-role-preflight.mjs:87`, `scripts/audit-append-only-role-preflight.mjs:91`, `scripts/audit-append-only-role-preflight.mjs:98`, `scripts/audit-append-only-role-preflight.mjs:111`, `scripts/audit-append-only-role-preflight.mjs:120`, `scripts/audit-append-only-role-preflight.mjs:133`. Recommendation: pass requires `current_user` matching the expected role, `public.audit_logs` existing, role not elevated and not table owner, `SELECT`/`INSERT` granted, and `UPDATE`/`DELETE`/`TRUNCATE` not granted. Target part: permission proof semantics.
+5. Severity: High. Evidence: `scripts/audit-append-only-role-preflight.mjs:136`, `scripts/audit-append-only-role-preflight.mjs:138`, `scripts/audit-append-only-role-preflight.mjs:147`, `scripts/audit-append-only-role-preflight.mjs:148`, `scripts/audit-append-only-role-preflight.mjs:151`, `scripts/audit-append-only-role-preflight.mjs:155`, `scripts/audit-append-only-role-preflight.mjs:160`, `scripts/audit-append-only-role-preflight.mjs:162`, `scripts/audit-append-only-role-preflight.mjs:164`. Recommendation: acceptance is not read-only; after privilege checks it writes one safe `system.health_check` row and verifies it is queryable, then prints a compact role/privilege summary without URLs. Target part: expected pass evidence.
+6. Severity: Medium. Evidence: `scripts/audit-append-only-role-preflight.mjs:61`, `scripts/audit-append-only-role-preflight.mjs:64`, `scripts/audit-append-only-role-preflight.mjs:65`, `scripts/audit-append-only-role-preflight.mjs:166`, `scripts/audit-append-only-role-preflight.mjs:167`, `scripts/audit-append-only-role-preflight.mjs:168`, `scripts/audit-append-only-role-preflight.mjs:173`. Recommendation: DB/table/privilege/probe failures exit 1 and redact URL/password-shaped substrings; still do not archive raw terminal buffers, env dumps, or screenshots of credentials. Target part: failure evidence retention.
+7. Severity: High. Evidence: `package.json:37`, `scripts/run-audit-append-only-role-managed.mjs:11`, `scripts/run-audit-append-only-role-managed.mjs:16`, `scripts/run-audit-append-only-role-managed.mjs:18`, `scripts/run-audit-append-only-role-managed.mjs:19`, `scripts/run-audit-append-only-role-managed.mjs:29`, `scripts/run-audit-append-only-role-managed.mjs:30`. Recommendation: the current tree now exposes `npm run accept:audit:append-only-role:managed`; with an admin maintenance URL in `AUDIT_APPEND_ONLY_ADMIN_DATABASE_URL`, the helper is intended to prepare a throwaway DB/temporary restricted role, run the direct preflight, and clean up. Treat this as current-code capability, not as completed proof. Target part: throwaway DB/role preparation.
+8. Severity: Medium. Evidence: `scripts/run-audit-append-only-role-managed.mjs:42`, `scripts/run-audit-append-only-role-managed.mjs:43`, `scripts/run-audit-append-only-role-managed.mjs:54`, `scripts/run-audit-append-only-role-managed.mjs:56`, `scripts/run-audit-append-only-role-managed.mjs:59`, `scripts/run-audit-append-only-role-managed.mjs:61`, `scripts/run-audit-append-only-role-managed.mjs:135`, `scripts/run-audit-append-only-role-managed.mjs:143`, `scripts/run-audit-append-only-role-managed.mjs:150`, `scripts/run-audit-append-only-role-managed.mjs:161`, `scripts/run-audit-append-only-role-managed.mjs:170`. Recommendation: yes, a throwaway DB/role can be prepared with admin Postgres if the admin URL points at a non-throwaway maintenance DB and has CREATE/DROP DATABASE plus CREATE/DROP ROLE privileges; the script creates `wtc_test_audit_<stamp>_<hex>` and `wtc_app_role_<stamp>_<hex>`, grants only `SELECT, INSERT` on `public.audit_logs`, then drops both. Target part: managed runbook.
+9. Severity: Medium. Evidence: `docs/DEPLOYMENT.md:458`, `docs/DEPLOYMENT.md:467`, `docs/DEPLOYMENT.md:468`, `docs/DEPLOYMENT.md:469`, `docs/DEPLOYMENT.md:470`, `docs/DEPLOYMENT.md:471`, `docs/DEPLOYMENT.md:474`, `docs/DEPLOYMENT.md:478`, `package.json:37`. Recommendation: active docs still document the direct restricted-role command, while the current package also exposes a managed command and admin env var; update docs/tests in a later implementation phase before relying on the managed path as canonical. Target part: docs-to-script drift.
+10. Severity: Medium. Evidence: `tests/integration/audit-append-only-role-preflight.test.ts:22`, `tests/integration/audit-append-only-role-preflight.test.ts:27`, `tests/integration/audit-append-only-role-preflight.test.ts:34`, `tests/integration/audit-append-only-role-preflight.test.ts:44`, `tests/integration/audit-append-only-role-preflight.test.ts:53`, `tests/integration/audit-append-only-role-preflight.test.ts:62`, `tests/integration/audit-append-only-role-preflight.test.ts:71`, `tests/integration/audit-append-only-role-preflight.test.ts:83`, `tests/integration/audit-append-only-role-preflight.test.ts:97`, `tests/integration/audit-append-only-role-preflight.test.ts:111`. Recommendation: focused no-DB safety coverage exists for the direct preflight and passed in this audit; add corresponding no-DB coverage for the managed helper before making it the primary operator path. Target part: test coverage.
+## Decisions
+- Keep this phase read-only and do not run `npm run accept:audit:append-only-role`, the managed audit-role runner, `db:migrate`, `db:seed`, `psql`, preview, Playwright, provider preflights, SSH/nginx/systemd checks, bot services/control, GitHub CI, deploy, or monitoring.
+- Treat `npm run accept:audit:append-only-role` as the documented restricted-role proof for preview/prod targets.
+- Treat `npm run accept:audit:append-only-role:managed` as a current-tree helper that can create a local throwaway DB/role from admin Postgres, but still unproven until run with approved credentials.
+- Do not rerun the Phase 3.59 LMS DB browser or Phase 3.60 active real-PG managed gates unless related code/DB behavior changes or the operator explicitly requests fresh proof.
+## Risks
+- The direct command writes one audit row by design; running it against preview/prod requires explicit target approval and `AUDIT_APPEND_ONLY_PREFLIGHT_NON_THROWAWAY_APPROVED=1`.
+- The direct command proves privileges via `has_table_privilege()` rather than executing denied `UPDATE`/`DELETE`/`TRUNCATE` statements; that is appropriate for avoiding destructive probes, but the result depends on PostgreSQL privilege introspection being run as the intended role.
+- A successful direct run against a throwaway DB does not prove production/preview role hardening unless it targets the intended production/preview restricted role and database.
+- The managed helper creates and drops a database and role; a hard kill, connection leak, or failed drop can leave `wtc_test_audit_*` or `wtc_app_role_*` residue.
+- The managed helper is now package-exposed, but docs and env examples do not yet describe `AUDIT_APPEND_ONLY_ADMIN_DATABASE_URL`; operator confusion between direct and managed paths is the main current runbook risk.
+- Redaction helpers reduce retained-output risk, but full URLs, passwords, raw env dumps, raw terminal transcripts, and screenshots remain unsafe evidence.
+## Verification/tests
+Gates RUN in this auditor session:
+
+| Gate | Command/evidence | Result |
+|---|---|---|
+| Required protocol/docs read | `Get-Content`/`rg` over `AGENTS.md`, `docs/SESSION_PROTOCOL.md`, seed, status, blocker, latest phase handoff, and runbook docs | PASS |
+| Git root truth | `git status --short` | NOT GIT-BACKED |
+| Audit env presence check | status-only check for `AUDIT_APPEND_ONLY_DATABASE_URL`, `AUDIT_APPEND_ONLY_EXPECTED_ROLE`, `AUDIT_APPEND_ONLY_PREFLIGHT_ACCEPT`, `AUDIT_APPEND_ONLY_PREFLIGHT_NON_THROWAWAY_APPROVED`, `AUDIT_APPEND_ONLY_ADMIN_DATABASE_URL` | all NOT_SET; values not printed |
+| Direct preflight syntax | `node --check scripts\audit-append-only-role-preflight.mjs` | PASS |
+| Managed helper syntax | `node --check scripts\run-audit-append-only-role-managed.mjs` | PASS |
+| Focused direct-preflight no-DB safety tests | audit env vars cleared; `npm test -- tests/integration/audit-append-only-role-preflight.test.ts` | PASS; 1 file, 9 tests |
+| Static audit | `rg` and line-numbered inspection of package scripts, preflight scripts, tests, migrations, and docs | PASS |
+
+Gates NOT RUN by design: `npm run accept:audit:append-only-role`, `npm run accept:audit:append-only-role:managed`, `db:migrate`, `db:seed`, any `psql` create/drop/grant/revoke, manual production/preview permission proof, `npm run accept:real-pg:managed`, direct `REAL_POSTGRES_DATABASE_URL` harness, `npm run e2e:lms:db`, `npm run e2e:lms:db:managed`, `npm run preview:safe`, default `npm run e2e`, `node scripts/gates.mjs e2e`, `node scripts/gates.mjs full`, root `npm test`, web build, live LMS object-store/scanner acceptance, Stripe, Axioma, preview/prod DB rollout, SSH/nginx/systemd/server checks, bot services/control, GitHub CI, deploy, and production monitoring.
+## Next actions
+1. Direct restricted-role proof, when the intended role already exists:
+   ```powershell
+   cd "C:\Users\maxib\GTE BOT\wtc_ecosystem_platform"
+   $env:AUDIT_APPEND_ONLY_DATABASE_URL = "postgres://wtc_app_role:<password>@127.0.0.1:5432/wtc_test_audit_role"
+   $env:AUDIT_APPEND_ONLY_EXPECTED_ROLE = "wtc_app_role"
+   $env:AUDIT_APPEND_ONLY_PREFLIGHT_ACCEPT = "1"
+   npm run accept:audit:append-only-role
+   Remove-Item Env:\AUDIT_APPEND_ONLY_DATABASE_URL
+   Remove-Item Env:\AUDIT_APPEND_ONLY_EXPECTED_ROLE
+   Remove-Item Env:\AUDIT_APPEND_ONLY_PREFLIGHT_ACCEPT
+   ```
+2. If the target is not a `wtc_test*` throwaway DB, require explicit operator approval and set only for that run:
+   ```powershell
+   $env:AUDIT_APPEND_ONLY_PREFLIGHT_NON_THROWAWAY_APPROVED = "1"
+   ```
+3. Managed throwaway proof, if an admin maintenance URL is approved and the current helper is accepted as the run path:
+   ```powershell
+   cd "C:\Users\maxib\GTE BOT\wtc_ecosystem_platform"
+   $env:AUDIT_APPEND_ONLY_ADMIN_DATABASE_URL = "postgres://<admin>:<password>@127.0.0.1:5432/postgres"
+   npm run accept:audit:append-only-role:managed
+   Remove-Item Env:\AUDIT_APPEND_ONLY_ADMIN_DATABASE_URL
+   ```
+4. Acceptance evidence to record: command exit 0, role name only, database name only, compact summary showing `select=true insert=true update=false delete=false truncate=false probe=inserted`, and cleanup confirmation for any managed `wtc_test_audit_*` DB / `wtc_app_role_*` role. Do not retain raw URLs, passwords, env dumps, or screenshots.
+5. Recommended follow-up gates after a successful credentialed proof: focused preflight no-DB tests, `npm run secret:scan`, `npm run governance:check`, then whichever single remaining credentialed/live gate is next: LMS object-store, LMS external scanner, Stripe, Axioma, preview smoke, GitHub CI, or deploy/server checks.

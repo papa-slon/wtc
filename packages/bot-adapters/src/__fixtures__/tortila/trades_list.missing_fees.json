@@ -1,0 +1,25 @@
+{
+  "total": 1,
+  "page": 1,
+  "page_size": 50,
+  "pages": 1,
+  "rows": [
+    {
+      "id": 3,
+      "symbol": "SOL-USDT",
+      "side": "long",
+      "units": 1,
+      "qty": null,
+      "entry": 150.0,
+      "exit": 162.0,
+      "gross_pnl": 88.0,
+      "funding_pnl": 0.0,
+      "net_pnl": 88.0,
+      "opened_at": "2026-05-25T09:00:00+00:00",
+      "closed_at": "2026-05-26T09:00:00+00:00",
+      "hold_hours": 24.0,
+      "exit_reason": "exit_signal",
+      "ret_pct": 8.0
+    }
+  ]
+}
