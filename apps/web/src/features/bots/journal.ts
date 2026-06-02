@@ -200,16 +200,12 @@ export async function loadBotJournal(productCode: BotProductCode, userId: string
     };
   }
 
-  const read = await loadBotReadModel(productCode, ['trades']);
-  const sourceAdapter = adapterSource(productCode, read.adapterMode);
   return {
     mode: 'postgres',
-    source: 'adapter_latest',
+    source: 'db_imports',
     canSaveReviews: true,
     botInstanceId: inst.id,
-    trades: (read.trades.data ?? [])
-      .filter((t) => t.closedAt !== null)
-      .map((t) => fromCanonicalTrade(t, sourceAdapter, reviewFromRow(reviewMap.get(key(sourceAdapter, t.id))))),
+    trades: [],
   };
 }
 

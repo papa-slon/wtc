@@ -18,7 +18,7 @@ import { loadBotConfig } from '@/features/bots/config';
 import { loadTvUserData } from '@/features/tv/queries';
 import { loadStudentCatalogue } from '@/features/lms/queries';
 import { PRODUCT_CODES, PRODUCTS, type ProductCode, type AccessDecision } from '@wtc/entitlements';
-import { PRODUCT_AVAILABILITY } from '@/lib/product-status';
+import { productAvailability } from '@/lib/product-status';
 import { BOT_CAPS } from '@/features/bots/meta';
 import { TORTILA_WARNINGS } from '@wtc/bot-adapters';
 import {
@@ -146,7 +146,7 @@ export async function loadCabinet(userId: string): Promise<CabinetData> {
         reason: decision.reason,
         allowed: decision.allowed,
         periodEnd: effectiveEnd(decision),
-        availability: PRODUCT_AVAILABILITY[code].status,
+        availability: productAvailability(code).status,
         isDemo,
         blockerRef: blockerFor(code),
         checkoutEnabled,

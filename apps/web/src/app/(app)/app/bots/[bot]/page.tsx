@@ -100,7 +100,7 @@ export default async function BotDetailPage({ params }: { params: Promise<{ bot:
         )
       )}
 
-      <ReadIssueBanner issue={read.metrics.issue ?? read.positions.issue ?? read.trades.issue ?? read.config.issue} />
+      <ReadIssueBanner issue={read.metrics.issue ?? read.positions.issue ?? read.trades.issue} />
 
       {metrics ? (
         <div className="wtc-grid wtc-grid-4">
@@ -174,7 +174,7 @@ export default async function BotDetailPage({ params }: { params: Promise<{ bot:
         ) : (
           <>
             <ReadIssueBanner issue={read.config.issue} />
-            <EmptyState title="Runtime config unavailable" hint="The WTC settings page remains available; runtime config reads stay blocked until the adapter is verified." />
+            <EmptyState title="Runtime config read unavailable" hint="WTC settings remain available and versioned; live runtime config reads stay blocked until the adapter is verified." />
           </>
         )}
         <div className="wtc-row" style={{ marginTop: 16 }}>

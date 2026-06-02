@@ -59,6 +59,17 @@ describe('bot read surfaces tolerate blocked/not-ready adapters', () => {
     expect(data).toMatch(/want\.has\('trades'\) && canReadData/);
   });
 
+  it('production Tortila read-only UI is DB-snapshot backed, not web adapter backed', () => {
+    expect(data).toMatch(/function dbSnapshotMode\(productCode: BotProductCode\)/);
+    expect(data).toMatch(/productCode === 'tortila_bot'/);
+    expect(data).toMatch(/process\.env\.NODE_ENV === 'production'/);
+    expect(data).toMatch(/loadDbBotReadModel/);
+    expect(data).toMatch(/integrationHealthChecks/);
+    expect(data).toMatch(/botMetricSnapshots/);
+    expect(data).toMatch(/botPositionSnapshots/);
+    expect(data).toMatch(/botTradeImports/);
+  });
+
   it('admin bot health renders not_configured as setup-needed, not a generic error', () => {
     expect(adminQueries).toMatch(/tortilaJournalStatus/);
     expect(adminQueries).toMatch(/tortilaJournalReadState/);
@@ -67,13 +78,14 @@ describe('bot read surfaces tolerate blocked/not-ready adapters', () => {
     expect(adminBots).toMatch(/tortilaJournalReadStateDetail/);
   });
 
-  it('bot journal checks durable DB imports before adapter fallback', () => {
+  it('bot journal stays DB-only when Postgres is configured', () => {
     const dbLookup = journal.indexOf('const inst = await ensureBotInstance');
-    const adapterFallback = journal.indexOf("const read = await loadBotReadModel(productCode, ['trades']);", dbLookup);
     const importsBranch = journal.indexOf('if (imports.length > 0)');
+    const noImportsReturn = journal.indexOf("source: 'db_imports'", importsBranch);
     expect(dbLookup).toBeGreaterThan(0);
     expect(importsBranch).toBeGreaterThan(dbLookup);
-    expect(adapterFallback).toBeGreaterThan(importsBranch);
+    expect(noImportsReturn).toBeGreaterThan(importsBranch);
+    expect(journal.indexOf("const read = await loadBotReadModel(productCode, ['trades']);", dbLookup)).toBe(-1);
   });
 });
 

@@ -15,7 +15,7 @@ import { getServerDb } from '@/lib/backend';
 import { listUsersWithCreatedAt, listAllTv, recentAuditEvents, listManualReviewItems, summarizeLmsObjectCleanupOperations } from '@wtc/db';
 import { schema } from '@wtc/db';
 import { botAdapterMode } from '@/lib/server-config';
-import { PRODUCT_AVAILABILITY } from '@/lib/product-status';
+import { productAvailability } from '@/lib/product-status';
 import { ENTITLEMENT_STATUSES, PLANS, PRODUCT_CODES, PRODUCTS } from '@wtc/entitlements';
 import { projectHealthDetail } from './health-detail';
 import type {
@@ -489,7 +489,7 @@ export async function loadAdminProducts(): Promise<AdminProductsResult> {
   const dbProductCodes = new Set(dbProducts.map((p) => p.code));
 
   const products: AdminProductOverviewRow[] = PRODUCT_CODES.map((code) => {
-    const av = PRODUCT_AVAILABILITY[code];
+    const av = productAvailability(code);
     const product = PRODUCTS[code];
     return {
       code,

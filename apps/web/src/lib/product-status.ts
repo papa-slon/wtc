@@ -19,6 +19,16 @@ export const PRODUCT_AVAILABILITY: Record<ProductCode, { status: Availability; n
   club: { status: 'planned', note: 'Not yet available' },
 };
 
+export function productAvailability(code: ProductCode): { status: Availability; note: string } {
+  if (code === 'tortila_bot' && process.env.BOT_ADAPTER_MODE !== undefined && process.env.BOT_ADAPTER_MODE !== 'mock') {
+    return {
+      status: 'available',
+      note: 'Live read-only monitoring canary - WTC DB snapshots only; live controls remain disabled until audited.',
+    };
+  }
+  return PRODUCT_AVAILABILITY[code];
+}
+
 export const AVAILABILITY_TONE: Record<Availability, Tone> = {
   available: 'ok',
   demo: 'warn',

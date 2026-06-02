@@ -58,7 +58,7 @@ describe('admin products page is a real overview, not a placeholder', () => {
   it('loader combines registry, product availability, DB catalog rows, plans, and entitlements', () => {
     expect(queries).toContain('loadAdminProducts');
     expect(queries).toContain('PRODUCT_CODES.map');
-    expect(queries).toContain('PRODUCT_AVAILABILITY');
+    expect(queries).toContain('productAvailability');
     expect(queries).toContain('schema.products');
     expect(queries).toContain('schema.plans');
     expect(queries).toContain('schema.entitlements');
