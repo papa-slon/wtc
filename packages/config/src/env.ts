@@ -46,12 +46,12 @@ const envSchema = z.object({
 
   AXIOMA_JOURNAL_BASE_URL: z.string().url().default('https://axi-o.ma'),
   AXIOMA_BRIDGE_API_TOKEN: z.string().optional(),
+  AXIOMA_ROUTE_SKELETON_ENABLED: boolFromEnv,
   AXIOMA_HANDOFF_SIGNING_SECRET: z.string().min(16).optional(),
   AXIOMA_HANDOFF_AUDIENCE: z.string().default('axi-o.ma'),
   // ES256 (production-grade) handoff signer material — EC P-256 PEM private key + its kid. Optional in
-  // development; REQUIRED when APP_ENV is staging|production (superRefine below) so a real deploy fails
-  // fast at boot if the key is missing. NEVER logged / in responses / in JWKS output (only the public
-  // JWK is emitted, via publicJwk()'s no-'d' assertion). See docs/AXIOMA_HANDOFF_TOKEN_SPEC.md.
+  // development; required when Axioma routes are enabled in staging/production. Otherwise Axioma
+  // stays fail-closed. NEVER logged / in responses / in JWKS output.
   AXIOMA_HANDOFF_SIGNING_KEY: z.string().optional(),
   AXIOMA_HANDOFF_KEY_ID: z.string().optional(),
 
@@ -95,16 +95,17 @@ const envSchema = z.object({
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['STRIPE_PRICE_MAP'], message: 'STRIPE_PRICE_MAP is required when BILLING_PROVIDER=stripe in production-like environments' });
     }
   }
-  // Axioma handoff ES256 fence (PG6): a real deployment (APP_ENV staging|production) MUST provide the
-  // ES256 signing key pair — the HS256 dev stub is forbidden there (resolveHandoffSigner throws). This
-  // is the config-load half of the fence; @wtc/axioma-bridge enforces it again at sign time (defence in
-  // depth). Keyed on APP_ENV (the deployment axis), independent of NODE_ENV.
-  if (data.APP_ENV === 'staging' || data.APP_ENV === 'production') {
+  // Axioma handoff ES256 fence (PG6): Axioma is optional for a production rollout.
+  // If enabled in staging/production, require the bridge token and ES256 pair before boot.
+  if ((data.APP_ENV === 'staging' || data.APP_ENV === 'production') && data.AXIOMA_ROUTE_SKELETON_ENABLED) {
+    if (!data.AXIOMA_BRIDGE_API_TOKEN?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['AXIOMA_BRIDGE_API_TOKEN'], message: 'AXIOMA_BRIDGE_API_TOKEN is required when Axioma routes are enabled in staging or production' });
+    }
     if (!data.AXIOMA_HANDOFF_SIGNING_KEY) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['AXIOMA_HANDOFF_SIGNING_KEY'], message: 'AXIOMA_HANDOFF_SIGNING_KEY (EC P-256 PEM) is required when APP_ENV is staging or production' });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['AXIOMA_HANDOFF_SIGNING_KEY'], message: 'AXIOMA_HANDOFF_SIGNING_KEY (EC P-256 PEM) is required when Axioma routes are enabled in staging or production' });
     }
     if (!data.AXIOMA_HANDOFF_KEY_ID) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['AXIOMA_HANDOFF_KEY_ID'], message: 'AXIOMA_HANDOFF_KEY_ID is required when APP_ENV is staging or production' });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['AXIOMA_HANDOFF_KEY_ID'], message: 'AXIOMA_HANDOFF_KEY_ID is required when Axioma routes are enabled in staging or production' });
     }
   }
   // A real (non-mock) adapter mode in production REQUIRES the journal read token — the journal is

@@ -66,6 +66,8 @@ describe('env: production secret-quality guards', () => {
       ...noAxioma,
       BILLING_PROVIDER: 'stripe',
       APP_ENV: 'production',
+      AXIOMA_ROUTE_SKELETON_ENABLED: 'true',
+      AXIOMA_BRIDGE_API_TOKEN: 'bridge-token-fixture',
       AXIOMA_HANDOFF_SIGNING_KEY: 'ec-p256-pem-test-placeholder',
       AXIOMA_HANDOFF_KEY_ID: 'wtc-axioma-sign-2026-01',
     } as unknown as NodeJS.ProcessEnv);
@@ -353,7 +355,7 @@ describe('env: SECRET_VAULT_KEK must be a base64 32-byte key (validated at confi
   });
 });
 
-describe('env: APP_ENV staging/production requires the Axioma ES256 signing key pair (PG6 fence)', () => {
+describe('env: APP_ENV staging/production requires Axioma operator bundle only when Axioma routes are enabled', () => {
   beforeEach(() => __resetEnvCache());
   // NODE_ENV=development isolates the new APP_ENV fence from the NODE_ENV=production guards.
   // The key value is a non-PEM placeholder — env.ts checks PRESENCE only (createEs256Signer validates
@@ -361,17 +363,35 @@ describe('env: APP_ENV staging/production requires the Axioma ES256 signing key 
   const devBase = { ...base, NODE_ENV: 'development' } as unknown as NodeJS.ProcessEnv;
   const KEY = 'ec-p256-pem-test-placeholder';
 
-  it('throws when APP_ENV=staging and the ES256 key/kid are absent', () => {
-    expect(() => loadEnv({ ...devBase, APP_ENV: 'staging' } as unknown as NodeJS.ProcessEnv)).toThrow();
-  });
-
-  it('throws when APP_ENV=production and only the key is set (kid missing)', () => {
-    expect(() => loadEnv({ ...devBase, APP_ENV: 'production', AXIOMA_HANDOFF_SIGNING_KEY: KEY } as unknown as NodeJS.ProcessEnv)).toThrow();
-  });
-
-  it('accepts APP_ENV=staging with both ES256 key + kid', () => {
-    const env = loadEnv({ ...devBase, APP_ENV: 'staging', AXIOMA_HANDOFF_SIGNING_KEY: KEY, AXIOMA_HANDOFF_KEY_ID: 'wtc-axioma-sign-2026-01' } as unknown as NodeJS.ProcessEnv);
+  it('allows APP_ENV=staging without ES256 material when Axioma routes are disabled', () => {
+    const env = loadEnv({ ...devBase, APP_ENV: 'staging' } as unknown as NodeJS.ProcessEnv);
     expect(env.APP_ENV).toBe('staging');
+    expect(env.AXIOMA_ROUTE_SKELETON_ENABLED).toBe(false);
+  });
+
+  it('throws when APP_ENV=staging and Axioma routes are enabled without the operator bundle', () => {
+    expect(() => loadEnv({ ...devBase, APP_ENV: 'staging', AXIOMA_ROUTE_SKELETON_ENABLED: 'true' } as unknown as NodeJS.ProcessEnv)).toThrow(
+      /AXIOMA_BRIDGE_API_TOKEN, AXIOMA_HANDOFF_SIGNING_KEY, AXIOMA_HANDOFF_KEY_ID/,
+    );
+  });
+
+  it('throws when APP_ENV=production and Axioma routes have only the key set (token and kid missing)', () => {
+    expect(() =>
+      loadEnv({ ...devBase, APP_ENV: 'production', AXIOMA_ROUTE_SKELETON_ENABLED: 'true', AXIOMA_HANDOFF_SIGNING_KEY: KEY } as unknown as NodeJS.ProcessEnv),
+    ).toThrow(/AXIOMA_BRIDGE_API_TOKEN, AXIOMA_HANDOFF_KEY_ID/);
+  });
+
+  it('accepts APP_ENV=staging with enabled routes and the full Axioma operator bundle', () => {
+    const env = loadEnv({
+      ...devBase,
+      APP_ENV: 'staging',
+      AXIOMA_ROUTE_SKELETON_ENABLED: 'true',
+      AXIOMA_BRIDGE_API_TOKEN: 'bridge-token-fixture',
+      AXIOMA_HANDOFF_SIGNING_KEY: KEY,
+      AXIOMA_HANDOFF_KEY_ID: 'wtc-axioma-sign-2026-01',
+    } as unknown as NodeJS.ProcessEnv);
+    expect(env.APP_ENV).toBe('staging');
+    expect(env.AXIOMA_ROUTE_SKELETON_ENABLED).toBe(true);
     expect(env.AXIOMA_HANDOFF_KEY_ID).toBe('wtc-axioma-sign-2026-01');
   });
 

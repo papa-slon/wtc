@@ -652,9 +652,9 @@ wave first, then consumers), per ADR-014.
 APP_ENV: z.enum(['development', 'test', 'staging', 'production']).default('development')
 ```
 
-`NODE_ENV` is not extended (it is consumed by Next.js/Vitest and must remain `development | test | production`). `APP_ENV` is the deployment-env discriminator for business-logic fences. The staging+production fence for the ES256 signer is expressed as `APP_ENV === 'staging' || APP_ENV === 'production'`.
+`NODE_ENV` is not extended (it is consumed by Next.js/Vitest and must remain `development | test | production`). `APP_ENV` is the deployment-env discriminator for business-logic fences. The staging+production fence for the ES256 signer applies when Axioma routes are explicitly enabled: `(APP_ENV === 'staging' || APP_ENV === 'production') && AXIOMA_ROUTE_SKELETON_ENABLED === true`.
 
-A new `superRefine` check requires both `AXIOMA_HANDOFF_SIGNING_KEY` and `AXIOMA_HANDOFF_KEY_ID` to be present when `APP_ENV` is `staging` or `production`. This replaces the existing `AXIOMA_HANDOFF_SIGNING_SECRET` production check for the new ES256 path.
+A new `superRefine` check requires `AXIOMA_BRIDGE_API_TOKEN`, `AXIOMA_HANDOFF_SIGNING_KEY`, and `AXIOMA_HANDOFF_KEY_ID` to be present when Axioma routes are enabled in `staging` or `production`. If the Axioma module is out of scope, keep `AXIOMA_ROUTE_SKELETON_ENABLED=false`; Axioma routes remain fail-closed while the rest of WTC can deploy.
 
 ### 13.2 Env schema additions: `AXIOMA_HANDOFF_SIGNING_KEY` and `AXIOMA_HANDOFF_KEY_ID`
 

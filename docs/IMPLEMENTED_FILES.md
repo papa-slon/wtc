@@ -1222,8 +1222,9 @@
   `tests/integration/tv-access-hardening.test.ts` - `repairMissingTvRevokeTasks()` repairs historical worker-expiry revokes
   that lack manual external revoke tasks, is idempotent, excludes manual revokes, and is reported by worker health/log output.
 - `packages/config/src/env.ts` and `packages/config/src/env.test.ts` - production no longer requires the unused HS256
-  `AXIOMA_HANDOFF_SIGNING_SECRET`; ES256 key/kid remain required by `APP_ENV=staging|production`, and weak optional HS256
-  values are still rejected in production.
+  `AXIOMA_HANDOFF_SIGNING_SECRET`; the Axioma bridge token plus ES256 key/kid are required only when
+  `AXIOMA_ROUTE_SKELETON_ENABLED=true` in `APP_ENV=staging|production`, and weak optional HS256 values are still rejected
+  in production.
 - `apps/web/src/features/terminal/axioma-jwks-readiness.ts`,
   `apps/web/src/app/.well-known/axioma-jwks.json/route.ts`, `apps/web/src/features/terminal/loader.ts`,
   `tests/integration/axioma-jwks-readiness.test.ts`, and `tests/integration/axioma-skeleton-static.test.ts` - one JWKS

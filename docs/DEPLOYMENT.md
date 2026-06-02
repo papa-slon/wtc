@@ -512,9 +512,10 @@ intended database role and target database in the current session. A dry docs up
 ## Environment
 
 See [`.env.example`](../.env.example). **Required in production** (the app fails closed without them):
-`DATABASE_URL`, `SESSION_SECRET`, `SECRET_VAULT_KEK` (+ `SECRET_VAULT_KEY_ID`), `AXIOMA_HANDOFF_SIGNING_KEY`, and
+`DATABASE_URL`, `SESSION_SECRET`, and `SECRET_VAULT_KEK` (+ `SECRET_VAULT_KEY_ID`). If Axioma is in scope and
+`AXIOMA_ROUTE_SKELETON_ENABLED=true`, also provision `AXIOMA_BRIDGE_API_TOKEN`, `AXIOMA_HANDOFF_SIGNING_KEY`, and
 `AXIOMA_HANDOFF_KEY_ID`. `AXIOMA_HANDOFF_SIGNING_SECRET` is an optional HS256 dev/test stub only and is not a production
-handoff signer.
+handoff signer. If Axioma is out of scope, keep `AXIOMA_ROUTE_SKELETON_ENABLED=false`; Axioma routes remain fail-closed.
 Safe defaults: `FEATURE_LIVE_BOT_CONTROL=false`, `FEATURE_TV_AUTOMATION=false`, `BOT_ADAPTER_MODE=mock`.
 
 ## Wave-2 devops checklist

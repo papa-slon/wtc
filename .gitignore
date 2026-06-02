@@ -30,6 +30,7 @@ coverage/
 test-results/
 playwright-report/
 tests/e2e/screenshots/*.tmp.png
+tests/e2e/screenshots/*.png
 visual-*.png
 # local db
 *.sqlite

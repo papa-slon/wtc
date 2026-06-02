@@ -1,4 +1,4 @@
-# CI is staged: this repo is not yet a git repo / has no GitHub remote. Local gate equivalent: npm run ci:local. CI pending.
+# Local gate equivalent: npm run ci:local.
 
 name: CI
 
@@ -73,12 +73,9 @@ jobs:
           echo "STRIPE_SECRET_KEY=sk_${stripe_mode}_ci_$(openssl rand -hex 12)" >> "$GITHUB_ENV"
           echo "STRIPE_WEBHOOK_SECRET=whsec_ci_$(openssl rand -hex 12)" >> "$GITHUB_ENV"
           echo "STRIPE_PRICE_MAP=tortila_monthly=price_ci_tortila,education_lifetime=price_ci_education,bundle_starter=price_ci_bundle" >> "$GITHUB_ENV"
-          {
-            echo "AXIOMA_HANDOFF_SIGNING_KEY<<EOF"
-            openssl ecparam -name prime256v1 -genkey -noout
-            echo "EOF"
-          } >> "$GITHUB_ENV"
+          echo "AXIOMA_HANDOFF_SIGNING_KEY=ci-es256-placeholder-not-a-real-key" >> "$GITHUB_ENV"
           echo "AXIOMA_HANDOFF_KEY_ID=ci-axioma-es256" >> "$GITHUB_ENV"
+          echo "AXIOMA_BRIDGE_API_TOKEN=ci_axioma_bridge_token_$(openssl rand -hex 12)" >> "$GITHUB_ENV"
           echo "CSRF_SECRET=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
 
       - name: Validate production-like env fences
@@ -86,6 +83,7 @@ jobs:
           APP_ENV: staging
           NODE_ENV: production
           BILLING_PROVIDER: stripe
+          AXIOMA_ROUTE_SKELETON_ENABLED: true
         run: node --experimental-strip-types --input-type=module -e "import { loadEnv } from '@wtc/config'; loadEnv(); console.log('production-like env config ok')"
 
       - name: Run DB migrations
