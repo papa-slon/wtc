@@ -1,5 +1,18 @@
 # NEXT ACTIONS
 
+**Phase 3.64 (production canary deploy) is live** - public URL:
+`https://wtc.54.179.188.61.nip.io`. Agents closed: devops, security, tests, and bot-integration. The server now runs release
+`5522900` as `wtc-ecosystem-canary` on `127.0.0.1:8301`, with nginx/TLS on the `nip.io` hostname. Browser/curl HTTPS smokes
+passed, real registration/login passed, GitHub Actions for `5522900` passed, local `npm run ci:local` passed, and the
+canary uses secure/httpOnly `__Host-wtc_session` cookies. Both live bots stayed up. `wtc-bot-api-firewall.service` now blocks
+external access to bot API ports: external probe shows `8000/8080` timeout while server-local probes still open.
+Aggregate: [`docs/handoffs/20260602-2125-phase-3-64-production-canary-deploy.md`](handoffs/20260602-2125-phase-3-64-production-canary-deploy.md).
+
+**Do not call this full bot-integrated production yet.** Current canary is intentionally `BOT_ADAPTER_MODE=mock` with
+`FEATURE_LIVE_BOT_CONTROL=false`. Next phase should be exactly one of these: Tortila read-only adapter hardening, Legacy
+adapter security remediation, billing provider acceptance, branded-domain DNS/TLS, production worker/monitoring rollout, or
+rollback-container cleanup. Do not start/stop/apply live bot config until the bot-integration and security gates pass.
+
 **Phase 3.63 (production-readiness gap closure) is landed locally** - production is still not ready, but the local
 production-readiness harness is stronger. Agents closed: security, bot-integration, devops, backend, frontend, tests.
 Changes landed: production-like Stripe/Axioma CI env validation, production-like Stripe config requirements, real-form auth

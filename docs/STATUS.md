@@ -1,5 +1,22 @@
 # STATUS
 
+_Latest update: 2026-06-02 - Phase 3.64 Production canary deploy._
+WTC is now live as an HTTPS production canary at `https://wtc.54.179.188.61.nip.io`. Four read-only agents ran before
+deploy work and were closed: devops, security, tests, and bot-integration. The canary release is commit `5522900`, deployed
+on the server as `wtc-ecosystem-canary` on `127.0.0.1:8301`; nginx routes the WTC canary hostname to it, and Let's Encrypt
+TLS is active for the `nip.io` hostname. The canary DB is `wtc_platform_canary_20260602_1412`, created from the existing WTC
+preview DB and then migrated/seeded. GitHub Actions for `5522900` passed, local `npm run ci:local` passed, public HTTPS
+smokes passed, real browser registration/login passed, and the session cookie is secure/httpOnly `__Host-wtc_session`.
+Both existing bots remained running: `turtle-bot.service` is active, tmux session `bot` exists, and server-local
+`127.0.0.1:8000` / `127.0.0.1:8080` probes are open. New firewall service `wtc-bot-api-firewall.service` is active; external
+TCP probes now show `80 open`, `443 open`, `8000 timeout`, and `8080 timeout`.
+
+This is **PRODUCTION CANARY LIVE**, not full bot-integrated production. The canary intentionally runs `BOT_ADAPTER_MODE=mock`
+and `FEATURE_LIVE_BOT_CONTROL=false`; real Tortila/Legacy adapters, any live bot control, Stripe self-serve billing, Axioma
+live acceptance, live LMS object-store/scanner, branded-domain DNS/TLS, production worker rollout, and long-running
+monitoring are still **NOT GREEN**. Aggregate:
+[`docs/handoffs/20260602-2125-phase-3-64-production-canary-deploy.md`](handoffs/20260602-2125-phase-3-64-production-canary-deploy.md).
+
 _Latest update: 2026-06-02 - Phase 3.63 Production-readiness gap closure._
 Closed the next production-readiness gap-closure phase without live server/provider mutation. Six read-only agents ran before
 edits and were closed: security, bot-integration, devops, backend, frontend, and tests. CI/env fences now generate and

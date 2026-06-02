@@ -1,6 +1,17 @@
 # Current Production Blockers
 
-Last updated: 2026-06-02, Phase 3.63 production-readiness gap closure.
+Last updated: 2026-06-02, Phase 3.64 production canary deploy.
+
+Phase 3.64 changed the current production status: WTC is now publicly live as an HTTPS production canary at
+`https://wtc.54.179.188.61.nip.io`, backed by release `5522900`, canary DB `wtc_platform_canary_20260602_1412`, nginx/TLS,
+and a secure-cookie browser registration/login smoke. Both existing bots remained running, and the bot API ports are now
+firewalled from the public internet while still open locally on the server. This clears the "no public deployed site" blocker
+for canary review.
+
+It does **not** clear full production readiness. The canary intentionally runs `BOT_ADAPTER_MODE=mock` and
+`FEATURE_LIVE_BOT_CONTROL=false`. Real Tortila/Legacy adapter acceptance, any live bot control, Stripe self-serve billing,
+Axioma live bridge, live LMS object-store/scanner, branded-domain DNS/TLS, production worker rollout, and long-running
+monitoring remain blockers.
 
 Phase 3.6 made the local product preview and e2e harness stricter. The 2026-06-01 continuation cleared the real-Postgres acceptance blocker for the raw-IP preview host and moved the preview off in-memory storage.
 
