@@ -92,6 +92,15 @@ describe('bot read surfaces tolerate blocked/not-ready adapters', () => {
     expect(adminBots).toMatch(/tortilaJournalReadStateDetail/);
   });
 
+  it('admin bot health exposes a safe Legacy pub_id inspector from worker snapshots', () => {
+    expect(adminQueries).toMatch(/legacyProviderAccounts/);
+    expect(adminQueries).toMatch(/legacyActiveSlots/);
+    expect(adminQueries).toMatch(/legacyActiveOrders/);
+    expect(adminBots).toMatch(/Legacy pub_id inspector/);
+    expect(adminBots).toMatch(/Provider DB connection/);
+    expect(adminBots).not.toMatch(/DB URL/);
+  });
+
   it('bot journal stays DB-only when Postgres is configured', () => {
     const dbLookup = journal.indexOf('const inst = await ensureBotInstance');
     const importsBranch = journal.indexOf('if (imports.length > 0)');
@@ -130,12 +139,14 @@ describe('bot config captures manual/auto intent without live control', () => {
     expect(config).toMatch(/botConfigFieldsFor/);
   });
 
-  it('settings and setup parse and render operationMode while keeping WTC-only copy', () => {
+  it('settings and setup parse and render operationMode with product strategy copy', () => {
     for (const source of [settings, setup]) {
       expect(source).toMatch(/botConfigFormInput\(meta\.code, formData\)/);
       expect(source).toMatch(/name="operationMode"/);
-      expect(source).toMatch(/WTC-side intent only/);
     }
+    expect(config).toMatch(/Custom draft/);
+    expect(config).toMatch(/Managed live profile/);
+    expect(settings).toMatch(/Strategy mode/);
     expect(settings).toMatch(/applyBotPresetAction/);
     expect(settings).toMatch(/Reference profiles/);
     expect(setup).toMatch(/wizardApplyPreset/);
@@ -156,7 +167,19 @@ describe('bot config captures manual/auto intent without live control', () => {
     expect(setup).toMatch(/Connected through existing Legacy pub_id/);
     expect(setup).toMatch(/Exchange-key step is not used for Legacy/);
     expect(setup).toMatch(/provider pub_id/);
-    expect(settings).toMatch(/Showing latest Legacy live snapshot/);
-    expect(settings).toMatch(/provider runtime by pub_id/);
+    expect(settings).toMatch(/Legacy provider accounts/);
+    expect(settings).toMatch(/pubId/);
+    expect(settings).not.toMatch(/Showing latest Legacy live snapshot/);
+  });
+
+  it('legacy settings enforce one visible trigger per coin and expose pub_id context', () => {
+    const legacyTable = read('apps/web/src/features/bots/LegacyAveragingConfigTable.tsx');
+    expect(config).toMatch(/Choose exactly one signal: RSI or CCI/);
+    expect(config).toMatch(/providerPubId/);
+    expect(config).not.toMatch(/signal === 'both'/);
+    expect(legacyTable).toMatch(/<option value="rsi">RSI<\/option>/);
+    expect(legacyTable).toMatch(/<option value="cci">CCI<\/option>/);
+    expect(legacyTable).not.toMatch(/RSI \+ CCI/);
+    expect(legacyTable).toMatch(/legacy_pub_id_/);
   });
 });

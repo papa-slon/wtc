@@ -365,6 +365,9 @@ export async function loadAdminBotHealth(): Promise<AdminBotHealthResult> {
       tortilaJournalReadState: null,
       tortilaJournalReadStateDetail: null,
       latestSnapshot: null,
+      legacyProviderAccounts: [],
+      legacyActiveSlots: [],
+      legacyActiveOrders: [],
       botHealthChecks: [],
     };
   }
@@ -420,6 +423,56 @@ export async function loadAdminBotHealth(): Promise<AdminBotHealthResult> {
     .orderBy(desc(schema.botMetricSnapshots.snapshotAt))
     .limit(1);
 
+  const [legacySnap] = await db
+    .select({
+      snapshotAt: schema.botMetricSnapshots.snapshotAt,
+      rawJson: schema.botMetricSnapshots.rawJson,
+    })
+    .from(schema.botMetricSnapshots)
+    .innerJoin(schema.botInstances, eq(schema.botMetricSnapshots.botInstanceId, schema.botInstances.id))
+    .where(eq(schema.botInstances.productCode, 'legacy_bot'))
+    .orderBy(desc(schema.botMetricSnapshots.snapshotAt))
+    .limit(1);
+
+  const legacyRaw = (legacySnap?.rawJson ?? {}) as Record<string, unknown>;
+  const legacyLiveConfig = legacyRaw.liveConfig && typeof legacyRaw.liveConfig === 'object'
+    ? legacyRaw.liveConfig as Record<string, unknown>
+    : {};
+  const legacyRows = (value: unknown): Record<string, unknown>[] =>
+    Array.isArray(value) ? value.filter((row): row is Record<string, unknown> => !!row && typeof row === 'object') : [];
+  const legacyNum = (value: unknown): number | null => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  };
+  const legacyText = (value: unknown): string => (typeof value === 'string' ? value : '');
+  const legacyProviderAccounts = legacyRows(legacyLiveConfig.providerAccounts).map((row) => ({
+    pubId: legacyText(row.pubId),
+    market: legacyText(row.market) || 'BINGX',
+    running: row.running === true,
+    balance: legacyNum(row.balance),
+    quarantined: row.quarantined === true,
+    quarantineReason: typeof row.quarantineReason === 'string' ? row.quarantineReason : null,
+    symbols: legacyNum(row.symbols) ?? 0,
+    activeSlots: legacyNum(row.activeSlots) ?? 0,
+    activeOrders: legacyNum(row.activeOrders) ?? 0,
+    latestSnapshotAt: legacySnap?.snapshotAt.getTime() ?? null,
+  })).filter((row) => row.pubId);
+  const legacyActiveSlots = legacyRows(legacyLiveConfig.activeSlots).map((row) => ({
+    pubId: legacyText(row.providerPubId),
+    symbol: legacyText(row.symbol),
+    signal: legacyText(row.signal),
+    stage: legacyNum(row.stage),
+    averagingCount: legacyNum(row.averagingCount),
+    openedAt: legacyNum(row.openedAt),
+  })).filter((row) => row.pubId && row.symbol);
+  const legacyActiveOrders = legacyRows(legacyLiveConfig.activeOrderSummary).map((row) => ({
+    pubId: legacyText(row.providerPubId),
+    symbol: legacyText(row.symbol),
+    note: legacyText(row.note),
+    qty: legacyNum(row.qty),
+    price: legacyNum(row.price),
+  })).filter((row) => row.pubId && row.symbol);
+
   // Bot-related health checks (last 20). Targets include old bot.* names plus worker DB targets.
   const botHealthCheckRows = await db
     .select()
@@ -453,6 +506,9 @@ export async function loadAdminBotHealth(): Promise<AdminBotHealthResult> {
           sourceAdapter: snap.sourceAdapter,
         }
       : null,
+    legacyProviderAccounts,
+    legacyActiveSlots,
+    legacyActiveOrders,
     botHealthChecks,
   };
 }

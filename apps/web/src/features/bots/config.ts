@@ -66,6 +66,7 @@ export const tortilaBotConfigSchema = z.object({
 
 export const legacySymbolConfigSchema = z.object({
   symbol: z.string().trim().min(1).max(40),
+  providerPubId: z.string().trim().min(1).max(256).optional(),
   active: booleanLike.default(true),
   timeframe: legacyTimeframe,
   useRsi: booleanLike.default(true),
@@ -87,8 +88,8 @@ export const legacySymbolConfigSchema = z.object({
   useDeltaFilter: booleanLike.default(false),
   deltaFilter: z.coerce.number().min(-10_000).max(10_000).default(0),
 }).superRefine((row, ctx) => {
-  if (!row.useRsi && !row.useCci) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['useRsi'], message: 'Enable RSI, CCI, or both.' });
+  if (row.useRsi === row.useCci) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['useRsi'], message: 'Choose exactly one signal: RSI or CCI.' });
   }
   const dropCount = row.averagingPercents.split(',').map((s) => s.trim()).filter(Boolean).length;
   const volumeCount = row.averagingVolumePercents.split(',').map((s) => s.trim()).filter(Boolean).length;
@@ -149,13 +150,13 @@ export interface BotConfigPreset {
 export const BOT_OPERATION_MODES = [
   {
     value: 'manual',
-    label: 'Manual review mode',
-    hint: 'WTC records this bot as operator-reviewed before action. This is metadata only.',
+    label: 'Custom draft',
+    hint: 'Edit a WTC-side draft for review. It is saved as a version and is not pushed to the running bot.',
   },
   {
     value: 'auto',
-    label: 'Automatic reference mode',
-    hint: 'WTC records the bot as intended for automated strategy operation. It still does not send commands to the live bot.',
+    label: 'Managed live profile',
+    hint: 'Use the provider-side strategy already attached to the existing pub_id runtime.',
   },
 ] as const;
 
@@ -387,10 +388,11 @@ function legacySymbolConfigsFromForm(formData: FormData): LegacySymbolConfig[] {
     const signal = String(formData.get(`legacy_signal_${i}`) ?? 'rsi');
     const parsed = legacySymbolConfigSchema.safeParse({
       symbol,
+      providerPubId: formData.get(`legacy_pub_id_${i}`) || undefined,
       active: formData.get(`legacy_active_${i}`),
       timeframe: formData.get(`legacy_tf_${i}`),
-      useRsi: signal === 'rsi' || signal === 'both',
-      useCci: signal === 'cci' || signal === 'both',
+      useRsi: signal === 'rsi',
+      useCci: signal === 'cci',
       rsiLength: formData.get(`legacy_rsi_len_${i}`),
       rsiThreshold: formData.get(`legacy_rsi_thr_${i}`),
       cciLength: formData.get(`legacy_cci_len_${i}`),

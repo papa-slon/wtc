@@ -76,7 +76,7 @@ export const BOT_CAPS: Record<BotProductCode, BotCapabilities> = {
     liveAdapterBlocked: false,
     notes: [
       'Live-read uses the existing legacy runtime by pub_id and WTC worker snapshots; WTC does not collect or store exchange keys for this bot.',
-      'No closed-trade history endpoint — trade analytics are unavailable (shown honestly, never fabricated).',
+      'Closed-trade analytics are not connected yet, so win rate and profit factor stay unavailable instead of being fabricated.',
       'No exchange equity-curve endpoint — WTC shows wallet balance snapshots only.',
       'No backtester for this bot.',
     ],

@@ -428,22 +428,46 @@ function DistributionPanel({ advanced }: { advanced: AdvancedAnalytics }) {
 }
 
 function signalLabel(row: LegacySymbolConfig): string {
-  if (row.useRsi && row.useCci) return 'RSI+CCI';
   return row.useCci ? 'CCI' : 'RSI';
+}
+
+function providerShort(value: string | undefined): string {
+  return value ? `${value.slice(0, 8)}...${value.slice(-4)}` : '-';
+}
+
+function asObjectArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.filter((row): row is Record<string, unknown> => !!row && typeof row === 'object') : [];
+}
+
+function numberValue(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === 'string' ? value : '';
 }
 
 export function LegacyOperationsPanel({
   rows,
   stages,
+  liveConfig,
 }: {
   rows: readonly LegacySymbolConfig[];
   stages: readonly LegacyStageConfig[];
+  liveConfig?: Record<string, unknown> | null;
 }) {
   const active = rows.filter((row) => row.active);
-  const rsi = rows.filter((row) => row.useRsi);
-  const cci = rows.filter((row) => row.useCci);
+  const rsi = rows.filter((row) => row.useRsi && !row.useCci);
+  const cci = rows.filter((row) => row.useCci && !row.useRsi);
   const stageCapacity = stages.reduce((sum, row) => sum + row.rsiSlots + row.cciSlots, 0);
   const timeframes = [...new Set(rows.map((row) => row.timeframe))].join(', ');
+  const providerCount = new Set(rows.map((row) => row.providerPubId).filter(Boolean)).size;
+  const providerAccounts = asObjectArray(liveConfig?.providerAccounts);
+  const activeSlots = asObjectArray(liveConfig?.activeSlots);
+  const activeOrders = asObjectArray(liveConfig?.activeOrderSummary);
+  const tpOrders = activeOrders.filter((row) => stringValue(row.note).toUpperCase() === 'TAKE_PROFIT').length;
+  const averagingOrders = activeOrders.filter((row) => stringValue(row.note).toUpperCase() === 'AVERAGING').length;
   return (
     <div className="wtc-stack">
       <div>
@@ -452,22 +476,96 @@ export function LegacyOperationsPanel({
       </div>
       <div className="wtc-grid wtc-grid-4">
         <MetricCard label="Active symbols" value={active.length} sub={`${rows.length} configured`} />
-        <MetricCard label="RSI rows" value={rsi.length} />
-        <MetricCard label="CCI rows" value={cci.length} />
+        <MetricCard label="Provider pub_id" value={providerAccounts.length || providerCount || '-'} sub="safe account identity" />
+        <MetricCard label="Signal split" value={`${rsi.length} RSI / ${cci.length} CCI`} />
         <MetricCard label="Stage capacity" value={stageCapacity} sub="RSI + CCI slots" />
+        <MetricCard label="Active slots" value={activeSlots.length || '-'} sub={`${tpOrders} TP / ${averagingOrders} averaging orders`} />
       </div>
+      {providerAccounts.length > 0 && (
+        <Card title="Provider accounts">
+          <div className="wtc-table-wrap">
+            <table className="wtc-table">
+              <thead><tr><th>pub_id</th><th>Market</th><th>Status</th><th>Balance</th><th>Symbols</th><th>Slots</th><th>Orders</th></tr></thead>
+              <tbody>
+                {providerAccounts.map((row) => {
+                  const pubId = stringValue(row.pubId);
+                  const running = row.running === true;
+                  const quarantined = row.quarantined === true;
+                  return (
+                    <tr key={pubId}>
+                      <td data-label="pub_id" className="wtc-mono">{providerShort(pubId)}</td>
+                      <td data-label="Market">{stringValue(row.market) || 'BINGX'}</td>
+                      <td data-label="Status">
+                        <StatusPill tone={quarantined ? 'bad' : running ? 'ok' : 'warn'}>
+                          {quarantined ? 'quarantined' : running ? 'running' : 'paused'}
+                        </StatusPill>
+                      </td>
+                      <td data-label="Balance">{fmtMoney(numberValue(row.balance))}</td>
+                      <td data-label="Symbols">{numberValue(row.symbols)}</td>
+                      <td data-label="Slots">{numberValue(row.activeSlots)}</td>
+                      <td data-label="Orders">{numberValue(row.activeOrders)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+      {activeSlots.length > 0 && (
+        <Card title="Active slots">
+          <div className="wtc-table-wrap">
+            <table className="wtc-table">
+              <thead><tr><th>pub_id</th><th>Symbol</th><th>Signal</th><th>Stage</th><th>Averaging count</th><th>Opened</th></tr></thead>
+              <tbody>
+                {activeSlots.map((row, i) => (
+                  <tr key={`${stringValue(row.providerPubId)}-${stringValue(row.symbol)}-${i}`}>
+                    <td data-label="pub_id" className="wtc-mono">{providerShort(stringValue(row.providerPubId))}</td>
+                    <td data-label="Symbol">{stringValue(row.symbol)}</td>
+                    <td data-label="Signal">{stringValue(row.signal).toUpperCase() || '-'}</td>
+                    <td data-label="Stage">{numberValue(row.stage) || '-'}</td>
+                    <td data-label="Averaging count">{numberValue(row.averagingCount)}</td>
+                    <td data-label="Opened">{numberValue(row.openedAt) > 0 ? fmtDateTime(numberValue(row.openedAt)) : '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+      {activeOrders.length > 0 && (
+        <Card title="Active order coverage">
+          <div className="wtc-table-wrap">
+            <table className="wtc-table">
+              <thead><tr><th>pub_id</th><th>Symbol</th><th>Type</th><th>Qty</th><th>Price</th></tr></thead>
+              <tbody>
+                {activeOrders.slice(0, 24).map((row, i) => (
+                  <tr key={`${stringValue(row.providerPubId)}-${stringValue(row.symbol)}-${stringValue(row.note)}-${i}`}>
+                    <td data-label="pub_id" className="wtc-mono">{providerShort(stringValue(row.providerPubId))}</td>
+                    <td data-label="Symbol">{stringValue(row.symbol)}</td>
+                    <td data-label="Type">{stringValue(row.note) || '-'}</td>
+                    <td data-label="Qty">{fmtNum(numberValue(row.qty))}</td>
+                    <td data-label="Price">{fmtNum(numberValue(row.price))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
       <Card title="Coverage matrix">
         <div className="wtc-row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
           <StatusPill tone="neutral">TF {timeframes || '-'}</StatusPill>
-          <StatusPill tone="warn">live reads blocked</StatusPill>
-          <StatusPill tone="neutral">reference only</StatusPill>
+          <StatusPill tone="ok">DB live-read</StatusPill>
+          <StatusPill tone="neutral">pub_id grouped</StatusPill>
         </div>
         <div className="wtc-table-wrap">
           <table className="wtc-table">
-            <thead><tr><th>Symbol</th><th>TF</th><th>Signal</th><th>TP</th><th>Entry</th><th>Ladder</th><th>Balance</th><th>Lev</th><th>Stage</th></tr></thead>
+            <thead><tr><th>pub_id</th><th>Symbol</th><th>TF</th><th>Signal</th><th>TP</th><th>Entry</th><th>Ladder</th><th>Balance</th><th>Lev</th><th>Stage</th></tr></thead>
             <tbody>
               {rows.slice(0, 16).map((row) => (
-                <tr key={row.symbol}>
+                <tr key={`${row.providerPubId ?? 'provider'}-${row.symbol}`}>
+                  <td data-label="pub_id" className="wtc-mono">{providerShort(row.providerPubId)}</td>
                   <td data-label="Symbol">{row.symbol}</td>
                   <td data-label="TF">{row.timeframe}</td>
                   <td data-label="Signal">{signalLabel(row)}</td>

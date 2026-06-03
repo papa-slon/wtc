@@ -5,7 +5,6 @@ import { computeMetrics, filterZeroEquity, type CanonicalMetrics, type Canonical
 import type { AccessDecision } from '@wtc/entitlements';
 import {
   AdapterNotReadyError,
-  LEGACY_WARNINGS,
   TORTILA_PERSISTENT_WARNINGS,
   getBotAdapter,
   LegacyAdapterBlockedError,
@@ -168,7 +167,7 @@ function side(value: string): 'long' | 'short' {
 }
 
 function dbWarnings(productCode: BotProductCode): RiskWarning[] {
-  return productCode === 'tortila_bot' ? TORTILA_PERSISTENT_WARNINGS : LEGACY_WARNINGS;
+  return productCode === 'tortila_bot' ? TORTILA_PERSISTENT_WARNINGS : [];
 }
 
 function dbWarningsFromDetail(productCode: BotProductCode, detail: Record<string, unknown>): RiskWarning[] {

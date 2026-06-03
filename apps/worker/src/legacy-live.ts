@@ -82,6 +82,10 @@ interface LegacyLiveRows {
   orders: LegacyOrderRow[];
 }
 
+function signalFromRow(row: Pick<LegacySymbolSettingRow, 'use_rsi' | 'use_cci'>): 'rsi' | 'cci' {
+  return row.use_cci === true && row.use_rsi !== true ? 'cci' : 'rsi';
+}
+
 function flagEnabled(value: string | undefined): boolean {
   return value === 'true' || value === '1';
 }
@@ -179,17 +183,20 @@ export function buildLegacyLiveConfig(rows: LegacyLiveRows): Record<string, unkn
     .filter((row) => row.stage != null)
     .sort((a, b) => int(a.stage, 0) - int(b.stage, 0))
     .map((row) => ({
+      providerPubId: row.api_id,
       stage: int(row.stage, 1),
       rsiSlots: Math.max(0, int(row.rsi_slots, 0)),
       cciSlots: Math.max(0, int(row.cci_slots, 0)),
     }));
 
   const symbolConfigs = settings.map((row) => ({
+    providerPubId: row.api_id,
     symbol: row.symbol,
     active: row.active !== false,
     timeframe: normalizeTimeframe(row.timeframe),
-    useRsi: row.use_rsi !== false,
-    useCci: row.use_cci === true,
+    signal: signalFromRow(row),
+    useRsi: signalFromRow(row) === 'rsi',
+    useCci: signalFromRow(row) === 'cci',
     rsiLength: int(row.rsi_length, 14),
     rsiThreshold: n(row.rsi_threshold, 30),
     cciLength: int(row.cci_length, 20),
@@ -211,6 +218,17 @@ export function buildLegacyLiveConfig(rows: LegacyLiveRows): Record<string, unkn
   return {
     operationMode: 'auto',
     apiProfile: firstAccount ? `legacy-live-${String(firstAccount.market ?? 'market').toLowerCase()}` : 'legacy-live',
+    providerAccounts: rows.accounts.map((row) => ({
+      pubId: row.pub_id,
+      market: row.market ?? 'BINGX',
+      running: row.running,
+      balance: n(row.balance),
+      quarantined: row.quarantined === true,
+      quarantineReason: safeText(row.quarantine_reason),
+      symbols: settings.filter((setting) => setting.api_id === row.pub_id).length,
+      activeSlots: rows.slots.filter((slot) => slot.api_id === row.pub_id && slot.active !== false).length,
+      activeOrders: rows.orders.filter((order) => order.api_id === row.pub_id && order.active !== false).length,
+    })),
     symbols: symbolConfigs.map((row) => row.symbol).join(', '),
     maxSymbols: Math.max(1, symbolConfigs.length),
     defaultTimeframe: normalizeTimeframe(first?.timeframe),
@@ -220,6 +238,25 @@ export function buildLegacyLiveConfig(rows: LegacyLiveRows): Record<string, unkn
     defaultLeverage: Math.max(1, int(first?.leverage, 1)),
     symbolConfigs,
     stageConfigs: stageConfigs.length > 0 ? stageConfigs : [{ stage: 1, rsiSlots: 0, cciSlots: 0 }],
+    activeSlots: rows.slots
+      .filter((slot) => slot.active !== false)
+      .map((slot) => ({
+        providerPubId: slot.api_id,
+        symbol: slot.position,
+        signal: String(slot.reason ?? '').toUpperCase() === 'RED' ? 'cci' : 'rsi',
+        stage: Math.max(1, int(slot.stage, 1)),
+        averagingCount: Math.max(0, int(slot.averaging_count, 0)),
+        openedAt: dateOrNull(slot.created_at)?.getTime() ?? null,
+      })),
+    activeOrderSummary: rows.orders
+      .filter((order) => order.active !== false)
+      .map((order) => ({
+        providerPubId: order.api_id,
+        symbol: order.position,
+        note: String(order.note ?? '').toUpperCase() || 'UNKNOWN',
+        qty: n(order.quantity),
+        price: n(order.price),
+      })),
   };
 }
 
@@ -239,6 +276,8 @@ export function buildLegacyLivePositions(rows: LegacyLiveRows) {
       const slOrder = related.find((order) => String(order.note ?? '').toUpperCase() === 'STOP_LOSS');
       const side = normalizeSide(entryOrders[0]?.position_side ?? related[0]?.position_side);
       return {
+        providerPubId: slot.api_id,
+        signal: String(slot.reason ?? '').toUpperCase() === 'RED' ? 'cci' : 'rsi',
         symbol: slot.position,
         side,
         qty: totalQty,

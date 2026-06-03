@@ -107,7 +107,9 @@ describe('Legacy live worker DB-backed snapshot helpers', () => {
     });
     expect(config.symbolConfigs).toEqual([
       expect.objectContaining({
+        providerPubId: 'legacy-pub-1',
         symbol: 'AAVE-USDT',
+        signal: 'rsi',
         useRsi: true,
         useCci: false,
         rsiThreshold: 20,
@@ -116,9 +118,23 @@ describe('Legacy live worker DB-backed snapshot helpers', () => {
       }),
     ]);
     expect(config.stageConfigs).toEqual([
-      { stage: 1, rsiSlots: 3, cciSlots: 2 },
-      { stage: 2, rsiSlots: 2, cciSlots: 1 },
+      { providerPubId: 'legacy-pub-1', stage: 1, rsiSlots: 3, cciSlots: 2 },
+      { providerPubId: 'legacy-pub-1', stage: 2, rsiSlots: 2, cciSlots: 1 },
     ]);
+    expect(config.providerAccounts).toEqual([
+      expect.objectContaining({
+        pubId: 'legacy-pub-1',
+        running: true,
+        balance: 1234.56,
+        symbols: 1,
+        activeSlots: 1,
+        activeOrders: 3,
+      }),
+    ]);
+    expect(config.activeSlots).toEqual([
+      expect.objectContaining({ providerPubId: 'legacy-pub-1', symbol: 'AAVE-USDT', signal: 'rsi', stage: 1 }),
+    ]);
+    expect(config.activeOrderSummary).toHaveLength(3);
   });
 
   it('maps active legacy slots and orders into approximate positions', () => {
@@ -126,6 +142,8 @@ describe('Legacy live worker DB-backed snapshot helpers', () => {
     expect(positions).toEqual([
       expect.objectContaining({
         symbol: 'AAVE-USDT',
+        providerPubId: 'legacy-pub-1',
+        signal: 'rsi',
         side: 'long',
         qty: 3,
         entryPrice: 93.33333333333333,

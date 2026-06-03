@@ -36,6 +36,10 @@ function pnlTone(value: number | null | undefined): 'up' | 'down' | undefined {
   return value >= 0 ? 'up' : 'down';
 }
 
+function objectArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.filter((row): row is Record<string, unknown> => !!row && typeof row === 'object') : [];
+}
+
 function compactDate(ms: number): string {
   return new Date(ms).toISOString().slice(5, 16).replace('T', ' ');
 }
@@ -226,6 +230,12 @@ export default async function BotStatisticsPage({
   const legacyConfig = legacyLiveConfig ?? configState?.current ?? null;
   const legacyRows = active.code === 'legacy_bot' ? legacySymbolConfigsFromConfig(legacyConfig) : [];
   const legacyStages = active.code === 'legacy_bot' ? legacyStageConfigsFromConfig(legacyConfig) : [];
+  const legacyAccounts = objectArray(legacyLiveConfig?.providerAccounts);
+  const legacySlots = objectArray(legacyLiveConfig?.activeSlots);
+  const legacyOrders = objectArray(legacyLiveConfig?.activeOrderSummary);
+  const legacyRsiRows = legacyRows.filter((row) => row.useRsi && !row.useCci).length;
+  const legacyCciRows = legacyRows.filter((row) => row.useCci && !row.useRsi).length;
+  const legacyStageCapacity = legacyStages.reduce((sum, row) => sum + row.rsiSlots + row.cciSlots, 0);
   const totalWalletEquity = rows.reduce((sum, row) => sum + (row.read?.metrics.data?.walletEquity ?? 0), 0);
   const totalOpenPositions = rows.reduce((sum, row) => sum + (row.read?.positions.data?.length ?? 0), 0);
 
@@ -289,15 +299,15 @@ export default async function BotStatisticsPage({
             <RiskWarningBanner
               severity="warning"
               title="Simulated data - not a live account"
-              detail="BOT_ADAPTER_MODE=mock: statistics below are illustrative sample data for preview. No exchange or bot account is connected."
+              detail="Statistics below are illustrative preview data. No exchange or bot account is connected for this view."
             />
           )}
 
           {caps.liveAdapterBlocked && (
             <RiskWarningBanner
               severity="error"
-              title="Legacy HTTP adapter unavailable"
-              detail={caps.liveAdapterBlockedReason ?? 'The direct HTTP/control adapter for this bot is blocked. Use worker DB snapshots for production live-read data.'}
+              title="Direct live control unavailable"
+              detail={caps.liveAdapterBlockedReason ?? 'This bot is monitored through read-only worker snapshots. Direct runtime control is not available here.'}
             />
           )}
 
@@ -305,26 +315,37 @@ export default async function BotStatisticsPage({
 
           {metrics ? (
             <>
-              <div className="wtc-grid wtc-grid-4">
-                <MetricCard label="Wallet equity" value={fmtMoney(metrics.walletEquity)} />
-                <MetricCard label="Closed PnL" value={fmtMoney(metrics.closedPnl)} tone={pnlTone(metrics.closedPnl)} />
-                <MetricCard label="Net PnL after fees" value={fmtMoney(metrics.netPnlWithFees)} tone={pnlTone(metrics.netPnlWithFees)} />
-                <MetricCard label="Unrealized PnL" value={markUnavailable ? 'N/A' : fmtMoney(metrics.unrealizedPnl)} tone={markUnavailable ? undefined : pnlTone(metrics.unrealizedPnl)} />
-                <MetricCard label="Win rate" value={<MetricValue value={metrics.winRatePct} suffix="%" />} sub={`${metrics.winCount}/${metrics.tradeCount} trades`} />
-                <MetricCard label="Profit factor" value={fmtPf(metrics.profitFactor)} />
-                <MetricCard label="Max drawdown" value={<MetricValue value={metrics.maxDrawdownPct} suffix="%" />} tone="down" />
-                <MetricCard label="Current drawdown" value={fmtPct(metrics.currentDrawdownPct)} tone="down" />
-              </div>
-              <div className="wtc-grid wtc-grid-4">
-                <MetricCard label="ROI since start" value={fmtPct(metrics.roiPctSinceStart)} tone={pnlTone(metrics.roiPctSinceStart)} />
-                <MetricCard label="Expectancy" value={fmtMoney(metrics.expectancy)} tone={pnlTone(metrics.expectancy)} />
-                <MetricCard label="Sharpe" value={fmtNum(advanced.risk.sharpe)} />
-                <MetricCard label="Sortino" value={fmtNum(advanced.risk.sortino)} />
-                <MetricCard label="Calmar" value={fmtNum(advanced.risk.calmar)} />
-                <MetricCard label="Recovery" value={fmtNum(advanced.risk.recoveryFactor)} />
-                <MetricCard label="Trades/week" value={fmtNum(advanced.tradeQuality.tradesPerWeek)} />
-                <MetricCard label="Best / worst day" value={`${fmtMoney(advanced.tradeQuality.bestDayNet)} / ${fmtMoney(advanced.tradeQuality.worstDayNet)}`} />
-              </div>
+              {active.code === 'legacy_bot' ? (
+                <div className="wtc-grid wtc-grid-4">
+                  <MetricCard label="Wallet balance snapshot" value={fmtMoney(metrics.walletEquity)} sub={`${legacyAccounts.length || 1} provider pub_id`} />
+                  <MetricCard label="Configured symbols" value={legacyRows.length} sub={`${legacyRsiRows} RSI / ${legacyCciRows} CCI`} />
+                  <MetricCard label="Active slots" value={legacySlots.length || positions.length} sub={`${legacyStageCapacity} stage capacity`} />
+                  <MetricCard label="Active orders" value={legacyOrders.length || '-'} sub="BUY / averaging / TP coverage" />
+                </div>
+              ) : (
+                <>
+                  <div className="wtc-grid wtc-grid-4">
+                    <MetricCard label="Wallet equity" value={fmtMoney(metrics.walletEquity)} />
+                    <MetricCard label="Closed PnL" value={fmtMoney(metrics.closedPnl)} tone={pnlTone(metrics.closedPnl)} />
+                    <MetricCard label="Net PnL after fees" value={fmtMoney(metrics.netPnlWithFees)} tone={pnlTone(metrics.netPnlWithFees)} />
+                    <MetricCard label="Unrealized PnL" value={markUnavailable ? 'N/A' : fmtMoney(metrics.unrealizedPnl)} tone={markUnavailable ? undefined : pnlTone(metrics.unrealizedPnl)} />
+                    <MetricCard label="Win rate" value={<MetricValue value={metrics.winRatePct} suffix="%" />} sub={`${metrics.winCount}/${metrics.tradeCount} trades`} />
+                    <MetricCard label="Profit factor" value={fmtPf(metrics.profitFactor)} />
+                    <MetricCard label="Max drawdown" value={<MetricValue value={metrics.maxDrawdownPct} suffix="%" />} tone="down" />
+                    <MetricCard label="Current drawdown" value={fmtPct(metrics.currentDrawdownPct)} tone="down" />
+                  </div>
+                  <div className="wtc-grid wtc-grid-4">
+                    <MetricCard label="ROI since start" value={fmtPct(metrics.roiPctSinceStart)} tone={pnlTone(metrics.roiPctSinceStart)} />
+                    <MetricCard label="Expectancy" value={fmtMoney(metrics.expectancy)} tone={pnlTone(metrics.expectancy)} />
+                    <MetricCard label="Sharpe" value={fmtNum(advanced.risk.sharpe)} />
+                    <MetricCard label="Sortino" value={fmtNum(advanced.risk.sortino)} />
+                    <MetricCard label="Calmar" value={fmtNum(advanced.risk.calmar)} />
+                    <MetricCard label="Recovery" value={fmtNum(advanced.risk.recoveryFactor)} />
+                    <MetricCard label="Trades/week" value={fmtNum(advanced.tradeQuality.tradesPerWeek)} />
+                    <MetricCard label="Best / worst day" value={`${fmtMoney(advanced.tradeQuality.bestDayNet)} / ${fmtMoney(advanced.tradeQuality.worstDayNet)}`} />
+                  </div>
+                </>
+              )}
             </>
           ) : (
             <Card title="Metrics unavailable">
@@ -332,24 +353,26 @@ export default async function BotStatisticsPage({
             </Card>
           )}
 
-          <EquityPanel meta={active} points={equity} />
+          {active.code !== 'legacy_bot' && <EquityPanel meta={active} points={equity} />}
 
           <div className="wtc-grid wtc-grid-2">
             <PositionsTable positions={positions} markUnavailable={markUnavailable} />
             <TradesTable trades={trades} />
           </div>
 
-          <BotJournalPanels
-            meta={active}
-            metrics={metrics}
-            positions={positions}
-            trades={trades}
-            equity={equity}
-            markUnavailable={markUnavailable}
-          />
+          {active.code !== 'legacy_bot' && (
+            <BotJournalPanels
+              meta={active}
+              metrics={metrics}
+              positions={positions}
+              trades={trades}
+              equity={equity}
+              markUnavailable={markUnavailable}
+            />
+          )}
 
           {active.code === 'legacy_bot' && (
-            <LegacyOperationsPanel rows={legacyRows} stages={legacyStages} />
+            <LegacyOperationsPanel rows={legacyRows} stages={legacyStages} liveConfig={legacyLiveConfig} />
           )}
 
           <Card title="Risk and status notes">

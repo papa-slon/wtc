@@ -3,7 +3,7 @@ import { assertAdmin } from '@wtc/auth';
 import { Card, SectionHeader, StatusPill, MetricCard, EmptyState, RiskWarningBanner, type Tone } from '@wtc/ui';
 import { loadAdminBotHealth } from '@/features/admin/queries';
 import { TORTILA_PERSISTENT_WARNINGS } from '@wtc/bot-adapters';
-import { fmtDateTime } from '@/lib/format';
+import { fmtDateTime, fmtMoney, fmtNum } from '@/lib/format';
 import type { AdminBotHealthResult } from '@/features/admin/types';
 
 /**
@@ -88,15 +88,14 @@ export default async function AdminBotsPage() {
         />
       )}
 
-      {/* Safety-disabled states — hardcoded, non-collapsible */}
-      <Card title="Safety-disabled states (hardcoded policy)">
+      {/* Runtime safety summary */}
+      <Card title="Runtime safety summary">
         <div className="wtc-stack" style={{ gap: 10 }}>
           <div className="wtc-row" style={{ gap: 10 }}>
             <StatusPill tone="bad">DISABLED</StatusPill>
             <span className="wtc-dim" style={{ fontSize: 13 }}>
-              <strong style={{ color: 'var(--text)' }}>Live bot control</strong> —
-              startBot / stopBot / applyConfig are hard-disabled. FEATURE_LIVE_BOT_CONTROL is not set.
-              See <code className="wtc-mono" style={{ fontSize: 11 }}>docs/BOT_CONTROL_SAFETY_MODEL.md</code>.
+              <strong style={{ color: 'var(--text)' }}>Live bot control</strong>:
+              start, stop, and live config apply are unavailable from WTC.
             </span>
           </div>
           <div className="wtc-row" style={{ gap: 10 }}>
@@ -212,10 +211,88 @@ export default async function AdminBotsPage() {
         />
         <div className="wtc-row" style={{ gap: 12, flexWrap: 'wrap', marginTop: 12 }}>
           <MetricCard label="DB read flag" value={snap.legacyDbLiveReadEnabled ? 'enabled' : 'disabled'} tone={snap.legacyDbLiveReadEnabled ? 'up' : undefined} />
-          <MetricCard label="DB URL" value={snap.legacyDatabaseConfigured ? 'configured' : 'not set'} tone={snap.legacyDatabaseConfigured ? 'up' : undefined} />
+          <MetricCard label="Provider DB connection" value={snap.legacyDatabaseConfigured ? 'configured' : 'not set'} tone={snap.legacyDatabaseConfigured ? 'up' : undefined} />
           <MetricCard label="Live control" value="DISABLED" />
         </div>
       </Card>
+
+      <Card title="Legacy pub_id inspector">
+        {snap.legacyProviderAccounts.length === 0 ? (
+          <EmptyState
+            title="No Legacy pub_id snapshot yet"
+            hint={snap.legacyDbLiveReadEnabled && snap.legacyDatabaseConfigured ? 'Run the worker snapshot cycle to populate provider account rows.' : 'Configure the Legacy provider DB read path first.'}
+          />
+        ) : (
+          <div className="wtc-table-wrap">
+            <table className="wtc-table">
+              <thead>
+                <tr><th>pub_id</th><th>Market</th><th>Status</th><th>Balance</th><th>Symbols</th><th>Slots</th><th>Orders</th><th>Snapshot</th></tr>
+              </thead>
+              <tbody>
+                {snap.legacyProviderAccounts.map((account) => (
+                  <tr key={account.pubId}>
+                    <td className="wtc-mono" data-label="pub_id">{account.pubId}</td>
+                    <td data-label="Market">{account.market}</td>
+                    <td data-label="Status">
+                      <StatusPill tone={account.quarantined ? 'bad' : account.running ? 'ok' : 'warn'}>
+                        {account.quarantined ? 'quarantined' : account.running ? 'running' : 'paused'}
+                      </StatusPill>
+                    </td>
+                    <td data-label="Balance">{fmtMoney(account.balance)}</td>
+                    <td data-label="Symbols">{fmtNum(account.symbols)}</td>
+                    <td data-label="Slots">{fmtNum(account.activeSlots)}</td>
+                    <td data-label="Orders">{fmtNum(account.activeOrders)}</td>
+                    <td data-label="Snapshot" className="wtc-mono" style={{ fontSize: 12 }}>{fmtDateTime(account.latestSnapshotAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {snap.legacyActiveSlots.length > 0 && (
+        <Card title="Legacy active slots">
+          <div className="wtc-table-wrap">
+            <table className="wtc-table">
+              <thead><tr><th>pub_id</th><th>Symbol</th><th>Signal</th><th>Stage</th><th>Averaging</th><th>Opened</th></tr></thead>
+              <tbody>
+                {snap.legacyActiveSlots.map((slot, i) => (
+                  <tr key={`${slot.pubId}-${slot.symbol}-${i}`}>
+                    <td className="wtc-mono" data-label="pub_id">{slot.pubId}</td>
+                    <td data-label="Symbol">{slot.symbol}</td>
+                    <td data-label="Signal">{slot.signal.toUpperCase()}</td>
+                    <td data-label="Stage">{slot.stage ?? '-'}</td>
+                    <td data-label="Averaging">{slot.averagingCount ?? 0}</td>
+                    <td data-label="Opened" className="wtc-mono" style={{ fontSize: 12 }}>{fmtDateTime(slot.openedAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {snap.legacyActiveOrders.length > 0 && (
+        <Card title="Legacy active order coverage">
+          <div className="wtc-table-wrap">
+            <table className="wtc-table">
+              <thead><tr><th>pub_id</th><th>Symbol</th><th>Type</th><th>Qty</th><th>Price</th></tr></thead>
+              <tbody>
+                {snap.legacyActiveOrders.slice(0, 30).map((order, i) => (
+                  <tr key={`${order.pubId}-${order.symbol}-${order.note}-${i}`}>
+                    <td className="wtc-mono" data-label="pub_id">{order.pubId}</td>
+                    <td data-label="Symbol">{order.symbol}</td>
+                    <td data-label="Type">{order.note}</td>
+                    <td data-label="Qty">{fmtNum(order.qty)}</td>
+                    <td data-label="Price">{fmtNum(order.price)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       {/* Integration health checks table for bot.* targets */}
       <Card title="Integration health checks (bot.* targets)">

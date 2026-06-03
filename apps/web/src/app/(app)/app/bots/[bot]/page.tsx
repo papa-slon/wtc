@@ -9,7 +9,13 @@ import { BotSubNav } from '@/components/BotSubNav';
 import { BOT_CAPS, capLabel, botHealthPill } from '@/features/bots/meta';
 import { loadBotReadModel, type BotReadIssue } from '@/features/bots/data';
 import { backtesterPill } from '@wtc/backtester';
-import { loadBotConfig } from '@/features/bots/config';
+import {
+  BOT_OPERATION_MODES,
+  legacyStageConfigsFromConfig,
+  legacySymbolConfigsFromConfig,
+  loadBotConfig,
+  tortilaSymbolConfigsFromConfig,
+} from '@/features/bots/config';
 
 const MAP: Record<string, { code: BotProductCode; name: string }> = {
   tortila: { code: 'tortila_bot', name: 'Tortila Bot' },
@@ -24,6 +30,58 @@ function ReadIssueBanner({ issue }: { issue: BotReadIssue | null }) {
       title={issue.title}
       detail={issue.detail}
     />
+  );
+}
+
+function objectArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.filter((row): row is Record<string, unknown> => !!row && typeof row === 'object') : [];
+}
+
+function modeLabel(value: unknown): string {
+  const mode = BOT_OPERATION_MODES.find((m) => m.value === value);
+  return mode?.label ?? BOT_OPERATION_MODES[0]!.label;
+}
+
+function ConfigSummary({
+  productCode,
+  runtimeConfig,
+  referenceConfig,
+}: {
+  productCode: BotProductCode;
+  runtimeConfig: Record<string, unknown> | null;
+  referenceConfig: Record<string, unknown> | null;
+}) {
+  const source = runtimeConfig ?? referenceConfig ?? {};
+  if (productCode === 'legacy_bot') {
+    const rows = legacySymbolConfigsFromConfig(source);
+    const stages = legacyStageConfigsFromConfig(source);
+    const providerAccounts = objectArray(runtimeConfig?.providerAccounts);
+    const activeSlots = objectArray(runtimeConfig?.activeSlots);
+    const activeOrders = objectArray(runtimeConfig?.activeOrderSummary);
+    const rsiRows = rows.filter((row) => row.useRsi && !row.useCci).length;
+    const cciRows = rows.filter((row) => row.useCci && !row.useRsi).length;
+    const stageCapacity = stages.reduce((sum, row) => sum + row.rsiSlots + row.cciSlots, 0);
+    return (
+      <div className="wtc-grid wtc-grid-3">
+        <MetricCard label="Strategy mode" value={modeLabel(source.operationMode)} sub={runtimeConfig ? 'provider snapshot' : 'saved reference'} />
+        <MetricCard label="Provider pub_id" value={providerAccounts.length || '-'} sub="safe account identity" />
+        <MetricCard label="Symbols" value={rows.length} sub={`${rsiRows} RSI / ${cciRows} CCI`} />
+        <MetricCard label="Stage capacity" value={stageCapacity} sub={`${stages.length} stages`} />
+        <MetricCard label="Active slots" value={activeSlots.length || '-'} sub="slot/order projection" />
+        <MetricCard label="Active orders" value={activeOrders.length || '-'} sub="BUY / averaging / TP" />
+      </div>
+    );
+  }
+  const rows = tortilaSymbolConfigsFromConfig(source);
+  return (
+    <div className="wtc-grid wtc-grid-3">
+      <MetricCard label="Strategy mode" value={modeLabel(source.operationMode)} sub={runtimeConfig ? 'runtime snapshot' : 'saved reference'} />
+      <MetricCard label="Symbols" value={rows.length} sub={rows.slice(0, 3).map((row) => row.symbol).join(', ')} />
+      <MetricCard label="Timeframe" value={rows[0]?.timeframe ?? '-'} />
+      <MetricCard label="Risk profile" value={rows[0] ? `${rows[0].riskPercent}%` : '-'} sub="per-trade reference" />
+      <MetricCard label="System" value={rows[0] ? `System ${rows[0].system}` : '-'} />
+      <MetricCard label="Max units" value={rows[0]?.maxUnits ?? '-'} />
+    </div>
   );
 }
 
@@ -55,6 +113,16 @@ export default async function BotDetailPage({ params }: { params: Promise<{ bot:
   const trades = read.trades.data ?? [];
   const config = read.config.data;
   const markUnavailable = meta.code === 'tortila_bot' && read.adapterMode === 'real';
+  const runtimeConfig = config?.raw && typeof config.raw === 'object' ? config.raw as Record<string, unknown> : null;
+  const legacyConfig = meta.code === 'legacy_bot' ? runtimeConfig ?? wtcConfig.current : null;
+  const legacyRows = meta.code === 'legacy_bot' ? legacySymbolConfigsFromConfig(legacyConfig) : [];
+  const legacyStages = meta.code === 'legacy_bot' ? legacyStageConfigsFromConfig(legacyConfig) : [];
+  const legacySlots = meta.code === 'legacy_bot' ? objectArray(runtimeConfig?.activeSlots) : [];
+  const legacyOrders = meta.code === 'legacy_bot' ? objectArray(runtimeConfig?.activeOrderSummary) : [];
+  const legacyAccounts = meta.code === 'legacy_bot' ? objectArray(runtimeConfig?.providerAccounts) : [];
+  const legacyStageCapacity = legacyStages.reduce((sum, row) => sum + row.rsiSlots + row.cciSlots, 0);
+  const legacyRsiRows = legacyRows.filter((row) => row.useRsi && !row.useCci).length;
+  const legacyCciRows = legacyRows.filter((row) => row.useCci && !row.useRsi).length;
 
   return (
     <div className="wtc-stack">
@@ -77,7 +145,7 @@ export default async function BotDetailPage({ params }: { params: Promise<{ bot:
       )}
 
       {health.warnings.length > 0 && (
-        <Card title="Risk & audit warnings">
+        <Card title="Runtime status notes">
           {health.warnings.map((w) => (
             <RiskWarningBanner key={w.code} severity={w.severity} title={w.title} detail={w.detail} />
           ))}
@@ -87,15 +155,15 @@ export default async function BotDetailPage({ params }: { params: Promise<{ bot:
       {caps.liveAdapterBlocked ? (
         <RiskWarningBanner
           severity="error"
-          title="Legacy HTTP adapter unavailable"
-          detail={caps.liveAdapterBlockedReason ?? 'The direct HTTP/control adapter for this bot is blocked. Use the worker DB live-read path for production snapshots.'}
+          title="Direct live control unavailable"
+          detail={caps.liveAdapterBlockedReason ?? 'This bot is monitored through read-only snapshots. Direct runtime control is not available on the dashboard.'}
         />
       ) : (
         read.adapterMode === 'mock' && (
           <RiskWarningBanner
             severity="warning"
-            title="Simulated data — not a live account"
-            detail="BOT_ADAPTER_MODE=mock: every metric, position, and trade below is illustrative sample data from the mock adapter, not your real exchange account. Live read-only data requires a configured, audited adapter."
+            title="Simulated preview data"
+            detail="The figures below are illustrative preview data from the mock adapter, not a real exchange or bot account."
           />
         )
       )}
@@ -103,16 +171,25 @@ export default async function BotDetailPage({ params }: { params: Promise<{ bot:
       <ReadIssueBanner issue={read.metrics.issue ?? read.positions.issue ?? read.trades.issue} />
 
       {metrics ? (
-        <div className="wtc-grid wtc-grid-4">
-          <MetricCard label="Wallet equity" value={fmtMoney(metrics.walletEquity)} />
-          <MetricCard label="Closed PnL" value={fmtMoney(metrics.closedPnl)} tone={metrics.closedPnl >= 0 ? 'up' : 'down'} />
-          <MetricCard label="Unrealized PnL" value={markUnavailable ? 'N/A' : fmtMoney(metrics.unrealizedPnl)} tone={!markUnavailable && metrics.unrealizedPnl < 0 ? 'down' : undefined} />
-          <MetricCard label="ROI on margin" value={<MetricValue value={metrics.roiOnMarginPct} suffix="%" />} />
-          <MetricCard label="Win rate" value={<MetricValue value={metrics.winRatePct} suffix="%" />} sub={`${metrics.winCount}/${metrics.tradeCount} trades`} />
-          <MetricCard label="Profit factor" value={fmtPf(metrics.profitFactor)} />
-          <MetricCard label="Max drawdown" value={<MetricValue value={metrics.maxDrawdownPct} suffix="%" />} tone="down" />
-          <MetricCard label="Open risk (margin)" value={fmtMoney(metrics.openRisk)} />
-        </div>
+        meta.code === 'legacy_bot' ? (
+          <div className="wtc-grid wtc-grid-4">
+            <MetricCard label="Wallet balance snapshot" value={fmtMoney(metrics.walletEquity)} sub={`${legacyAccounts.length || 1} provider pub_id`} />
+            <MetricCard label="Configured symbols" value={legacyRows.length} sub={`${legacyRsiRows} RSI / ${legacyCciRows} CCI`} />
+            <MetricCard label="Active slots" value={legacySlots.length || positions.length} sub={`${legacyStageCapacity} stage capacity`} />
+            <MetricCard label="Active orders" value={legacyOrders.length || '-'} sub="BUY / averaging / TP coverage" />
+          </div>
+        ) : (
+          <div className="wtc-grid wtc-grid-4">
+            <MetricCard label="Wallet equity" value={fmtMoney(metrics.walletEquity)} />
+            <MetricCard label="Closed PnL" value={fmtMoney(metrics.closedPnl)} tone={metrics.closedPnl >= 0 ? 'up' : 'down'} />
+            <MetricCard label="Unrealized PnL" value={markUnavailable ? 'N/A' : fmtMoney(metrics.unrealizedPnl)} tone={!markUnavailable && metrics.unrealizedPnl < 0 ? 'down' : undefined} />
+            <MetricCard label="ROI on margin" value={<MetricValue value={metrics.roiOnMarginPct} suffix="%" />} />
+            <MetricCard label="Win rate" value={<MetricValue value={metrics.winRatePct} suffix="%" />} sub={`${metrics.winCount}/${metrics.tradeCount} trades`} />
+            <MetricCard label="Profit factor" value={fmtPf(metrics.profitFactor)} />
+            <MetricCard label="Max drawdown" value={<MetricValue value={metrics.maxDrawdownPct} suffix="%" />} tone="down" />
+            <MetricCard label="Open risk (margin)" value={fmtMoney(metrics.openRisk)} />
+          </div>
+        )
       ) : (
         <Card title="Metrics unavailable">
           <EmptyState title="No metrics available from this adapter" hint="The page stays up and shows the blocker instead of fabricating zeros or crashing." />
@@ -161,16 +238,16 @@ export default async function BotDetailPage({ params }: { params: Promise<{ bot:
 
       <Card title="Configuration & controls">
         <div className="wtc-grid wtc-grid-3" style={{ marginBottom: 16 }}>
-          <MetricCard label="WTC mode" value={wtcConfig.current?.operationMode === 'auto' ? 'Automatic' : 'Manual'} sub={wtcConfig.version != null ? `reference v${wtcConfig.version}` : 'not saved yet'} />
+          <MetricCard label="WTC mode" value={modeLabel(wtcConfig.current?.operationMode)} sub={wtcConfig.version != null ? `reference v${wtcConfig.version}` : 'not saved yet'} />
           <MetricCard label="Config storage" value={wtcConfig.mode === 'postgres' ? 'Postgres' : 'Demo'} sub={wtcConfig.mode === 'postgres' ? 'versioned/audited' : 'in-memory preview'} />
-          <MetricCard label="Live apply" value="Disabled" sub="control adapter not approved" />
+          <MetricCard label="Live actions" value="Unavailable" sub="read-only monitoring" />
         </div>
         <div className="wtc-row" style={{ marginBottom: 16 }}>
           <Link href={`/app/bots/${bot}/settings`} className={buttonClasses('secondary')}>Configure bot</Link>
           <Link href={`/app/bots/${bot}/setup`} className={buttonClasses('ghost')}>Guided setup</Link>
         </div>
         {config ? (
-          <pre className="wtc-mono" style={{ fontSize: 12, color: 'var(--muted)', overflowX: 'auto', margin: 0 }}>{JSON.stringify(config.raw, null, 2)}</pre>
+          <ConfigSummary productCode={meta.code} runtimeConfig={runtimeConfig} referenceConfig={wtcConfig.current} />
         ) : (
           <>
             <ReadIssueBanner issue={read.config.issue} />
@@ -185,7 +262,7 @@ export default async function BotDetailPage({ params }: { params: Promise<{ bot:
           )}
         </div>
         <p className="wtc-dim" style={{ fontSize: 12, marginTop: 10 }}>
-          Live controls are disabled by safety policy (FEATURE_LIVE_BOT_CONTROL=false). "Stop" never means "close positions." See docs/BOT_CONTROL_SAFETY_MODEL.md.
+          This room is read-only monitoring. Start, stop, and live config apply are not available here.
         </p>
       </Card>
 
@@ -238,8 +315,7 @@ export default async function BotDetailPage({ params }: { params: Promise<{ bot:
       </Card>
 
       <p className="wtc-dim" style={{ fontSize: 12 }}>
-        Read-only monitoring only. "Stop" never closes positions. Live controls stay disabled until a separately audited adapter is approved.
-        See docs/BOT_CONTROL_SAFETY_MODEL.md.
+        Read-only monitoring only. Start, stop, and live config apply are unavailable on this screen.
       </p>
     </div>
   );

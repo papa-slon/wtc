@@ -59,6 +59,16 @@ describe('bot statistics surface', () => {
     expect(statsPanels).toMatch(/No exit-reason data/);
   });
 
+  it('renders Legacy operational statistics from safe pub_id snapshots', () => {
+    expect(statsPage).toMatch(/liveConfig=\{legacyLiveConfig\}/);
+    expect(statsPage).toMatch(/Wallet balance snapshot/);
+    expect(statsPage).toMatch(/Active orders/);
+    expect(statsPanels).toMatch(/Provider accounts/);
+    expect(statsPanels).toMatch(/Active slots/);
+    expect(statsPanels).toMatch(/Active order coverage/);
+    expect(statsPanels).not.toMatch(/live reads blocked/);
+  });
+
   it('adds a DB-first trade journal review surface without mutating imported trades', () => {
     expect(journalPage).toMatch(/Trade review journal/);
     expect(journalPage).toMatch(/Review queue/);

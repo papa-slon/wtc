@@ -176,8 +176,44 @@ export interface AdminBotHealthResult {
     walletEquityUsd: string | null;
     sourceAdapter: string;
   } | null;
+  /** Safe Legacy provider accounts discovered in the latest worker snapshot. Never includes exchange keys. */
+  legacyProviderAccounts: LegacyProviderAccountAdminView[];
+  /** Safe active Legacy slot rows from the latest worker snapshot. */
+  legacyActiveSlots: LegacyActiveSlotAdminView[];
+  /** Safe active Legacy order summary rows from the latest worker snapshot. */
+  legacyActiveOrders: LegacyActiveOrderAdminView[];
   /** Filtered integration_health_checks for bot.* targets (last 20 rows). */
   botHealthChecks: HealthCheckView[];
+}
+
+export interface LegacyProviderAccountAdminView {
+  pubId: string;
+  market: string;
+  running: boolean;
+  balance: number | null;
+  quarantined: boolean;
+  quarantineReason: string | null;
+  symbols: number;
+  activeSlots: number;
+  activeOrders: number;
+  latestSnapshotAt: number | null;
+}
+
+export interface LegacyActiveSlotAdminView {
+  pubId: string;
+  symbol: string;
+  signal: string;
+  stage: number | null;
+  averagingCount: number | null;
+  openedAt: number | null;
+}
+
+export interface LegacyActiveOrderAdminView {
+  pubId: string;
+  symbol: string;
+  note: string;
+  qty: number | null;
+  price: number | null;
 }
 
 // ---- Admin products overview ----

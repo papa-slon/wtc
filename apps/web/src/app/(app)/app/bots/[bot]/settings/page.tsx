@@ -3,11 +3,11 @@ import Link from 'next/link';
 import { requireUser } from '@/lib/session';
 import { botAccessForUser } from '@/lib/access';
 import { CsrfField, assertCsrf } from '@/lib/csrf';
-import { Card, SectionHeader, StatusPill, EmptyState, RiskWarningBanner, buttonClasses, MetricCard } from '@wtc/ui';
-import { fmtDate } from '@/lib/format';
+import { Card, SectionHeader, StatusPill, EmptyState, buttonClasses, MetricCard } from '@wtc/ui';
+import { fmtDate, fmtMoney } from '@/lib/format';
 import { loadBot, BotAccessRequired, loadBotReadModel } from '@/features/bots/data';
 import { BotSubNav } from '@/components/BotSubNav';
-import { BOT_CAPS, botMeta } from '@/features/bots/meta';
+import { botMeta } from '@/features/bots/meta';
 import {
   BOT_OPERATION_MODES,
   botConfigDefaultsFor,
@@ -24,6 +24,45 @@ import {
 } from '@/features/bots/config';
 import { TortilaSymbolConfigTable } from '@/features/bots/TortilaSymbolConfigTable';
 import { LegacyAveragingConfigTable } from '@/features/bots/LegacyAveragingConfigTable';
+
+interface LegacyProviderAccountView {
+  pubId: string;
+  market: string;
+  running: boolean;
+  balance: number;
+  quarantined: boolean;
+  quarantineReason: string | null;
+  symbols: number;
+  activeSlots: number;
+  activeOrders: number;
+}
+
+function shortPubId(value: string): string {
+  return value.length > 14 ? `${value.slice(0, 8)}...${value.slice(-4)}` : value;
+}
+
+function numberFrom(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function legacyProviderAccounts(config: Record<string, unknown> | null): LegacyProviderAccountView[] {
+  const rows = Array.isArray(config?.providerAccounts) ? config.providerAccounts : [];
+  return rows
+    .filter((row): row is Record<string, unknown> => !!row && typeof row === 'object')
+    .map((row) => ({
+      pubId: typeof row.pubId === 'string' ? row.pubId : '',
+      market: typeof row.market === 'string' ? row.market : 'BINGX',
+      running: row.running === true,
+      balance: numberFrom(row.balance),
+      quarantined: row.quarantined === true,
+      quarantineReason: typeof row.quarantineReason === 'string' ? row.quarantineReason : null,
+      symbols: numberFrom(row.symbols),
+      activeSlots: numberFrom(row.activeSlots),
+      activeOrders: numberFrom(row.activeOrders),
+    }))
+    .filter((row) => row.pubId);
+}
 
 async function saveBotConfigAction(formData: FormData): Promise<void> {
   'use server';
@@ -76,12 +115,13 @@ export default async function Page({ params }: { params: Promise<{ bot: string }
   const fields = botConfigFieldsFor(meta.code).filter((f) => meta.code !== 'tortila_bot' || f.name !== 'symbols');
   const defaults = botConfigDefaultsFor(meta.code);
   const presets = botConfigPresetsFor(meta.code);
-  const caps = BOT_CAPS[meta.code];
   const sevTone = (s: string) => (s === 'critical' ? 'bad' : 'warn');
   const currentMode = cur.operationMode != null ? String(cur.operationMode) : defaults.operationMode;
   const tortilaRows = meta.code === 'tortila_bot' ? tortilaSymbolConfigsFromConfig(cur) : [];
   const legacyRows = meta.code === 'legacy_bot' ? legacySymbolConfigsFromConfig(cur) : [];
   const legacyStages = meta.code === 'legacy_bot' ? legacyStageConfigsFromConfig(cur) : [];
+  const legacyAccounts = meta.code === 'legacy_bot' ? legacyProviderAccounts(legacyLiveConfig) : [];
+  const modeMeta = BOT_OPERATION_MODES.find((m) => m.value === currentMode) ?? BOT_OPERATION_MODES[0]!;
 
   return (
     <div className="wtc-stack">
@@ -102,31 +142,44 @@ export default async function Page({ params }: { params: Promise<{ bot: string }
         )}
       </div>
 
-      <RiskWarningBanner
-        severity="info"
-        title="Config is stored in WTC only - never sent to the live bot"
-        detail="This form writes to the WTC database as a versioned, audited reference. Applying config to a running bot and start/stop remain disabled until a separately audited control adapter is approved."
-      />
-      {legacyLiveConfig && (
-        <RiskWarningBanner
-          severity="info"
-          title="Showing latest Legacy live snapshot"
-          detail="The values below are populated from the provider runtime by pub_id through the WTC worker DB snapshot. Saving creates a WTC reference version; it still does not apply settings to the live bot."
-        />
-      )}
-      {caps.liveAdapterBlocked && (
-        <RiskWarningBanner
-          severity="error"
-          title="Legacy HTTP adapter blocked"
-          detail="The old direct HTTP/control path stays blocked. Use the worker DB live-read path for viewing current Legacy settings and metrics."
-        />
-      )}
-
       <div className="wtc-grid wtc-grid-3">
-        <MetricCard label="Mode" value={currentMode === 'auto' ? 'Automatic' : 'Manual'} sub="saved WTC intent" tone={currentMode === 'auto' ? 'up' : undefined} />
+        <MetricCard label="Strategy mode" value={modeMeta.label} sub={modeMeta.hint} tone={currentMode === 'auto' ? 'up' : undefined} />
         <MetricCard label="Config version" value={state.version != null ? `v${state.version}` : 'Not saved'} sub={state.mode === 'postgres' ? 'Postgres' : 'in-memory demo'} />
-        <MetricCard label="Reference profiles" value={presets.length} sub="one-click baselines" />
+        <MetricCard
+          label={meta.code === 'legacy_bot' ? 'Provider pub_id' : 'Reference profiles'}
+          value={meta.code === 'legacy_bot' ? legacyAccounts.length || 'Not linked' : presets.length}
+          sub={meta.code === 'legacy_bot' ? `${legacyRows.length} symbol rows` : 'one-click baselines'}
+        />
       </div>
+
+      {meta.code === 'legacy_bot' && legacyAccounts.length > 0 && (
+        <Card title="Legacy provider accounts">
+          <div className="wtc-table-wrap">
+            <table className="wtc-table">
+              <thead>
+                <tr><th>pub_id</th><th>Market</th><th>Status</th><th>Balance</th><th>Symbols</th><th>Slots</th><th>Orders</th></tr>
+              </thead>
+              <tbody>
+                {legacyAccounts.map((account) => (
+                  <tr key={account.pubId}>
+                    <td className="wtc-mono" data-label="pub_id">{shortPubId(account.pubId)}</td>
+                    <td data-label="Market">{account.market}</td>
+                    <td data-label="Status">
+                      <StatusPill tone={account.quarantined ? 'bad' : account.running ? 'ok' : 'warn'}>
+                        {account.quarantined ? 'quarantined' : account.running ? 'running' : 'paused'}
+                      </StatusPill>
+                    </td>
+                    <td data-label="Balance">{fmtMoney(account.balance)}</td>
+                    <td data-label="Symbols">{account.symbols}</td>
+                    <td data-label="Slots">{account.activeSlots}</td>
+                    <td data-label="Orders">{account.activeOrders}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       <Card title="Export current reference config">
         <div className="wtc-spread" style={{ flexWrap: 'wrap' }}>
@@ -166,14 +219,14 @@ export default async function Page({ params }: { params: Promise<{ bot: string }
           <CsrfField />
           <input type="hidden" name="bot" value={bot} />
           <label className="wtc-stack" style={{ gap: 4 }}>
-            <span style={{ fontSize: 13 }}>Operation mode</span>
+            <span style={{ fontSize: 13 }}>Strategy mode</span>
             <select className="wtc-input" name="operationMode" defaultValue={cur.operationMode != null ? String(cur.operationMode) : defaults.operationMode}>
               {BOT_OPERATION_MODES.map((m) => (
                 <option key={m.value} value={m.value}>{m.label}</option>
               ))}
             </select>
             <span className="wtc-dim" style={{ fontSize: 11 }}>
-              WTC-side intent only. This does not start, stop, or apply config to the live bot.
+              {modeMeta.hint}
             </span>
           </label>
           {meta.code === 'tortila_bot' && <TortilaSymbolConfigTable rows={tortilaRows} />}
@@ -202,7 +255,7 @@ export default async function Page({ params }: { params: Promise<{ bot: string }
           </div>
           <div className="wtc-row">
             <button className={buttonClasses('primary')} type="submit">Save configuration</button>
-            <span className="wtc-dim" style={{ fontSize: 12 }}>Saving appends an immutable version; live application stays disabled.</span>
+            <span className="wtc-dim" style={{ fontSize: 12 }}>Saving appends a versioned strategy profile.</span>
           </div>
         </form>
       </Card>
