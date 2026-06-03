@@ -1,5 +1,25 @@
 # STATUS
 
+_Latest update: 2026-06-03 - Phase 3.67 Bot analytics/settings canary deploy._
+The WTC HTTPS canary now runs the richer bot analytics/settings release `20260603-1227-5d8f52b-bot-analytics`.
+This deploy touched only `wtc-ecosystem-canary`; it preserved the existing nginx route, kept `wtc-ecosystem-worker` and
+`wtc-ecosystem-preview` running, and did not mutate live bot code/config/services. Legacy settings are now a WTC-side
+reference/export matrix with a saved admin `v1` reference config; no live Legacy apply or authenticated Legacy API path is
+enabled. Tortila statistics now include the richer advanced analytics panels while Tortila real data remains DB-backed via
+the existing read-only worker path.
+
+Verified: local `npm run ci:local` passed; server web production build passed; temporary pre-switch smoke on
+`127.0.0.1:8311` passed; public canary `/products/tortila` and `/login` returned `200`; unauthenticated `/app/bots`
+redirected to `/login`; authenticated browser checks passed for Legacy settings, Legacy statistics, Tortila statistics, and
+Tortila dashboard; browser console errors were empty. Existing bot services and `wtc-bot-api-firewall.service` remained
+active, server-local bot ports stayed open, and external `8000/8080` probes stayed closed. Aggregate:
+[`docs/handoffs/20260603-1225-phase-3-67-bot-analytics-settings-canary-deploy.md`](handoffs/20260603-1225-phase-3-67-bot-analytics-settings-canary-deploy.md).
+
+This is **BOT ANALYTICS/SETTINGS CANARY DEPLOYED**, not final full production. Still **NOT GREEN**: Legacy live adapter,
+live bot controls, provider-side journal bearer-auth acceptance, Stripe live/test checkout acceptance, Axioma live bridge,
+live LMS object-store/scanner, branded-domain DNS/TLS, production burn-in/alerting, GitHub CI for this uncommitted working
+tree, and final monitoring acceptance.
+
 _Latest update: 2026-06-03 - Phase 3.65 Tortila DB-backed read-only canary._
 Tortila is now connected to the production canary with real read-only data through WTC Postgres snapshots, not mock data and
 not direct journal reads from user page renders. Current accepted shape: Tortila journal -> `wtc-ecosystem-worker` ->

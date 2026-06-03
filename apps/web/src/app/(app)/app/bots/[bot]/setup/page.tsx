@@ -14,11 +14,14 @@ import {
   botConfigPresetFor,
   botConfigPresetsFor,
   botConfigSchemaFor,
+  legacyStageConfigsFromConfig,
+  legacySymbolConfigsFromConfig,
   loadBotConfig,
   persistBotConfig,
   tortilaSymbolConfigsFromConfig,
 } from '@/features/bots/config';
 import { TortilaSymbolConfigTable } from '@/features/bots/TortilaSymbolConfigTable';
+import { LegacyAveragingConfigTable } from '@/features/bots/LegacyAveragingConfigTable';
 import { Card, SectionHeader, StatusPill, RiskWarningBanner, EmptyState, buttonClasses } from '@wtc/ui';
 
 export const dynamic = 'force-dynamic';
@@ -130,6 +133,8 @@ export default async function BotSetupWizard({
   const defaults = botConfigDefaultsFor(meta.code);
   const presets = botConfigPresetsFor(meta.code);
   const tortilaRows = meta.code === 'tortila_bot' ? tortilaSymbolConfigsFromConfig(cur) : [];
+  const legacyRows = meta.code === 'legacy_bot' ? legacySymbolConfigsFromConfig(cur) : [];
+  const legacyStages = meta.code === 'legacy_bot' ? legacyStageConfigsFromConfig(cur) : [];
 
   return (
     <div className="wtc-stack">
@@ -257,6 +262,7 @@ export default async function BotSetupWizard({
                 </span>
               </label>
               {meta.code === 'tortila_bot' && <TortilaSymbolConfigTable rows={tortilaRows} />}
+              {meta.code === 'legacy_bot' && <LegacyAveragingConfigTable rows={legacyRows} stages={legacyStages} />}
               <div className="wtc-grid wtc-grid-2">
                 {fields.map((f) => (
                   <label key={f.name} className="wtc-stack" style={{ gap: 4 }}>

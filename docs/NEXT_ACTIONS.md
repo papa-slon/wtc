@@ -1,5 +1,20 @@
 # NEXT ACTIONS
 
+**Phase 3.67 (bot analytics/settings canary deploy) is live** - public URL remains the operator-known
+`https://<wtc-canary-host>`. Agents closed: devops and security. Current WTC web canary release:
+`20260603-1227-5d8f52b-bot-analytics`, mounted by `wtc-ecosystem-canary` on `127.0.0.1:8301`. This deploy touched only the
+WTC canary container; `wtc-ecosystem-worker` and `wtc-ecosystem-preview` stayed running, existing bot services stayed active,
+and bot API ports `8000/8080` remained externally closed. Verified in browser: Legacy settings with saved `v1` reference
+config and symbol/stage matrix, Legacy statistics coverage matrix, Tortila advanced statistics, and Tortila dashboard with
+`REAL DATA`. Verified gates: local `npm run ci:local` PASS, server web build PASS, pre-switch smoke PASS, public HTTPS smoke
+PASS, browser console errors empty, and governance PASS. Aggregate:
+[`docs/handoffs/20260603-1225-phase-3-67-bot-analytics-settings-canary-deploy.md`](handoffs/20260603-1225-phase-3-67-bot-analytics-settings-canary-deploy.md).
+
+**Do not treat the richer Legacy UI as permission for live Legacy control.** Legacy remains WTC-side reference/export only.
+Still blocked/not green: Legacy live adapter, live bot start/stop/apply-config, provider-side journal bearer-auth proof,
+Stripe checkout/webhook acceptance, Axioma live bridge/download/account-link, live LMS object-store/scanner,
+branded-domain DNS/TLS, GitHub CI for this exact uncommitted deploy, production burn-in/alerting, and final monitoring.
+
 **Phase 3.65 (Tortila DB-backed read-only canary) is live** - public URL remains the operator-known
 `https://<wtc-canary-host>`. Agents closed: bot-integration, security, and tests/devops. Tortila now uses real read-only data
 through WTC DB snapshots/imports: Tortila journal -> `wtc-ecosystem-worker` -> WTC Postgres -> web/admin UI. Current release:

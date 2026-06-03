@@ -1,5 +1,40 @@
 # Implemented files (current code vs. target contracts)
 
+## 2026-06-03 Phase 3.67 additions (bot analytics/settings canary deploy)
+- Server release `20260603-1227-5d8f52b-bot-analytics` - WTC canary now serves the richer bot analytics/settings UI on the
+  existing canary route. Only `wtc-ecosystem-canary` was replaced; worker, preview, bot services, nginx route, and bot
+  firewall policy were not changed.
+- WTC canary DB - admin Legacy Bot reference config saved as `v1` through the UI. This is reference/export-only and does not
+  apply config to the live Legacy bot.
+- `docs/handoffs/20260603-1225-ecosystem-devops-implementer.md`,
+  `docs/handoffs/20260603-1225-ecosystem-security-auditor.md`, and
+  `docs/handoffs/20260603-1225-phase-3-67-bot-analytics-settings-canary-deploy.md` - two read-only deploy/safety handoffs
+  plus aggregate canary deploy handoff.
+- Verified: local `npm run ci:local` PASS; server web production build PASS; temporary pre-switch smoke PASS; public HTTPS
+  product/login checks PASS; unauthenticated `/app/bots` redirected to login; authenticated browser checks PASS for Legacy
+  settings, Legacy statistics, Tortila statistics, and Tortila dashboard; bot services and firewall service active; external
+  `8000/8080` probes closed; governance PASS. NOT RUN / NOT GREEN: Legacy live adapter, live bot controls, GitHub CI for
+  this uncommitted working tree, provider-side journal auth, Stripe, Axioma live, live LMS object-store/scanner,
+  branded-domain DNS/TLS, and production burn-in/alerting.
+
+## 2026-06-03 Phase 3.66 additions (bot analytics/settings richness)
+- `packages/analytics/src/advanced.ts`, `packages/analytics/src/index.ts`, and `packages/analytics/src/advanced.test.ts` -
+  advanced analytics for returns, trade quality, risk-adjusted metrics, symbol contribution, daily PnL, distribution, and
+  open exposure.
+- `apps/web/src/features/bots/statistics-panels.tsx` and `apps/web/src/app/(app)/app/bots/statistics/page.tsx` - richer bot
+  statistics panels, including Legacy operations coverage.
+- `apps/web/src/features/bots/config.ts`, `apps/web/src/features/bots/LegacyAveragingConfigTable.tsx`,
+  `apps/web/src/app/(app)/app/bots/[bot]/settings/page.tsx`, and
+  `apps/web/src/app/(app)/app/bots/[bot]/setup/page.tsx` - Legacy per-symbol/stage settings matrix, validation,
+  backward-compatible derivation, and safe native export shape.
+- `tests/integration/bot-statistics-static.test.ts` - static coverage updated for the new advanced panels.
+- `docs/handoffs/20260603-1147-*.md` and
+  `docs/handoffs/20260603-1147-phase-3-66-bot-analytics-settings-richness.md` - five per-agent handoffs plus aggregate
+  implementation handoff.
+- Verified: local browser checks, root `npm test` PASS (`106` files, `940` passed, `10` skipped), local `npm run ci:local`
+  PASS, web build PASS, lint/typecheck/secret scan PASS. NOT RUN / NOT GREEN: production canary deploy in that phase,
+  Legacy live adapter, and live bot controls.
+
 ## 2026-06-03 Phase 3.65 additions (Tortila DB-backed read-only canary)
 - `apps/web/src/features/bots/data.tsx` - production Tortila reads are DB-first: health, metric snapshots, position snapshots,
   closed-trade imports, equity curve reconstruction, and persistent Tortila warnings come from WTC DB instead of direct

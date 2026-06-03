@@ -44,8 +44,12 @@ describe('bot statistics surface', () => {
   });
 
   it('adds journal-grade panels without fabricating unavailable data', () => {
-    expect(statsPanels).toMatch(/Monthly returns/);
-    expect(statsPanels).toMatch(/Symbol performance/);
+    expect(statsPanels).toMatch(/Returns matrix/);
+    expect(statsPanels).toMatch(/Risk diagnostics/);
+    expect(statsPanels).toMatch(/Trade quality/);
+    expect(statsPanels).toMatch(/Symbol contribution/);
+    expect(statsPanels).toMatch(/Daily PnL heatmap/);
+    expect(statsPanels).toMatch(/PnL distribution/);
     expect(statsPanels).toMatch(/Exit reasons/);
     expect(statsPanels).toMatch(/Open risk exposure/);
     expect(statsPanels).toMatch(/Activity feed/);

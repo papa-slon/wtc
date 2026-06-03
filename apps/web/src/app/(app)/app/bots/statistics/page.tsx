@@ -1,12 +1,13 @@
 import Link from 'next/link';
-import { filterZeroEquity, type CanonicalPosition, type CanonicalTrade, type EquityPoint } from '@wtc/analytics';
+import { computeAdvancedAnalytics, filterZeroEquity, type CanonicalPosition, type CanonicalTrade, type EquityPoint } from '@wtc/analytics';
 import { Card, EmptyState, MetricCard, MetricValue, RiskWarningBanner, SectionHeader, StatusPill, buttonClasses, type Tone } from '@wtc/ui';
 import { botAccessForUser, reasonLabel } from '@/lib/access';
 import { requireUser } from '@/lib/session';
 import { fmtDateTime, fmtMoney, fmtNum, fmtPf, fmtPct } from '@/lib/format';
 import { BOT_CAPS, BOT_LIST, botHealthPill, type BotMeta } from '@/features/bots/meta';
 import { loadBotReadModel, type BotReadIssue, type BotReadModel } from '@/features/bots/data';
-import { BotJournalPanels } from '@/features/bots/statistics-panels';
+import { BotJournalPanels, LegacyOperationsPanel } from '@/features/bots/statistics-panels';
+import { legacyStageConfigsFromConfig, legacySymbolConfigsFromConfig, loadBotConfig } from '@/features/bots/config';
 
 type BotStatsRow = BotMeta & {
   accessReason: string;
@@ -216,6 +217,10 @@ export default async function BotStatisticsPage({
   const equity = activeRead?.equityCurve.data ?? [];
   const caps = BOT_CAPS[active.code];
   const markUnavailable = active.code === 'tortila_bot' && activeRead?.adapterMode === 'real';
+  const advanced = computeAdvancedAnalytics({ trades, positions, equityCurve: equity });
+  const configState = active.accessAllowed ? await loadBotConfig(user.id, active.code) : null;
+  const legacyRows = active.code === 'legacy_bot' ? legacySymbolConfigsFromConfig(configState?.current ?? null) : [];
+  const legacyStages = active.code === 'legacy_bot' ? legacyStageConfigsFromConfig(configState?.current ?? null) : [];
   const totalWalletEquity = rows.reduce((sum, row) => sum + (row.read?.metrics.data?.walletEquity ?? 0), 0);
   const totalOpenPositions = rows.reduce((sum, row) => sum + (row.read?.positions.data?.length ?? 0), 0);
 
@@ -294,16 +299,28 @@ export default async function BotStatisticsPage({
           {issueBanner(activeRead?.metrics.issue ?? activeRead?.positions.issue ?? activeRead?.trades.issue ?? activeRead?.equityCurve.issue ?? null)}
 
           {metrics ? (
-            <div className="wtc-grid wtc-grid-4">
-              <MetricCard label="Wallet equity" value={fmtMoney(metrics.walletEquity)} />
-              <MetricCard label="Closed PnL" value={fmtMoney(metrics.closedPnl)} tone={pnlTone(metrics.closedPnl)} />
-              <MetricCard label="Net PnL after fees" value={fmtMoney(metrics.netPnlWithFees)} tone={pnlTone(metrics.netPnlWithFees)} />
-              <MetricCard label="Unrealized PnL" value={markUnavailable ? 'N/A' : fmtMoney(metrics.unrealizedPnl)} tone={markUnavailable ? undefined : pnlTone(metrics.unrealizedPnl)} />
-              <MetricCard label="Win rate" value={<MetricValue value={metrics.winRatePct} suffix="%" />} sub={`${metrics.winCount}/${metrics.tradeCount} trades`} />
-              <MetricCard label="Profit factor" value={fmtPf(metrics.profitFactor)} />
-              <MetricCard label="Max drawdown" value={<MetricValue value={metrics.maxDrawdownPct} suffix="%" />} tone="down" />
-              <MetricCard label="Current drawdown" value={fmtPct(metrics.currentDrawdownPct)} tone="down" />
-            </div>
+            <>
+              <div className="wtc-grid wtc-grid-4">
+                <MetricCard label="Wallet equity" value={fmtMoney(metrics.walletEquity)} />
+                <MetricCard label="Closed PnL" value={fmtMoney(metrics.closedPnl)} tone={pnlTone(metrics.closedPnl)} />
+                <MetricCard label="Net PnL after fees" value={fmtMoney(metrics.netPnlWithFees)} tone={pnlTone(metrics.netPnlWithFees)} />
+                <MetricCard label="Unrealized PnL" value={markUnavailable ? 'N/A' : fmtMoney(metrics.unrealizedPnl)} tone={markUnavailable ? undefined : pnlTone(metrics.unrealizedPnl)} />
+                <MetricCard label="Win rate" value={<MetricValue value={metrics.winRatePct} suffix="%" />} sub={`${metrics.winCount}/${metrics.tradeCount} trades`} />
+                <MetricCard label="Profit factor" value={fmtPf(metrics.profitFactor)} />
+                <MetricCard label="Max drawdown" value={<MetricValue value={metrics.maxDrawdownPct} suffix="%" />} tone="down" />
+                <MetricCard label="Current drawdown" value={fmtPct(metrics.currentDrawdownPct)} tone="down" />
+              </div>
+              <div className="wtc-grid wtc-grid-4">
+                <MetricCard label="ROI since start" value={fmtPct(metrics.roiPctSinceStart)} tone={pnlTone(metrics.roiPctSinceStart)} />
+                <MetricCard label="Expectancy" value={fmtMoney(metrics.expectancy)} tone={pnlTone(metrics.expectancy)} />
+                <MetricCard label="Sharpe" value={fmtNum(advanced.risk.sharpe)} />
+                <MetricCard label="Sortino" value={fmtNum(advanced.risk.sortino)} />
+                <MetricCard label="Calmar" value={fmtNum(advanced.risk.calmar)} />
+                <MetricCard label="Recovery" value={fmtNum(advanced.risk.recoveryFactor)} />
+                <MetricCard label="Trades/week" value={fmtNum(advanced.tradeQuality.tradesPerWeek)} />
+                <MetricCard label="Best / worst day" value={`${fmtMoney(advanced.tradeQuality.bestDayNet)} / ${fmtMoney(advanced.tradeQuality.worstDayNet)}`} />
+              </div>
+            </>
           ) : (
             <Card title="Metrics unavailable">
               <EmptyState title="No bot metrics available" hint="The page stays up and shows adapter blockers instead of fabricating zeros." />
@@ -325,6 +342,10 @@ export default async function BotStatisticsPage({
             equity={equity}
             markUnavailable={markUnavailable}
           />
+
+          {active.code === 'legacy_bot' && (
+            <LegacyOperationsPanel rows={legacyRows} stages={legacyStages} />
+          )}
 
           <Card title="Risk and status notes">
             {activeRead?.warnings.data && activeRead.warnings.data.length > 0 ? (

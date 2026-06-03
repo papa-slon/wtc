@@ -16,11 +16,14 @@ import {
   botConfigPresetFor,
   botConfigPresetsFor,
   botConfigSchemaFor,
+  legacyStageConfigsFromConfig,
+  legacySymbolConfigsFromConfig,
   loadBotConfig,
   persistBotConfig,
   tortilaSymbolConfigsFromConfig,
 } from '@/features/bots/config';
 import { TortilaSymbolConfigTable } from '@/features/bots/TortilaSymbolConfigTable';
+import { LegacyAveragingConfigTable } from '@/features/bots/LegacyAveragingConfigTable';
 
 async function saveBotConfigAction(formData: FormData): Promise<void> {
   'use server';
@@ -69,6 +72,8 @@ export default async function Page({ params }: { params: Promise<{ bot: string }
   const sevTone = (s: string) => (s === 'critical' ? 'bad' : 'warn');
   const currentMode = cur.operationMode != null ? String(cur.operationMode) : defaults.operationMode;
   const tortilaRows = meta.code === 'tortila_bot' ? tortilaSymbolConfigsFromConfig(cur) : [];
+  const legacyRows = meta.code === 'legacy_bot' ? legacySymbolConfigsFromConfig(cur) : [];
+  const legacyStages = meta.code === 'legacy_bot' ? legacyStageConfigsFromConfig(cur) : [];
 
   return (
     <div className="wtc-stack">
@@ -157,6 +162,7 @@ export default async function Page({ params }: { params: Promise<{ bot: string }
             </span>
           </label>
           {meta.code === 'tortila_bot' && <TortilaSymbolConfigTable rows={tortilaRows} />}
+          {meta.code === 'legacy_bot' && <LegacyAveragingConfigTable rows={legacyRows} stages={legacyStages} />}
           <div className="wtc-grid wtc-grid-2">
             {fields.map((f) => (
               <label key={f.name} className="wtc-stack" style={{ gap: 4 }}>

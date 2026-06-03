@@ -1,6 +1,19 @@
 # Current Production Blockers
 
-Last updated: 2026-06-03, Phase 3.65 Tortila DB-backed read-only canary.
+Last updated: 2026-06-03, Phase 3.67 bot analytics/settings canary deploy.
+
+Phase 3.67 deploys the richer bot analytics/settings UI to the WTC HTTPS canary as release
+`20260603-1227-5d8f52b-bot-analytics`. This clears the immediate operator-review blocker that bot settings/statistics were
+too thin on the canary. Legacy now has a WTC-side symbol/stage matrix and saved admin reference config `v1`; Tortila and
+Legacy statistics expose richer diagnostics/coverage panels. The deploy replaced only `wtc-ecosystem-canary`, kept the
+worker and preview running, kept existing bot services active, kept live controls disabled, and kept external bot API ports
+closed.
+
+This does **not** clear full production readiness. Legacy live adapter remains blocked on the upstream plaintext exchange-key
+risk and live-control safety gates; the new Legacy UI is reference/export-only. Remaining blockers also include
+provider-side journal bearer-auth proof, any live bot control, Stripe checkout/webhook acceptance, Axioma live
+bridge/download/account-link, live LMS object-store/scanner, branded-domain DNS/TLS, long-running burn-in/alerting, GitHub CI
+for the exact deployed working tree, and direct intended production append-only audit-role proof.
 
 Phase 3.65 clears the Tortila mock-only blocker for the production canary. Tortila real read-only data now flows through
 WTC DB snapshots/imports: Tortila journal -> `wtc-ecosystem-worker` -> WTC Postgres -> web/admin UI. The accepted release is

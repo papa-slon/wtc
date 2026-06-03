@@ -1,8 +1,9 @@
-import type { CanonicalMetrics, CanonicalPosition, CanonicalTrade, EquityPoint } from '@wtc/analytics';
-import { filterZeroEquity } from '@wtc/analytics';
+import type { AdvancedAnalytics, CanonicalMetrics, CanonicalPosition, CanonicalTrade, EquityPoint } from '@wtc/analytics';
+import { computeAdvancedAnalytics, filterZeroEquity } from '@wtc/analytics';
 import { Card, EmptyState, MetricCard, MetricValue, StatusPill } from '@wtc/ui';
-import { fmtDateTime, fmtMoney, fmtNum, fmtPct } from '@/lib/format';
+import { fmtDateTime, fmtMoney, fmtNum, fmtPf, fmtPct } from '@/lib/format';
 import type { BotMeta } from './meta';
+import type { LegacyStageConfig, LegacySymbolConfig } from './config';
 
 function netTrade(t: CanonicalTrade): number {
   return t.realizedPnl - t.fee + t.funding;
@@ -51,33 +52,6 @@ function monthlyRows(points: EquityPoint[]): MonthlyRow[] {
     .map(([month, r]) => ({ month, start: r.start, end: r.end, pnl: r.end - r.start, retPct: pct(r.start, r.end) }))
     .sort((a, b) => b.month.localeCompare(a.month))
     .slice(0, 12);
-}
-
-interface SymbolRow {
-  symbol: string;
-  trades: number;
-  wins: number;
-  losses: number;
-  gross: number;
-  fees: number;
-  funding: number;
-  net: number;
-}
-
-function symbolRows(trades: CanonicalTrade[]): SymbolRow[] {
-  const rows = new Map<string, SymbolRow>();
-  for (const t of closedTrades(trades)) {
-    const row = rows.get(t.symbol) ?? { symbol: t.symbol, trades: 0, wins: 0, losses: 0, gross: 0, fees: 0, funding: 0, net: 0 };
-    row.trades += 1;
-    row.wins += t.realizedPnl > 0 ? 1 : 0;
-    row.losses += t.realizedPnl < 0 ? 1 : 0;
-    row.gross += t.realizedPnl;
-    row.fees += t.fee;
-    row.funding += t.funding;
-    row.net += netTrade(t);
-    rows.set(t.symbol, row);
-  }
-  return [...rows.values()].sort((a, b) => b.net - a.net);
 }
 
 interface ExitRow {
@@ -175,40 +149,6 @@ function MonthlyReturnsPanel({ points }: { points: EquityPoint[] }) {
                   <td data-label="Return" className={(r.retPct ?? 0) >= 0 ? 'wtc-up' : 'wtc-down'}>{fmtPct(r.retPct)}</td>
                 </tr>
               ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </Card>
-  );
-}
-
-function SymbolPerformancePanel({ trades }: { trades: CanonicalTrade[] }) {
-  const rows = symbolRows(trades);
-  return (
-    <Card title="Symbol performance">
-      {rows.length === 0 ? (
-        <EmptyState title="No symbol breakdown" hint="Closed-trade history is required for per-symbol performance." />
-      ) : (
-        <div className="wtc-table-wrap">
-          <table className="wtc-table">
-            <thead>
-              <tr><th>Symbol</th><th>Trades</th><th>Win rate</th><th>Gross</th><th>Fees</th><th>Net</th></tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => {
-                const winRate = r.trades > 0 ? Math.round((r.wins / r.trades) * 10_000) / 100 : null;
-                return (
-                  <tr key={r.symbol}>
-                    <td data-label="Symbol">{r.symbol}</td>
-                    <td data-label="Trades">{r.trades}</td>
-                    <td data-label="Win rate">{fmtPct(winRate)}</td>
-                    <td data-label="Gross" className={r.gross >= 0 ? 'wtc-up' : 'wtc-down'}>{fmtMoney(r.gross)}</td>
-                    <td data-label="Fees">{fmtMoney(r.fees)}</td>
-                    <td data-label="Net" className={r.net >= 0 ? 'wtc-up' : 'wtc-down'}>{fmtMoney(r.net)}</td>
-                  </tr>
-                );
-              })}
             </tbody>
           </table>
         </div>
@@ -337,6 +277,233 @@ function ActivityPanel({ trades, positions }: { trades: CanonicalTrade[]; positi
   );
 }
 
+function fmtHours(n: number | null): string {
+  if (n === null || !Number.isFinite(n)) return '-';
+  return `${n.toFixed(1)}h`;
+}
+
+function pnlToneClass(value: number | null): string | undefined {
+  if (value === null || !Number.isFinite(value)) return undefined;
+  return value >= 0 ? 'wtc-up' : 'wtc-down';
+}
+
+function ReturnsMatrixPanel({ advanced }: { advanced: AdvancedAnalytics }) {
+  return (
+    <Card title="Returns matrix">
+      <div className="wtc-grid wtc-grid-3">
+        {advanced.returns.map((row) => (
+          <MetricCard
+            key={row.label}
+            label={row.label}
+            value={fmtPct(row.returnPct)}
+            sub={row.pnl === null ? undefined : fmtMoney(row.pnl)}
+            tone={row.returnPct == null ? undefined : row.returnPct >= 0 ? 'up' : 'down'}
+          />
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function RiskDiagnosticsPanel({ advanced }: { advanced: AdvancedAnalytics }) {
+  return (
+    <Card title="Risk diagnostics">
+      <div className="wtc-grid wtc-grid-3">
+        <MetricCard label="Sharpe" value={fmtNum(advanced.risk.sharpe)} />
+        <MetricCard label="Sortino" value={fmtNum(advanced.risk.sortino)} />
+        <MetricCard label="Calmar" value={fmtNum(advanced.risk.calmar)} />
+        <MetricCard label="Recovery" value={fmtNum(advanced.risk.recoveryFactor)} />
+        <MetricCard label="Daily volatility" value={fmtPct(advanced.risk.dailyVolatilityPct)} />
+        <MetricCard label="Underwater" value={advanced.risk.longestUnderwaterDays == null ? '-' : `${advanced.risk.longestUnderwaterDays}d`} />
+      </div>
+    </Card>
+  );
+}
+
+function TradeQualityPanel({ advanced }: { advanced: AdvancedAnalytics }) {
+  const q = advanced.tradeQuality;
+  return (
+    <Card title="Trade quality">
+      {q.closedTrades === 0 ? (
+        <EmptyState title="No closed-trade quality data" hint="Closed trades are required for streaks, best/worst trade, and hold-time statistics." />
+      ) : (
+        <div className="wtc-grid wtc-grid-3">
+          <MetricCard label="Trades/week" value={fmtNum(q.tradesPerWeek)} />
+          <MetricCard label="Avg hold" value={fmtHours(q.avgHoldHours)} />
+          <MetricCard label="Scratches" value={q.scratches} />
+          <MetricCard label="Best trade" value={fmtMoney(q.bestTradeNet)} tone={q.bestTradeNet != null && q.bestTradeNet >= 0 ? 'up' : undefined} />
+          <MetricCard label="Worst trade" value={fmtMoney(q.worstTradeNet)} tone={q.worstTradeNet != null ? 'down' : undefined} />
+          <MetricCard label="Streaks" value={`${q.maxConsecutiveWins}W / ${q.maxConsecutiveLosses}L`} />
+          <MetricCard label="Best day" value={fmtMoney(q.bestDayNet)} tone={q.bestDayNet != null && q.bestDayNet >= 0 ? 'up' : undefined} />
+          <MetricCard label="Worst day" value={fmtMoney(q.worstDayNet)} tone={q.worstDayNet != null ? 'down' : undefined} />
+          <MetricCard label="Closed trades" value={q.closedTrades} />
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function SymbolContributionPanel({ advanced }: { advanced: AdvancedAnalytics }) {
+  const rows = advanced.symbols;
+  return (
+    <Card title="Symbol contribution">
+      {rows.length === 0 ? (
+        <EmptyState title="No symbol contribution" hint="Closed-trade history is required for per-symbol contribution." />
+      ) : (
+        <div className="wtc-table-wrap">
+          <table className="wtc-table">
+            <thead>
+              <tr><th>Symbol</th><th>Trades</th><th>Win</th><th>PF</th><th>Net</th><th>Share</th><th>Hold</th></tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.symbol}>
+                  <td data-label="Symbol">{r.symbol}</td>
+                  <td data-label="Trades">{r.trades}</td>
+                  <td data-label="Win">{fmtPct(r.winRatePct)}</td>
+                  <td data-label="PF">{fmtPf(r.profitFactor)}</td>
+                  <td data-label="Net" className={pnlToneClass(r.net)}>{fmtMoney(r.net)}</td>
+                  <td data-label="Share">{fmtPct(r.contributionPct)}</td>
+                  <td data-label="Hold">{fmtHours(r.avgHoldHours)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function CalendarHeatmapPanel({ advanced }: { advanced: AdvancedAnalytics }) {
+  const rows = advanced.dailyPnl.slice(-35);
+  const maxAbs = Math.max(1, ...rows.map((row) => Math.abs(row.net)));
+  return (
+    <Card title="Daily PnL heatmap">
+      {rows.length === 0 ? (
+        <EmptyState title="No daily PnL data" hint="Closed trades are required for the calendar." />
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(92px, 1fr))', gap: 8 }}>
+          {rows.map((row) => {
+            const alpha = 0.08 + Math.min(Math.abs(row.net) / maxAbs, 1) * 0.22;
+            const color = row.net >= 0 ? `rgba(84, 214, 161, ${alpha})` : `rgba(255, 107, 116, ${alpha})`;
+            return (
+              <div key={row.day} style={{ border: '1px solid var(--stroke)', borderRadius: 12, padding: 10, background: color, minHeight: 72 }}>
+                <div className="wtc-mono" style={{ fontSize: 11 }}>{row.day.slice(5)}</div>
+                <div className={row.net >= 0 ? 'wtc-up' : 'wtc-down'} style={{ fontWeight: 800, marginTop: 6 }}>{fmtMoney(row.net)}</div>
+                <div className="wtc-dim" style={{ fontSize: 11, marginTop: 3 }}>{row.trades} trades</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function DistributionPanel({ advanced }: { advanced: AdvancedAnalytics }) {
+  const rows = advanced.distribution;
+  const maxCount = Math.max(1, ...rows.map((row) => row.count));
+  return (
+    <Card title="PnL distribution">
+      {rows.every((row) => row.count === 0) ? (
+        <EmptyState title="No distribution data" hint="Closed trades are required for the PnL histogram." />
+      ) : (
+        <div className="wtc-stack">
+          {rows.map((row) => (
+            <div key={row.label}>
+              <div className="wtc-spread" style={{ gap: 8, fontSize: 12 }}>
+                <span className="wtc-mono">{row.label}</span>
+                <span className={pnlToneClass(row.net)}>{row.count} / {fmtMoney(row.net)}</span>
+              </div>
+              <div style={{ marginTop: 5, height: 8, borderRadius: 999, background: 'rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+                <div style={{ width: `${(row.count / maxCount) * 100}%`, height: '100%', background: row.net >= 0 ? 'var(--green)' : 'var(--red)' }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function signalLabel(row: LegacySymbolConfig): string {
+  if (row.useRsi && row.useCci) return 'RSI+CCI';
+  return row.useCci ? 'CCI' : 'RSI';
+}
+
+export function LegacyOperationsPanel({
+  rows,
+  stages,
+}: {
+  rows: readonly LegacySymbolConfig[];
+  stages: readonly LegacyStageConfig[];
+}) {
+  const active = rows.filter((row) => row.active);
+  const rsi = rows.filter((row) => row.useRsi);
+  const cci = rows.filter((row) => row.useCci);
+  const stageCapacity = stages.reduce((sum, row) => sum + row.rsiSlots + row.cciSlots, 0);
+  const timeframes = [...new Set(rows.map((row) => row.timeframe))].join(', ');
+  return (
+    <div className="wtc-stack">
+      <div>
+        <div className="wtc-kicker">Legacy operations</div>
+        <h3 style={{ margin: '4px 0 12px', fontSize: 20 }}>Averaging bot configuration coverage</h3>
+      </div>
+      <div className="wtc-grid wtc-grid-4">
+        <MetricCard label="Active symbols" value={active.length} sub={`${rows.length} configured`} />
+        <MetricCard label="RSI rows" value={rsi.length} />
+        <MetricCard label="CCI rows" value={cci.length} />
+        <MetricCard label="Stage capacity" value={stageCapacity} sub="RSI + CCI slots" />
+      </div>
+      <Card title="Coverage matrix">
+        <div className="wtc-row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+          <StatusPill tone="neutral">TF {timeframes || '-'}</StatusPill>
+          <StatusPill tone="warn">live reads blocked</StatusPill>
+          <StatusPill tone="neutral">reference only</StatusPill>
+        </div>
+        <div className="wtc-table-wrap">
+          <table className="wtc-table">
+            <thead><tr><th>Symbol</th><th>TF</th><th>Signal</th><th>TP</th><th>Entry</th><th>Ladder</th><th>Balance</th><th>Lev</th><th>Stage</th></tr></thead>
+            <tbody>
+              {rows.slice(0, 16).map((row) => (
+                <tr key={row.symbol}>
+                  <td data-label="Symbol">{row.symbol}</td>
+                  <td data-label="TF">{row.timeframe}</td>
+                  <td data-label="Signal">{signalLabel(row)}</td>
+                  <td data-label="TP">{fmtPct(row.takeProfitPercent)}</td>
+                  <td data-label="Entry">{fmtPct(row.initialEntryPercent)}</td>
+                  <td data-label="Ladder">{row.averagingPercents} / {row.averagingVolumePercents}</td>
+                  <td data-label="Balance">{fmtPct(row.useBalancePercent)}</td>
+                  <td data-label="Lev">{row.leverage}x</td>
+                  <td data-label="Stage">{row.stage}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+      <Card title="Stage slots">
+        <div className="wtc-table-wrap">
+          <table className="wtc-table">
+            <thead><tr><th>Stage</th><th>RSI slots</th><th>CCI slots</th><th>Total</th></tr></thead>
+            <tbody>
+              {stages.map((row) => (
+                <tr key={row.stage}>
+                  <td data-label="Stage">{row.stage}</td>
+                  <td data-label="RSI slots">{row.rsiSlots}</td>
+                  <td data-label="CCI slots">{row.cciSlots}</td>
+                  <td data-label="Total">{row.rsiSlots + row.cciSlots}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 export function BotJournalPanels({
   meta,
   metrics,
@@ -352,6 +519,7 @@ export function BotJournalPanels({
   equity: EquityPoint[];
   markUnavailable: boolean;
 }) {
+  const advanced = computeAdvancedAnalytics({ trades, positions, equityCurve: equity });
   return (
     <div className="wtc-stack">
       <div>
@@ -359,12 +527,21 @@ export function BotJournalPanels({
         <h3 style={{ margin: '4px 0 12px', fontSize: 20 }}>Performance diagnostics</h3>
       </div>
       <div className="wtc-grid wtc-grid-2">
+        <ReturnsMatrixPanel advanced={advanced} />
+        <RiskDiagnosticsPanel advanced={advanced} />
+      </div>
+      <TradeQualityPanel advanced={advanced} />
+      <div className="wtc-grid wtc-grid-2">
         <DrawdownProfilePanel metrics={metrics} points={equity} />
         <OpenRiskPanel positions={positions} markUnavailable={markUnavailable} />
       </div>
       <div className="wtc-grid wtc-grid-2">
         <MonthlyReturnsPanel points={equity} />
-        <SymbolPerformancePanel trades={trades} />
+        <SymbolContributionPanel advanced={advanced} />
+      </div>
+      <div className="wtc-grid wtc-grid-2">
+        <CalendarHeatmapPanel advanced={advanced} />
+        <DistributionPanel advanced={advanced} />
       </div>
       <div className="wtc-grid wtc-grid-2">
         <ExitReasonsPanel trades={trades} />
