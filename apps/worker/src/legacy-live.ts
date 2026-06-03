@@ -3,6 +3,7 @@ import { isLegacySecretField } from '@wtc/bot-adapters';
 import type { Db } from '@wtc/db';
 
 type WorkerEnv = Record<string, string | undefined>;
+type LegacySql = ReturnType<typeof postgres>;
 
 export interface LegacyLiveSnapshotResult {
   status: 'ok' | 'error' | 'skipped';
@@ -129,6 +130,35 @@ function assertNoSecretFields(rows: readonly Record<string, unknown>[], scope: s
   }
 }
 
+async function legacyRelationExists(sql: LegacySql, tableName: string): Promise<boolean> {
+  const rows = await sql<{ exists: boolean }[]>`
+    select exists (
+      select 1
+      from information_schema.tables
+      where table_schema = 'public' and table_name = ${tableName}
+    ) as exists
+  `;
+  return rows[0]?.exists === true;
+}
+
+async function resolveLegacyRelation(sql: LegacySql, candidates: readonly string[], label: string): Promise<string> {
+  for (const candidate of candidates) {
+    if (await legacyRelationExists(sql, candidate)) return candidate;
+  }
+  throw new Error(`legacy_relation_not_found:${label}`);
+}
+
+async function legacyColumnExists(sql: LegacySql, tableName: string, columnName: string): Promise<boolean> {
+  const rows = await sql<{ exists: boolean }[]>`
+    select exists (
+      select 1
+      from information_schema.columns
+      where table_schema = 'public' and table_name = ${tableName} and column_name = ${columnName}
+    ) as exists
+  `;
+  return rows[0]?.exists === true;
+}
+
 function normalizeTimeframe(value: string | null | undefined): '1m' | '3m' | '5m' | '15m' | '1h' {
   return value === '1m' || value === '3m' || value === '5m' || value === '15m' || value === '1h' ? value : '3m';
 }
@@ -239,6 +269,12 @@ async function readLegacyRows(databaseUrl: string, apiId?: string): Promise<Lega
     prepare: false,
   });
   try {
+    const symbolSettingsTable = await resolveLegacyRelation(sql, ['symbolsettingss', 'symbolsettings'], 'symbol_settings');
+    const hasDelayFilter = await legacyColumnExists(sql, symbolSettingsTable, 'use_delay_filter');
+    const hasDelayBars = await legacyColumnExists(sql, symbolSettingsTable, 'delay_bars');
+    const hasDeltaFilterFlag = await legacyColumnExists(sql, symbolSettingsTable, 'use_delta_filter');
+    const hasDeltaFilterValue = await legacyColumnExists(sql, symbolSettingsTable, 'delta_filter');
+
     const accounts = apiId
       ? await sql<LegacyApiAccountRow[]>`
           select pub_id, market::text as market, running, balance, quarantined, quarantine_reason
@@ -261,9 +297,12 @@ async function readLegacyRows(databaseUrl: string, apiId?: string): Promise<Lega
       select api_id, symbol, active, timeframe, use_rsi, use_cci, rsi_length, rsi_threshold,
              cci_length, cci_threshold, take_profit_percent, initial_entry_percent,
              averaging_levels, averaging_percents, averaging_volume_percents,
-             use_balance_percent, leverage, stage, use_delay_filter, delay_bars,
-             use_delta_filter, delta_filter
-      from symbolsettings
+             use_balance_percent, leverage, stage,
+             ${hasDelayFilter ? sql`use_delay_filter` : sql`false`} as use_delay_filter,
+             ${hasDelayBars ? sql`delay_bars` : sql`1`} as delay_bars,
+             ${hasDeltaFilterFlag ? sql`use_delta_filter` : sql`false`} as use_delta_filter,
+             ${hasDeltaFilterValue ? sql`delta_filter` : sql`0`} as delta_filter
+      from ${sql(symbolSettingsTable)}
       where api_id in ${sql(apiIds)}
       order by api_id, symbol
     `;
