@@ -2,7 +2,7 @@
 
 **Phase 3.67 (bot analytics/settings canary deploy) is live** - public URL remains the operator-known
 `https://<wtc-canary-host>`. Agents closed: devops and security. Current WTC web canary release:
-`20260603-1227-5d8f52b-bot-analytics`, mounted by `wtc-ecosystem-canary` on `127.0.0.1:8301`. This deploy touched only the
+`20260603-1246-8075523-bot-analytics`, mounted by `wtc-ecosystem-canary` on `127.0.0.1:8301`. This deploy touched only the
 WTC canary container; `wtc-ecosystem-worker` and `wtc-ecosystem-preview` stayed running, existing bot services stayed active,
 and bot API ports `8000/8080` remained externally closed. Verified in browser: Legacy settings with saved `v1` reference
 config and symbol/stage matrix, Legacy statistics coverage matrix, Tortila advanced statistics, and Tortila dashboard with

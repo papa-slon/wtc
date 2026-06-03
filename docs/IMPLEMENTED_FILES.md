@@ -1,7 +1,7 @@
 # Implemented files (current code vs. target contracts)
 
 ## 2026-06-03 Phase 3.67 additions (bot analytics/settings canary deploy)
-- Server release `20260603-1227-5d8f52b-bot-analytics` - WTC canary now serves the richer bot analytics/settings UI on the
+- Server release `20260603-1246-8075523-bot-analytics` - WTC canary now serves the richer bot analytics/settings UI on the
   existing canary route. Only `wtc-ecosystem-canary` was replaced; worker, preview, bot services, nginx route, and bot
   firewall policy were not changed.
 - WTC canary DB - admin Legacy Bot reference config saved as `v1` through the UI. This is reference/export-only and does not

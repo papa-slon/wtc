@@ -32,11 +32,11 @@ Repository:
 - `docs/handoffs/20260603-1225-phase-3-67-bot-analytics-settings-canary-deploy.md` - this aggregate handoff.
 
 Server:
-- Created WTC release `20260603-1227-5d8f52b-bot-analytics` from the prior canary release, overlaid the current bot
-  analytics/settings code, preserved the copied server `.env.canary.local`, and built the web production bundle in a
-  one-shot Docker build container.
+- Created final WTC release `20260603-1246-8075523-bot-analytics` from the previous bot-analytics canary release, overlaid
+  commit `8075523`, preserved the copied server `.env.canary.local`, and built the web production bundle in a one-shot
+  Docker build container.
 - Replaced only `wtc-ecosystem-canary`; it now mounts
-  `/home/ubuntu/apps/wtc_ecosystem_platform_releases/20260603-1227-5d8f52b-bot-analytics:/app` and runs on
+  `/home/ubuntu/apps/wtc_ecosystem_platform_releases/20260603-1246-8075523-bot-analytics:/app` and runs on
   `127.0.0.1:8301`.
 - Saved a WTC-side Legacy Bot reference config version `v1` through the admin UI. This is a WTC database reference/export
   config only; it does not apply anything to the live Legacy bot.

@@ -1,7 +1,7 @@
 # STATUS
 
 _Latest update: 2026-06-03 - Phase 3.67 Bot analytics/settings canary deploy._
-The WTC HTTPS canary now runs the richer bot analytics/settings release `20260603-1227-5d8f52b-bot-analytics`.
+The WTC HTTPS canary now runs the richer bot analytics/settings release `20260603-1246-8075523-bot-analytics`.
 This deploy touched only `wtc-ecosystem-canary`; it preserved the existing nginx route, kept `wtc-ecosystem-worker` and
 `wtc-ecosystem-preview` running, and did not mutate live bot code/config/services. Legacy settings are now a WTC-side
 reference/export matrix with a saved admin `v1` reference config; no live Legacy apply or authenticated Legacy API path is

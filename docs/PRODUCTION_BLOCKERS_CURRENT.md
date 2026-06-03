@@ -3,7 +3,7 @@
 Last updated: 2026-06-03, Phase 3.67 bot analytics/settings canary deploy.
 
 Phase 3.67 deploys the richer bot analytics/settings UI to the WTC HTTPS canary as release
-`20260603-1227-5d8f52b-bot-analytics`. This clears the immediate operator-review blocker that bot settings/statistics were
+`20260603-1246-8075523-bot-analytics`. This clears the immediate operator-review blocker that bot settings/statistics were
 too thin on the canary. Legacy now has a WTC-side symbol/stage matrix and saved admin reference config `v1`; Tortila and
 Legacy statistics expose richer diagnostics/coverage panels. The deploy replaced only `wtc-ecosystem-canary`, kept the
 worker and preview running, kept existing bot services active, kept live controls disabled, and kept external bot API ports
