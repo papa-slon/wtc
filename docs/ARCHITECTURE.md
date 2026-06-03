@@ -144,7 +144,7 @@ AES-256-GCM envelope encryption for exchange API key secrets (and any other at-r
 
 ### `packages/bot-adapters`
 
-Defines the `BotAdapter` interface and ships two concrete implementations: `TortilaAdapter` (reads from Tortila journal `:8080`) and `LegacyBotAdapter` (reads from old bot `:8000`). Also exports `MockTortilaAdapter` and `MockLegacyBotAdapter` for dev and test. **Only the mock adapters are available today; the real read-only adapters are stubbed and throw `AdapterNotReadyError`** until each endpoint mapping is verified. Write/control methods (`startBot`, `stopBot`, `applyConfig`) are defined in the interface but throw until a separately audited control adapter is approved (feature-flagged). The adapters handle their own HTTP timeouts, circuit-breaker state, and error normalization. See [BOT_INTEGRATION_PLAN.md](./BOT_INTEGRATION_PLAN.md) and [CONTRACTS/tortila-adapter.md](./CONTRACTS/tortila-adapter.md).
+Defines the `BotAdapter` interface and ships read-only bot surfaces: `TortilaAdapter` reads from the Tortila journal `:8080`, while Legacy live visibility is populated by the worker DB snapshot path instead of direct Legacy HTTP management calls. Also exports `MockTortilaAdapter` and `MockLegacyBotAdapter` for dev and test. Write/control methods (`startBot`, `stopBot`, `applyConfig`) are defined in the interface but throw until a separately audited control adapter is approved (feature-flagged). The adapters handle their own HTTP timeouts, circuit-breaker state, and error normalization. See [BOT_INTEGRATION_PLAN.md](./BOT_INTEGRATION_PLAN.md), [CONTRACTS/tortila-adapter.md](./CONTRACTS/tortila-adapter.md), and [CONTRACTS/legacy-bot-adapter.md](./CONTRACTS/legacy-bot-adapter.md).
 
 ### `packages/axioma-bridge`
 
@@ -573,7 +573,9 @@ from the confirmed journal source shapes. Key mapping rules (non-negotiable):
   the health record shows `not_configured` — never a false positive.
 
 Control methods (`startBot`/`stopBot`/`applyConfig`) remain hard-disabled regardless of adapter mode.
-Legacy bot adapter remains BLOCKED (plaintext keys unresolved — 5 security gates NOT STARTED).
+Legacy direct HTTP/control adapter remains BLOCKED. Legacy read-only visibility is provided separately by
+worker snapshots from provider Postgres using `pub_id` and explicit safe-column SQL; WTC does not collect,
+store, render, or proxy Legacy exchange keys.
 
 ### 12.3 Billing webhook hardening
 

@@ -3,8 +3,8 @@
 **Document type:** Integration contract
 **Owner:** ecosystem-bot-integration-auditor (WTC side), Legacy bot team (provider side)
 **Consumer:** `packages/bot-adapters/LegacyBotAdapter`, `apps/worker` snapshot job
-**Status:** Phase 0 — mock only. Real adapter requires service-account token in vault.
-**Last updated:** 2026-05-29
+**Status:** Phase 3.68 read-only DB snapshot canary. Direct HTTP/control adapter remains blocked.
+**Last updated:** 2026-06-03
 
 Related: [BOT_INTEGRATION_PLAN.md](../BOT_INTEGRATION_PLAN.md),
 [BOT_CONTROL_SAFETY_MODEL.md](../BOT_CONTROL_SAFETY_MODEL.md),
@@ -19,18 +19,25 @@ Related: [BOT_INTEGRATION_PLAN.md](../BOT_INTEGRATION_PLAN.md),
 |---|---|---|
 | Provider | Legacy Bot FastAPI | `0.0.0.0:8000` on the bot server |
 | Consumer | WTC `apps/worker` (snapshot job) | WTC platform server |
-| Interface | `LegacyBotAdapter` in `packages/bot-adapters` | Compiled TypeScript |
+| Interface | `apps/worker/src/legacy-live.ts` snapshot job | Compiled TypeScript |
 
-WTC is a **read-only consumer**. The only write permitted is the POST to `/auth/login`
-to obtain a JWT token. No other mutations.
+WTC is a **read-only consumer**. The accepted canary path does not call Legacy HTTP management endpoints
+and does not start/stop/retest/apply config. It reads provider Postgres safe columns by existing provider
+`pub_id`, writes WTC-owned snapshots, and renders from WTC Postgres.
 
 ---
 
 ## Auth Method
 
-**Type:** JWT Bearer token via username/password login.
+**Current canary type:** server-side Postgres connection string stored outside the repo.
 
-**Flow:**
+The worker selects only explicit safe columns from provider tables. It does not select `api_key`,
+`secret_key`, or other secret-looking columns, and it rejects selected secret-hint field names before
+building WTC snapshots. `pub_id` is the provider account identity.
+
+**Future HTTP adapter type:** JWT Bearer token via username/password login.
+
+**Future HTTP flow (not active in Phase 3.68):**
 1. WTC worker holds a service-account credential in the encrypted vault
    (secret type: `legacy_bot_service_account`; fields: `username`, `password`).
 2. On startup (or when token expires), worker calls `POST /auth/login` with credentials.
@@ -46,8 +53,8 @@ to obtain a JWT token. No other mutations.
 - Credentials must never appear in logs, environment variables exposed to UI, or API
   responses (vault returns only success/error, never plaintext secret).
 
-**Current state:** No service account exists. `BOT_ADAPTER_MODE=mock` until a service
-account is provisioned and credentials are stored in vault.
+**Current state:** Legacy read-only canary uses `LEGACY_LIVE_READS_ENABLED=true` plus
+`LEGACY_DATABASE_URL` for worker snapshots. Direct `LegacyBotAdapter` HTTP/control routes remain blocked.
 
 **Network boundary:** Legacy bot is on `0.0.0.0:8000` with no nginx proxy discovered.
 Before production use: restrict port 8000 to WTC server IP via security group / iptables.
@@ -69,8 +76,9 @@ The legacy bot's API surface (from source and OpenAPI discovery):
 | `POST /api_management/{api_id}/stage_config` | POST | JWT | Update stage config — NOT USED by WTC |
 | `POST /api_management/{api_id}/retest` | POST | JWT | Trigger retest — NOT USED by WTC |
 
-**WTC uses only read endpoints:** `GET /api_management/` and `GET /api_management/{api_id}`.
-`retest` and stage_config write endpoints are explicitly excluded.
+**WTC Phase 3.68 uses no HTTP endpoints.** Future HTTP acceptance, if reopened, may use only read
+endpoints (`GET /api_management/` and `GET /api_management/{api_id}`) after separate security acceptance.
+`retest`, start/stop, and stage_config write endpoints are explicitly excluded.
 
 ---
 

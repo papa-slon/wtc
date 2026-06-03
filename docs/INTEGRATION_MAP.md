@@ -165,11 +165,11 @@ These signals are read from the journal's decision/safety endpoints. The WTC `To
 |---|---|
 | **Service** | Old Bot (FastAPI, tmux session `bot`) |
 | **Host** | `<shared-vps-ip>:8000` (direct; no nginx reverse proxy discovered) |
-| **Adapter package** | `packages/bot-adapters` → `LegacyBotAdapter` |
-| **Direction** | WTC → Legacy Bot (outbound read-only for MVP) |
-| **Auth method** | The legacy bot has `/auth/login` → JWT. WTC adapter stores a service-level JWT (not tied to any user's credentials) obtained from the bot's own auth endpoint. This service credential is stored in `packages/config` (env var, never in DB). |
-| **Read / Write** | Read only for MVP. Config write operations are defined in the interface but mock-only until audited. |
-| **Mock vs real** | `MockLegacyBotAdapter` for dev/test |
+| **Adapter package** | `apps/worker/src/legacy-live.ts` snapshot job; direct `LegacyBotAdapter` HTTP/control remains blocked |
+| **Direction** | Legacy provider Postgres safe columns -> WTC worker snapshot -> WTC Postgres -> web/admin UI |
+| **Auth method** | Server-side `LEGACY_DATABASE_URL` for worker snapshots. The HTTP `/auth/login` JWT path is not used by the Phase 3.68 canary. |
+| **Read / Write** | Read-only safe-column SQL by provider `pub_id`; no Legacy HTTP mutation, start/stop, retest, or config apply. |
+| **Mock vs real** | Worker DB snapshot live on canary; `MockLegacyBotAdapter` remains for dev/test |
 | **Timeout** | 5 s connect / 10 s read |
 | **Rate limit** | Unknown upstream; WTC enforces max 1 req/10 s per endpoint |
 
@@ -277,7 +277,7 @@ These signals are read from the journal's decision/safety endpoints. The WTC `To
 | Adapter / Bridge | Phase available | Current mode | Control write | Notes |
 |---|---|---|---|---|
 | `TortilaAdapter` | Phase 2.4 (read-only CURRENT) | Mock (default) / read-only when `TORTILA_JOURNAL_URL` set | Never (hard-disabled) | health/summary/equity/trades CURRENT; marks excluded; /api/marks never consumed |
-| `LegacyBotAdapter` | BLOCKED | Mock (returns legacy_plaintext_keys error) | Never | All 5 security gates NOT STARTED; plaintext-key issue unresolved |
+| `LegacyBotAdapter` / DB snapshot | Phase 3.68 read-only canary | Worker DB snapshot live; direct HTTP adapter blocked | Never | Uses existing provider `pub_id` plus safe DB columns only; WTC does not collect Legacy exchange keys |
 | `AxiomaBridge` | Phase 3 | Mock → Real | N/A (read + link) | Bridges to `axi-o.ma`; no order path |
 | `BillingAdapter` (Stripe) | Phase 2 | Mock → Real | Write (checkout, cancel) | Webhook-driven; idempotent |
 | `TVAccessAdapter` | Phase 5 | Manual queue | Manual admin only | No automation in prod default |
@@ -350,7 +350,7 @@ The adapter status table in §4 is updated: `TortilaAdapter` is now CURRENT (not
 | Adapter / Bridge | Phase available | Current mode | Control write | Notes |
 |---|---|---|---|---|
 | `TortilaAdapter` | Phase 2.4 | Mock (default) / read-only when `BOT_ADAPTER_MODE=read-only` AND `TORTILA_JOURNAL_URL` set | Never (hard-disabled) | health/summary/equity/trades CURRENT with Zod validation + 11 fixtures; `/api/marks` NEVER consumed; fees sign-inverted; mark price honestly unavailable |
-| `LegacyBotAdapter` | BLOCKED | Stub (throws on all reads) | Never | 5 security gates NOT STARTED; plaintext-key issue unresolved; Phase Group 3 adds a compile-time `LegacyBlockedAdapter` gate |
+| `LegacyBotAdapter` / DB snapshot | Phase 3.68 | Worker DB snapshot live; direct HTTP adapter blocked | Never | Existing provider `pub_id` identifies the account; safe-column Postgres reads only; no WTC exchange-key collection |
 | `AxiomaBridge` | Phase Group 6 | Mock → Real | N/A (read + link) | ES256 signer + JWKS route exist (Phase 2.1); needs provisioned P-256 key + confirmed endpoint shapes |
 | `BillingAdapter` (Stripe) | Phase Group 4 | Mock → Real | Write (test checkout, cancel TARGET) | Webhook-driven; `billing_webhook_events` durable idempotency CURRENT; test-mode checkout creation CURRENT; local replay preflight CURRENT; Stripe CLI/Dashboard replay NOT RUN |
 | `TVAccessAdapter` | Phase Group 5 | Manual queue | Manual admin only | `atomicGrantTv`/`atomicRevokeTv` CURRENT; `sweepTvExpiry`→`atomicRevokeTv` fix pending |

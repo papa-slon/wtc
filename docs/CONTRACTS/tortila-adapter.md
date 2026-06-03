@@ -5,8 +5,9 @@
 **Consumer:** `packages/bot-adapters/TortilaAdapter`, `apps/worker` snapshot job
 **Status:** Phase 2.4 — read-only adapter mappings CURRENT for health/summary/equity/trades.
   Mock default (`BOT_ADAPTER_MODE=mock`). Real adapter activated when `BOT_ADAPTER_MODE=read-only`
-  AND `TORTILA_JOURNAL_URL` is set. Legacy adapter remains BLOCKED (plaintext keys unresolved).
-**Last updated:** 2026-05-30
+  AND `TORTILA_JOURNAL_URL` is set. Legacy direct HTTP/control adapter remains blocked; Legacy
+  visibility now uses a separate worker DB snapshot path by provider `pub_id`.
+**Last updated:** 2026-06-03
 
 Related: [BOT_INTEGRATION_PLAN.md](../BOT_INTEGRATION_PLAN.md),
 [BOT_CONTROL_SAFETY_MODEL.md](../BOT_CONTROL_SAFETY_MODEL.md),
@@ -458,7 +459,7 @@ Tortila Journal has no explicit rate limiting. However:
 | `getPositions()` mapping | CURRENT (Phase 2.4) | `/api/summary.open_position_summaries`; markPrice/unrealizedPnl unavailable |
 | `/api/marks` | EXCLUDED — never consumed | Bot owns exchange connection; WTC must not call this |
 | `startBot/stopBot/applyConfig` | HARD-DISABLED | `BotControlDisabledError` always thrown |
-| Legacy real adapter | BLOCKED | Plaintext keys issue unresolved; all 5 security gates NOT STARTED |
+| Legacy DB snapshot | CURRENT (Phase 3.68 canary) | Worker reads provider Postgres safe columns by `pub_id`; direct HTTP/control adapter remains blocked |
 
 | Environment | `BOT_ADAPTER_MODE` | Adapter used |
 |---|---|---|

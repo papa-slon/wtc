@@ -1,16 +1,16 @@
 # Current Production Blockers
 
-Last updated: 2026-06-03, Phase 3.67 bot analytics/settings canary deploy.
+Last updated: 2026-06-03, Phase 3.68 Legacy DB live-read canary deploy.
 
-Phase 3.67 deploys the richer bot analytics/settings UI to the WTC HTTPS canary as release
-`20260603-1246-8075523-bot-analytics`. This clears the immediate operator-review blocker that bot settings/statistics were
-too thin on the canary. Legacy now has a WTC-side symbol/stage matrix and saved admin reference config `v1`; Tortila and
-Legacy statistics expose richer diagnostics/coverage panels. The deploy replaced only `wtc-ecosystem-canary`, kept the
-worker and preview running, kept existing bot services active, kept live controls disabled, and kept external bot API ports
-closed.
+Phase 3.68 deploys Legacy Bot read-only live visibility to the WTC HTTPS canary as release
+`20260603-0724-0eb22a2-legacy-live-read`. Legacy live-read now flows through:
+provider Postgres safe columns -> WTC worker snapshot -> WTC Postgres -> WTC web/admin UI.
+The path uses the existing provider `pub_id` runtime and does not collect, store, render, or proxy Legacy exchange keys
+inside WTC. The deploy replaced only `wtc-ecosystem-canary` and `wtc-ecosystem-worker`, kept existing bot services active,
+kept live controls disabled, and kept external bot API ports closed.
 
-This does **not** clear full production readiness. Legacy live adapter remains blocked on the upstream plaintext exchange-key
-risk and live-control safety gates; the new Legacy UI is reference/export-only. Remaining blockers also include
+This does **not** clear full production readiness. Legacy direct HTTP/control adapter and live apply remain blocked by
+live-control safety gates; the new Legacy UI is read-only snapshot/config visibility. Remaining blockers also include
 provider-side journal bearer-auth proof, any live bot control, Stripe checkout/webhook acceptance, Axioma live
 bridge/download/account-link, live LMS object-store/scanner, branded-domain DNS/TLS, long-running burn-in/alerting, GitHub CI
 for the exact deployed working tree, and direct intended production append-only audit-role proof.
@@ -97,7 +97,8 @@ not replace the still-missing intended audit-role, live provider, server/deploy,
   Stripe or writing pending-payment rows. Real Stripe CLI/Dashboard replay, real Stripe test checkout acceptance with
   operator-provided `sk_test`/`whsec`/`price_` values, production key provisioning, production webhook endpoint registration,
   and live/staging route replay are still NOT RUN.
-- B3 Legacy bot adapter: still blocked on the upstream plaintext exchange-key fix and the live-control safety gates.
+- B3 Legacy bot direct HTTP/control adapter: still blocked for HTTP management endpoints, start/stop, retest, and live
+  apply. The accepted canary read surface is the worker DB snapshot by provider `pub_id` with safe-column SQL only.
 - B4 Axioma terminal: JWKS route, local WTC-side JTI consume route, route-level journal handoff acceptance, a local one-time download token/proxy handler, local account-link hash/active-link persistence, local account-link init/complete/unlink routes, parse-verified route readiness, an opt-in no-network Axioma handoff preflight, and Axioma-specific retained-artifact deny rules now exist and fail closed when prerequisites are absent. The runtime download adapter still has no live installer fetcher, and no live Axioma endpoint-shape/account-link/download acceptance has been run, so real download/open-journal/OTC activation remains blocked on endpoint shapes, OP ES256 key provisioning, live Axioma consume/download/account-link acceptance, installer streaming/security acceptance, real-Postgres JTI race proof, and enabled browser CTA acceptance.
 - TradingView private invite automation: still manual/admin-state only.
 - TradingView real-Postgres race acceptance: local PGlite and migration checks cover unique manual task identity, but a fresh throwaway real-Postgres cross-connection race remains recommended when credentials are provided.
