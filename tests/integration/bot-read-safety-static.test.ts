@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 const ROOT = process.cwd();
 const read = (rel: string): string => readFileSync(resolve(ROOT, rel), 'utf8');
 
+const accessLib = read('apps/web/src/lib/access.ts');
 const data = read('apps/web/src/features/bots/data.tsx');
 const botsList = read('apps/web/src/app/(app)/app/bots/page.tsx');
 const botDetail = read('apps/web/src/app/(app)/app/bots/[bot]/page.tsx');
@@ -14,12 +15,24 @@ const equity = read('apps/web/src/app/(app)/app/bots/[bot]/equity/page.tsx');
 const safety = read('apps/web/src/app/(app)/app/bots/[bot]/safety/page.tsx');
 const settings = read('apps/web/src/app/(app)/app/bots/[bot]/settings/page.tsx');
 const setup = read('apps/web/src/app/(app)/app/bots/[bot]/setup/page.tsx');
+const backtester = read('apps/web/src/app/(app)/app/bots/[bot]/backtester/page.tsx');
+const configExportRoute = read('apps/web/src/app/api/bots/[bot]/config-export/route.ts');
+const runnerDownloadRoute = read('apps/web/src/app/api/bots/[bot]/backtest/runner-download/route.ts');
 const config = read('apps/web/src/features/bots/config.ts');
 const adminQueries = read('apps/web/src/features/admin/queries.ts');
 const adminBots = read('apps/web/src/app/admin/bots/page.tsx');
 const journal = read('apps/web/src/features/bots/journal.ts');
 
 describe('bot read surfaces tolerate blocked/not-ready adapters', () => {
+  it('lets admins inspect bot pages while keeping ordinary bot access entitlement-gated', () => {
+    expect(accessLib).toMatch(/export async function botAccessForUser/);
+    expect(accessLib).toMatch(/user\.roles\.includes\('admin'\)/);
+    expect(accessLib).toMatch(/return accessFor\(user\.id, productCode\)/);
+    for (const source of [data, botsList, botDetail, settings, setup, backtester, configExportRoute, runnerDownloadRoute]) {
+      expect(source).toMatch(/botAccessForUser/);
+    }
+  });
+
   it('shared loader catches LegacyAdapterBlockedError and AdapterNotReadyError', () => {
     expect(data).toMatch(/LegacyAdapterBlockedError/);
     expect(data).toMatch(/AdapterNotReadyError/);

@@ -1,7 +1,7 @@
 import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
 import { requireUser } from '@/lib/session';
-import { accessFor } from '@/lib/access';
+import { botAccessForUser } from '@/lib/access';
 import { CsrfField, assertCsrf } from '@/lib/csrf';
 import { Card, SectionHeader, StatusPill, EmptyState, RiskWarningBanner, buttonClasses, MetricCard } from '@wtc/ui';
 import { fmtDate } from '@/lib/format';
@@ -29,7 +29,7 @@ async function saveBotConfigAction(formData: FormData): Promise<void> {
   const slug = String(formData.get('bot') ?? '');
   const meta = botMeta(slug);
   if (!meta) return;
-  const access = await accessFor(user.id, meta.code);
+  const access = await botAccessForUser(user, meta.code);
   if (!access.allowed) return;
   const parsed = botConfigSchemaFor(meta.code).safeParse(botConfigFormInput(meta.code, formData));
   if (!parsed.success) return;
@@ -45,7 +45,7 @@ async function applyBotPresetAction(formData: FormData): Promise<void> {
   const presetId = String(formData.get('presetId') ?? '');
   const meta = botMeta(slug);
   if (!meta) return;
-  const access = await accessFor(user.id, meta.code);
+  const access = await botAccessForUser(user, meta.code);
   if (!access.allowed) return;
   const preset = botConfigPresetFor(meta.code, presetId);
   if (!preset) return;

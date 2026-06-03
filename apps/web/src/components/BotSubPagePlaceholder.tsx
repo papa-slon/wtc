@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { requireUser } from '@/lib/session';
-import { accessFor, reasonLabel } from '@/lib/access';
+import { botAccessForUser, reasonLabel } from '@/lib/access';
 import { SectionHeader, RiskWarningBanner, EmptyState } from '@wtc/ui';
 
 const MAP: Record<string, 'tortila_bot' | 'legacy_bot'> = { tortila: 'tortila_bot', legacy: 'legacy_bot' };
@@ -10,7 +10,7 @@ export async function BotSubPagePlaceholder({ bot, section, note }: { bot: strin
   const code = MAP[bot];
   if (!code) notFound();
   const user = await requireUser();
-  const access = await accessFor(user.id, code);
+  const access = await botAccessForUser(user, code);
   if (!access.allowed) {
     return (
       <div className="wtc-stack">

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { requireUser } from '@/lib/session';
-import { accessFor, reasonLabel } from '@/lib/access';
+import { botAccessForUser, reasonLabel } from '@/lib/access';
 import { combineMetrics } from '@wtc/analytics';
 import { botAdapterMode } from '@/lib/server-config';
 import { Card, SectionHeader, StatusPill, MetricCard, MetricValue, RiskWarningBanner, buttonClasses, type Tone } from '@wtc/ui';
@@ -16,7 +16,7 @@ export default async function BotsPage() {
   const user = await requireUser();
   const rows = await Promise.all(
     BOT_LIST.map(async (b) => {
-      const access = await accessFor(user.id, b.code);
+      const access = await botAccessForUser(user, b.code);
       const read = access.allowed ? await loadBotReadModel(b.code, ['metrics']) : null;
       return { ...b, access, read };
     }),

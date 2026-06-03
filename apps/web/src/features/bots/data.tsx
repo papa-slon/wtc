@@ -15,7 +15,7 @@ import {
   type RiskWarning,
 } from '@wtc/bot-adapters';
 import { requireUser } from '@/lib/session';
-import { accessFor, reasonLabel } from '@/lib/access';
+import { botAccessForUser, reasonLabel } from '@/lib/access';
 import { botAdapterOptions } from '@/lib/server-config';
 import { getServerDb } from '@/lib/backend';
 import { SectionHeader, RiskWarningBanner, buttonClasses } from '@wtc/ui';
@@ -29,7 +29,7 @@ export async function loadBot(slug: string): Promise<{ meta: BotMeta; access: Ac
   const meta = botMeta(slug);
   if (!meta) notFound();
   const user = await requireUser();
-  const access = await accessFor(user.id, meta.code);
+  const access = await botAccessForUser(user, meta.code);
   return { meta, access };
 }
 

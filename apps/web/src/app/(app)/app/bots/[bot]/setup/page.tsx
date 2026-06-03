@@ -1,7 +1,7 @@
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { requireUser } from '@/lib/session';
-import { accessFor, reasonLabel } from '@/lib/access';
+import { botAccessForUser, reasonLabel } from '@/lib/access';
 import { CsrfField, assertCsrf } from '@/lib/csrf';
 import { addExchangeKey, listExchangeKeys } from '@/lib/backend';
 import { exchangeKeyInputSchema } from '@wtc/shared';
@@ -42,7 +42,7 @@ async function wizardAddKey(formData: FormData): Promise<void> {
   const meta = botMeta(bot);
   if (!meta) return;
   if (BOT_CAPS[meta.code].liveAdapterBlocked) redirect(`/app/bots/${bot}/setup?step=key&err=blocked`);
-  const access = await accessFor(user.id, meta.code);
+  const access = await botAccessForUser(user, meta.code);
   if (!access.allowed) return;
   const parsed = exchangeKeyInputSchema.safeParse({
     exchange: formData.get('exchange'),
@@ -63,7 +63,7 @@ async function wizardSaveConfig(formData: FormData): Promise<void> {
   const bot = String(formData.get('bot') ?? '');
   const meta = botMeta(bot);
   if (!meta) return;
-  const access = await accessFor(user.id, meta.code);
+  const access = await botAccessForUser(user, meta.code);
   if (!access.allowed) return;
   const parsed = botConfigSchemaFor(meta.code).safeParse(botConfigFormInput(meta.code, formData));
   if (!parsed.success) redirect(`/app/bots/${bot}/setup?step=strategy&err=config`);
@@ -79,7 +79,7 @@ async function wizardApplyPreset(formData: FormData): Promise<void> {
   const presetId = String(formData.get('presetId') ?? '');
   const meta = botMeta(bot);
   if (!meta) return;
-  const access = await accessFor(user.id, meta.code);
+  const access = await botAccessForUser(user, meta.code);
   if (!access.allowed) return;
   const preset = botConfigPresetFor(meta.code, presetId);
   if (!preset) redirect(`/app/bots/${bot}/setup?step=strategy&err=config`);
@@ -101,7 +101,7 @@ export default async function BotSetupWizard({
   const meta = botMeta(bot);
   if (!meta) notFound();
   const user = await requireUser();
-  const access = await accessFor(user.id, meta.code);
+  const access = await botAccessForUser(user, meta.code);
 
   if (!access.allowed) {
     return (

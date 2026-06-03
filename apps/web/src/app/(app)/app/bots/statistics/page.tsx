@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { filterZeroEquity, type CanonicalPosition, type CanonicalTrade, type EquityPoint } from '@wtc/analytics';
 import { Card, EmptyState, MetricCard, MetricValue, RiskWarningBanner, SectionHeader, StatusPill, buttonClasses, type Tone } from '@wtc/ui';
-import { accessFor, reasonLabel } from '@/lib/access';
+import { botAccessForUser, reasonLabel } from '@/lib/access';
 import { requireUser } from '@/lib/session';
 import { fmtDateTime, fmtMoney, fmtNum, fmtPf, fmtPct } from '@/lib/format';
 import { BOT_CAPS, BOT_LIST, botHealthPill, type BotMeta } from '@/features/bots/meta';
@@ -200,7 +200,7 @@ export default async function BotStatisticsPage({
   const user = await requireUser();
   const rows: BotStatsRow[] = await Promise.all(
     BOT_LIST.map(async (bot) => {
-      const access = await accessFor(user.id, bot.code);
+      const access = await botAccessForUser(user, bot.code);
       const read = access.allowed
         ? await loadBotReadModel(bot.code, ['metrics', 'positions', 'trades', 'equityCurve', 'warnings'])
         : null;

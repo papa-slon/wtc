@@ -7,6 +7,13 @@ export async function accessFor(userId: string, productCode: ProductCode): Promi
   return explainAccess(ents, productCode, Date.now());
 }
 
+export async function botAccessForUser(user: { id: string; roles: readonly string[] }, productCode: ProductCode): Promise<AccessDecision> {
+  if (user.roles.includes('admin')) {
+    return { allowed: true, reason: 'allowed', status: 'active', productCode };
+  }
+  return accessFor(user.id, productCode);
+}
+
 const LABELS: Record<AccessReason, string> = {
   allowed: 'Active',
   grace: 'Grace period',

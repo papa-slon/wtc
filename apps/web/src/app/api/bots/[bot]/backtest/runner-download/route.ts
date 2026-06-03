@@ -2,7 +2,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { readFile } from 'node:fs/promises';
-import { accessFor, reasonLabel } from '@/lib/access';
+import { botAccessForUser, reasonLabel } from '@/lib/access';
 import { requireUser } from '@/lib/session';
 import { getRunnerRelease, runnerReleasePath } from '@wtc/backtester';
 
@@ -19,7 +19,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ bot: string }>
     return Response.json({ error: 'no_runner_available' }, { status: 404 });
   }
 
-  const access = await accessFor(user.id, 'tortila_bot');
+  const access = await botAccessForUser(user, 'tortila_bot');
   if (!access.allowed) {
     return Response.json({ error: 'entitlement_denied', reason: reasonLabel(access.reason) }, { status: 403 });
   }

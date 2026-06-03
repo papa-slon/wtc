@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireUser } from '@/lib/session';
-import { accessFor, reasonLabel } from '@/lib/access';
+import { botAccessForUser, reasonLabel } from '@/lib/access';
 import type { BotProductCode } from '@wtc/bot-adapters';
 import { Card, SectionHeader, StatusPill, MetricCard, MetricValue, RiskWarningBanner, EmptyState, buttonClasses } from '@wtc/ui';
 import { fmtMoney, fmtPf, fmtNum } from '@/lib/format';
@@ -32,7 +32,7 @@ export default async function BotDetailPage({ params }: { params: Promise<{ bot:
   const meta = MAP[bot];
   if (!meta) notFound();
   const user = await requireUser();
-  const access = await accessFor(user.id, meta.code);
+  const access = await botAccessForUser(user, meta.code);
 
   if (!access.allowed) {
     return (

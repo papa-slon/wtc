@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireUser } from '@/lib/session';
-import { accessFor, reasonLabel } from '@/lib/access';
+import { botAccessForUser, reasonLabel } from '@/lib/access';
 import { Card, SectionHeader, EmptyState, RiskWarningBanner, StatusPill, buttonClasses } from '@wtc/ui';
 import { deriveBacktesterView, backtesterPill, type BotSlug } from '@wtc/backtester';
 
@@ -27,7 +27,7 @@ export default async function BacktesterPage({ params }: { params: Promise<{ bot
   }
 
   const user = await requireUser();
-  const access = await accessFor(user.id, 'tortila_bot');
+  const access = await botAccessForUser(user, 'tortila_bot');
   const view = deriveBacktesterView('tortila', { allowed: access.allowed, reason: access.reason });
 
   if (view.kind === 'access_required') {
