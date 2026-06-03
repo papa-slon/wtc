@@ -31,12 +31,12 @@ function journalReadStatePill(snap: AdminBotHealthResult): { tone: Tone; label: 
  *
  * Shows:
  * 1. Adapter mode + storage mode badges
- * 2. Safety-disabled states (DISABLED live control + BLOCKED legacy — hardcoded, non-dismissible)
+ * 2. Safety states (DISABLED live control + Legacy read-only DB path)
  * 3. Tortila persistent P0/P1 warnings (non-dismissible — cleared only when journal reports resolution)
  * 4. Tortila journal health (last ok, last error, from integration_health_checks)
  * 5. Latest bot metric snapshot (walletEquityUsd, sourceAdapter, snapshotAt)
  * 6. Integration health checks table for bot.* targets
- * 7. Legacy adapter blocked card
+ * 7. Legacy live-read status card
  *
  * SECURITY: requireUser + assertAdmin. No exchange keys, no URLs, no stack traces rendered.
  * All data is read-only. No live-control buttons exist on this page (safety policy).
@@ -53,7 +53,7 @@ export default async function AdminBotsPage() {
       <SectionHeader
         kicker="Admin · bots"
         title="Bot fleet"
-        copy="Cross-user bot health diagnostics. Live control is permanently DISABLED by safety policy. Legacy adapter is BLOCKED (plaintext-key issue unresolved). Tortila journal is read-only. No start/stop/applyConfig buttons exist on this page."
+        copy="Cross-user bot health diagnostics. Live control is permanently DISABLED by safety policy. Tortila and Legacy are read-only surfaces. No start/stop/applyConfig buttons exist on this page."
       />
 
       {/* Status badges row */}
@@ -67,7 +67,9 @@ export default async function AdminBotsPage() {
           adapter: {snap.adapterMode}
         </StatusPill>
         <StatusPill tone="bad">LIVE CONTROL: DISABLED</StatusPill>
-        <StatusPill tone="bad">LEGACY: BLOCKED</StatusPill>
+        <StatusPill tone={snap.legacyDbLiveReadEnabled && snap.legacyDatabaseConfigured ? 'ok' : 'warn'}>
+          LEGACY DB READ: {snap.legacyDbLiveReadEnabled && snap.legacyDatabaseConfigured ? 'enabled' : 'not configured'}
+        </StatusPill>
         {snap.tortilaBaseUrlConfigured ? (
           <StatusPill tone="neutral">base URL: configured</StatusPill>
         ) : (
@@ -98,12 +100,13 @@ export default async function AdminBotsPage() {
             </span>
           </div>
           <div className="wtc-row" style={{ gap: 10 }}>
-            <StatusPill tone="bad">BLOCKED</StatusPill>
+            <StatusPill tone={snap.legacyDbLiveReadEnabled && snap.legacyDatabaseConfigured ? 'ok' : 'warn'}>
+              {snap.legacyDbLiveReadEnabled && snap.legacyDatabaseConfigured ? 'READ-ONLY' : 'SETUP NEEDED'}
+            </StatusPill>
             <span className="wtc-dim" style={{ fontSize: 13 }}>
-              <strong style={{ color: 'var(--text)' }}>Legacy bot adapter</strong> —
-              plaintext-key/service-account issue unresolved; adapter stays BLOCKED until service-account +
-              vault gates are audited and approved. See{' '}
-              <code className="wtc-mono" style={{ fontSize: 11 }}>docs/CONTRACTS/legacy-bot-adapter.md</code>.
+              <strong style={{ color: 'var(--text)' }}>Legacy live-read</strong> —
+              WTC reads the existing provider runtime by pub_id through worker DB snapshots. The direct HTTP/control
+              path stays disabled; no exchange keys are collected or rendered by WTC.
             </span>
           </div>
           <div className="wtc-row" style={{ gap: 10 }}>
@@ -200,17 +203,17 @@ export default async function AdminBotsPage() {
         )}
       </Card>
 
-      {/* Legacy adapter blocked card */}
-      <Card title="Legacy bot status (bot.legacy)">
+      {/* Legacy live-read status */}
+      <Card title="Legacy bot live-read status (legacy-bot)">
         <RiskWarningBanner
-          severity="error"
-          title="Legacy adapter BLOCKED — plaintext-key issue unresolved"
-          detail="The legacy bot API (:8000) returns plaintext exchange keys in responses. This adapter must NOT be proxied through WTC until a service-account or encrypted-key solution is audited and approved. See docs/CONTRACTS/legacy-bot-adapter.md. All five security gates (service account, vault, firewall, key redaction, written security acceptance) remain NOT STARTED."
+          severity={snap.legacyDbLiveReadEnabled && snap.legacyDatabaseConfigured ? 'info' : 'warning'}
+          title={snap.legacyDbLiveReadEnabled && snap.legacyDatabaseConfigured ? 'Legacy DB live-read enabled' : 'Legacy DB live-read not configured'}
+          detail={snap.legacyDbLiveReadEnabled && snap.legacyDatabaseConfigured ? 'Worker snapshots read provider-side pub_id, balance, running state, symbol settings, stage settings, active slots, and active orders through a whitelisted DB query. Live control remains disabled.' : 'Set LEGACY_LIVE_READS_ENABLED=true and a server-side LEGACY_DATABASE_URL to populate Legacy snapshots. The URL itself is never shown in admin UI.'}
         />
         <div className="wtc-row" style={{ gap: 12, flexWrap: 'wrap', marginTop: 12 }}>
-          <MetricCard label="Adapter status" value="BLOCKED" tone="down" />
-          <MetricCard label="Plaintext keys gate" value="NOT STARTED" tone="down" />
-          <MetricCard label="Vault gate" value="NOT STARTED" />
+          <MetricCard label="DB read flag" value={snap.legacyDbLiveReadEnabled ? 'enabled' : 'disabled'} tone={snap.legacyDbLiveReadEnabled ? 'up' : undefined} />
+          <MetricCard label="DB URL" value={snap.legacyDatabaseConfigured ? 'configured' : 'not set'} tone={snap.legacyDatabaseConfigured ? 'up' : undefined} />
+          <MetricCard label="Live control" value="DISABLED" />
         </div>
       </Card>
 

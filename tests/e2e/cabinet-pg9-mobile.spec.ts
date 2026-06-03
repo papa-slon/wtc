@@ -19,7 +19,7 @@ test('PG9: cabinet per-product cards are mobile-readable + honest at 375px', asy
   await expect(page.getByRole('heading', { name: 'Your products' })).toBeVisible();
   await expect(page.getByText('storage: in-memory (demo)')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Finish setup' })).toBeVisible();
-  await expect(page.getByText('Blocked (B3)')).toBeVisible();
+  await expect(page.getByText('Use existing Legacy pub_id runtime')).toBeVisible();
   await expect(page.getByText('Blocked (B4)')).toBeVisible();
   await expect(page.getByText('Coming soon')).toBeVisible();
 
@@ -48,7 +48,7 @@ test('PG9: bot setup wizard renders a mobile stepper at 375px (navigation-only)'
 
   await page.goto('/app/bots/legacy/setup');
   await expect(page.getByRole('heading', { name: 'Guided onboarding' })).toBeVisible();
-  await expect(page.getByText('Live setup blocked (B3)')).toBeVisible();
+  await expect(page.getByText('Connected through existing Legacy pub_id')).toBeVisible();
   await expect(page.getByText('Reference profiles')).toBeVisible();
   await expect(page.locator('select[name="operationMode"]')).toBeVisible();
   await expect(page.locator('input[name="rsiLength"]')).toBeVisible();

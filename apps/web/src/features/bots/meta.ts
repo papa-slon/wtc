@@ -44,8 +44,8 @@ export interface BotCapabilities {
    * blocker (rather than the generic "configure the adapter" message). This is a STATIC product fact,
    * independent of BOT_ADAPTER_MODE: even in mock mode the banner is shown so the honest message is
    * "you are seeing simulated data; the real adapter is permanently blocked until the blocker clears".
-   *   legacy_bot: true  — blocked on B3 (plaintext exchange keys in the /api_management/ response).
-   *   tortila_bot: false — the live adapter becomes available once JOURNAL_READ_TOKEN is configured.
+   *   legacy_bot: false - live-read uses WTC worker DB snapshots from provider pub_id / safe columns.
+   *   tortila_bot: false - the live adapter becomes available once JOURNAL_READ_TOKEN is configured.
    */
   liveAdapterBlocked: boolean;
   /** Human-readable explanation shown only when liveAdapterBlocked is true. */
@@ -73,15 +73,11 @@ export const BOT_CAPS: Record<BotProductCode, BotCapabilities> = {
     takeProfit: 'supported',
     stopLoss: 'supported',
     trailingStop: 'supported',
-    liveAdapterBlocked: true,
-    liveAdapterBlockedReason:
-      'The legacy /api_management/ API exposes exchange keys in plaintext, so WTC cannot safely connect a ' +
-      'live read-only adapter. Live data for the Legacy Bot is blocked until the upstream fix is confirmed and ' +
-      'all 5 security gates are cleared (B3). Every figure shown here is illustrative mock data — no live ' +
-      'exchange or bot account is connected.',
+    liveAdapterBlocked: false,
     notes: [
+      'Live-read uses the existing legacy runtime by pub_id and WTC worker snapshots; WTC does not collect or store exchange keys for this bot.',
       'No closed-trade history endpoint — trade analytics are unavailable (shown honestly, never fabricated).',
-      'No equity-curve endpoint — wallet balance only.',
+      'No exchange equity-curve endpoint — WTC shows wallet balance snapshots only.',
       'No backtester for this bot.',
     ],
   },

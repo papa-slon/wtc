@@ -25,7 +25,8 @@ describe('bot statistics surface', () => {
     expect(statsPage).toMatch(/loadBotReadModel/);
     expect(statsPage).not.toMatch(/getBotAdapter/);
     expect(statsPage).toMatch(/No bot metrics available/);
-    expect(statsPage).toMatch(/blocked \(B3\)/);
+    expect(statsPage).toMatch(/legacyLiveConfig/);
+    expect(statsPage).toMatch(/LegacyOperationsPanel/);
   });
 
   it('renders responsive tables with data labels and an honest no-equity state', () => {

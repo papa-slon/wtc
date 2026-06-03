@@ -14,6 +14,7 @@
     "@wtc/audit": "*",
     "@wtc/bot-adapters": "*",
     "@wtc/db": "*",
-    "@wtc/lms": "*"
+    "@wtc/lms": "*",
+    "postgres": "^3.4.5"
   }
 }

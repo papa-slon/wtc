@@ -57,7 +57,7 @@ export interface CabinetCardInput {
   availability: Availability;
   /** running the in-memory demo backend (changes are not persisted). */
   isDemo: boolean;
-  /** static product blocker, if the product is hard-blocked (B3 legacy adapter, B4 Axioma CTAs). */
+  /** static product blocker, if the product is hard-blocked (legacy HTTP/control adapter, B4 Axioma CTAs). */
   blockerRef?: BlockerRef | null;
   /** self-serve checkout live? (B2). false today — drives "Get access" vs "Contact support". */
   checkoutEnabled: boolean;
@@ -131,7 +131,7 @@ export function reasonLabel(reason: AccessReason): string {
 
 const BLOCKER_TEXT: Record<BlockerRef, string> = {
   B2: 'Self-serve checkout is not yet live — access is granted manually for now.',
-  B3: 'Live data is blocked: the legacy API exposes exchange keys in plaintext. Figures are illustrative until the upstream fix and security review clear (B3).',
+  B3: 'The legacy direct HTTP/control path is blocked. Use the worker DB live-read path for safe pub_id snapshots; live control remains disabled (B3).',
   B4: 'Download / Open-Journal / account-link are disabled until the Axioma handoff is provisioned (B4).',
 };
 

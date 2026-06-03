@@ -152,8 +152,12 @@ export interface AdminBotHealthResult {
   adapterMode: string;
   /** Always true — hardcoded safety policy. */
   liveControlDisabled: true;
-  /** Always true — plaintext-key issue unresolved. */
-  legacyAdapterBlocked: true;
+  /** Direct Legacy HTTP/control adapter status. DB live-read is tracked separately. */
+  legacyAdapterBlocked: boolean;
+  /** Whether the worker is allowed to read Legacy provider DB snapshots. */
+  legacyDbLiveReadEnabled: boolean;
+  /** Whether a Legacy DB connection string exists server-side. Value only; URL is never exposed. */
+  legacyDatabaseConfigured: boolean;
   /** Whether TORTILA_JOURNAL_BASE_URL is configured (bool; URL itself never exposed). */
   tortilaBaseUrlConfigured: boolean;
   /** Last successful health check for 'tortila-journal' target (epoch-ms) or null. */

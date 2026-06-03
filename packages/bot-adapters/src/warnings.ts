@@ -21,6 +21,7 @@ export const CANONICAL_WARNING_CODES = [
   'ws_fallback',
   'legacy_plaintext_keys',
   'no_trade_history',
+  'legacy_quarantined',
 ] as const;
 
 export type WarningCode = (typeof CANONICAL_WARNING_CODES)[number];
@@ -59,9 +60,9 @@ export const LEGACY_WARNINGS: RiskWarning[] = [
   { code: 'ws_fallback', severity: 'warning', title: 'WebSocket reconnect / fallback', detail: 'Market data stream reconnects frequently; data may be stale even while the process is alive.' },
   {
     code: 'legacy_plaintext_keys',
-    severity: 'error',
-    title: 'Legacy API returns exchange keys in plaintext',
-    detail: 'Integration risk (bot-integration audit): the legacy :8000 API exposes API keys in responses. WTC must NOT proxy this; migrate to the encrypted vault before any real adapter use.',
+    severity: 'warning',
+    title: 'Provider credentials stay outside WTC',
+    detail: 'Legacy stores exchange credential columns provider-side. WTC live-read uses pub_id and whitelisted non-secret DB columns only; no exchange keys are selected, logged, stored, or proxied by WTC.',
   },
   { code: 'no_trade_history', severity: 'info', title: 'No closed-trade history endpoint', detail: 'Legacy bot does not expose closed-trade history; win rate / profit factor are unavailable (shown as —, not 0).' },
 ];

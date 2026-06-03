@@ -98,11 +98,11 @@ describe('PG3 LegacyBlockedAdapter: getHealth + getWarnings', () => {
     expect(h.warnings.length).toBeGreaterThan(0);
   });
 
-  it('getWarnings surfaces legacy_plaintext_keys at error severity; all codes canonical', async () => {
+  it('getWarnings surfaces legacy_plaintext_keys at warning severity; all codes canonical', async () => {
     const warnings = await createLegacyBlockedAdapter().getWarnings();
     const codes = warnings.map((w) => w.code);
     expect(codes).toContain('legacy_plaintext_keys');
-    expect(warnings.find((w) => w.code === 'legacy_plaintext_keys')!.severity).toBe('error');
+    expect(warnings.find((w) => w.code === 'legacy_plaintext_keys')!.severity).toBe('warning');
     for (const w of warnings) {
       expect(CANONICAL_WARNING_CODES).toContain(w.code as (typeof CANONICAL_WARNING_CODES)[number]);
     }

@@ -12,6 +12,7 @@ import type { Db } from '@wtc/db';
 import { pathToFileURL } from 'node:url';
 import { reconcileEntitlements, sweepTradingViewAccess, snapshotTortilaJournal } from './jobs.ts';
 import { reconcileExpiredLmsObjectMaterials, reconcilePendingLmsObjectCleanupTasks } from './lms-object-cleanup.ts';
+import { snapshotLegacyBotPostgres } from './legacy-live.ts';
 
 const TICK_MS = 60_000;
 
@@ -40,6 +41,8 @@ export interface DbWorkerTickResult {
   workerHealthStatus: 'ok' | 'misconfigured' | 'error';
   tortilaSnapshot: 'ok' | 'error' | 'skipped';
   tortilaLastError: string | null;
+  legacySnapshot: 'ok' | 'error' | 'skipped';
+  legacyLastError: string | null;
 }
 
 /** Read BOT_ADAPTER_MODE from env. Fails closed to 'mock' for any unknown/missing value. */
@@ -153,6 +156,8 @@ export async function runDbWorkerTick(db: Db, now = Date.now(), env: WorkerEnv =
   const systemBotOwnerId = env.SYSTEM_BOT_OWNER_ID ?? null;
   let tortilaSnapshot: DbWorkerTickResult['tortilaSnapshot'] = 'skipped';
   let tortilaLastError: string | null = null;
+  let legacySnapshot: DbWorkerTickResult['legacySnapshot'] = 'skipped';
+  let legacyLastError: string | null = null;
 
   if (!botInstanceId && !systemBotOwnerId) {
     if (!tortilaBaseUrl && botAdapterMode === 'mock') {
@@ -198,6 +203,25 @@ export async function runDbWorkerTick(db: Db, now = Date.now(), env: WorkerEnv =
     }
   }
 
+  try {
+    const legacy = await snapshotLegacyBotPostgres(db, now, env);
+    legacySnapshot = legacy.status;
+    legacyLastError = legacy.lastError;
+    if (legacy.status === 'ok') {
+      console.log(
+        `[worker:legacy-snapshot] ok (sourceAdapter=legacy-db, accounts=${legacy.accountsSeen}, settings=${legacy.settingsSeen}, positions=${legacy.positionsSeen})`,
+      );
+    } else if (legacy.status === 'error') {
+      console.warn(`[worker:legacy-snapshot] error: ${legacy.lastError ?? 'unknown'}`);
+    } else {
+      console.warn('[worker:legacy-snapshot] skipped: LEGACY_LIVE_READS_ENABLED/LEGACY_DATABASE_URL/system owner not configured');
+    }
+  } catch (err) {
+    legacySnapshot = 'error';
+    legacyLastError = err instanceof Error ? err.message : String(err);
+    console.error(`[worker:legacy-snapshot] unhandled error (tick continues): ${redactedOperationalMessage(err)}`);
+  }
+
   return {
     entitlementsChanged: ent.changed,
     tvExpiringSoon: expiring.marked,
@@ -221,6 +245,8 @@ export async function runDbWorkerTick(db: Db, now = Date.now(), env: WorkerEnv =
     workerHealthStatus,
     tortilaSnapshot,
     tortilaLastError,
+    legacySnapshot,
+    legacyLastError,
   };
 }
 

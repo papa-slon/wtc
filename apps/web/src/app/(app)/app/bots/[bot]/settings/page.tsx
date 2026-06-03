@@ -5,7 +5,7 @@ import { botAccessForUser } from '@/lib/access';
 import { CsrfField, assertCsrf } from '@/lib/csrf';
 import { Card, SectionHeader, StatusPill, EmptyState, RiskWarningBanner, buttonClasses, MetricCard } from '@wtc/ui';
 import { fmtDate } from '@/lib/format';
-import { loadBot, BotAccessRequired } from '@/features/bots/data';
+import { loadBot, BotAccessRequired, loadBotReadModel } from '@/features/bots/data';
 import { BotSubNav } from '@/components/BotSubNav';
 import { BOT_CAPS, botMeta } from '@/features/bots/meta';
 import {
@@ -63,8 +63,16 @@ export default async function Page({ params }: { params: Promise<{ bot: string }
   const { meta, access } = await loadBot(bot);
   if (!access.allowed) return <BotAccessRequired meta={meta} section="Settings" />;
 
-  const state = await loadBotConfig((await requireUser()).id, meta.code);
-  const cur = state.current ?? {};
+  const user = await requireUser();
+  const [state, legacyRead] = await Promise.all([
+    loadBotConfig(user.id, meta.code),
+    meta.code === 'legacy_bot' ? loadBotReadModel(meta.code, ['config']) : Promise.resolve(null),
+  ]);
+  const legacyLiveConfig =
+    meta.code === 'legacy_bot' && legacyRead?.config.data?.raw && typeof legacyRead.config.data.raw === 'object'
+      ? legacyRead.config.data.raw as Record<string, unknown>
+      : null;
+  const cur = legacyLiveConfig ?? state.current ?? {};
   const fields = botConfigFieldsFor(meta.code).filter((f) => meta.code !== 'tortila_bot' || f.name !== 'symbols');
   const defaults = botConfigDefaultsFor(meta.code);
   const presets = botConfigPresetsFor(meta.code);
@@ -99,11 +107,18 @@ export default async function Page({ params }: { params: Promise<{ bot: string }
         title="Config is stored in WTC only - never sent to the live bot"
         detail="This form writes to the WTC database as a versioned, audited reference. Applying config to a running bot and start/stop remain disabled until a separately audited control adapter is approved."
       />
+      {legacyLiveConfig && (
+        <RiskWarningBanner
+          severity="info"
+          title="Showing latest Legacy live snapshot"
+          detail="The values below are populated from the provider runtime by pub_id through the WTC worker DB snapshot. Saving creates a WTC reference version; it still does not apply settings to the live bot."
+        />
+      )}
       {caps.liveAdapterBlocked && (
         <RiskWarningBanner
           severity="error"
-          title="Live adapter blocked (B3)"
-          detail="You can save a WTC-side reference config, but WTC will not request exchange keys or connect to the live Legacy Bot until the upstream plaintext-key issue is fixed."
+          title="Legacy HTTP adapter blocked"
+          detail="The old direct HTTP/control path stays blocked. Use the worker DB live-read path for viewing current Legacy settings and metrics."
         />
       )}
 

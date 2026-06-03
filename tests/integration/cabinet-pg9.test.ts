@@ -98,9 +98,10 @@ describe('PG9 — setup wizard server actions are CSRF-first and never render a 
     // never echo a submitted secret back as a defaultValue.
     expect(src).not.toMatch(/defaultValue=\{[^}]*apiSecret/);
   });
-  it('keeps live control disabled + honest B3 note', () => {
+  it('keeps live control disabled + legacy pub_id note', () => {
     expect(src).toContain('Live control stays disabled');
     expect(src).toContain('liveAdapterBlocked');
+    expect(src).toContain('Connected through existing Legacy pub_id');
   });
   it('uses the wizard stepper CSS (mobile-first, no page h-scroll)', () => {
     expect(src).toContain('wtc-wizard-steps');

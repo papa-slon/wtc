@@ -75,6 +75,7 @@ describe('bot read surfaces tolerate blocked/not-ready adapters', () => {
   it('production Tortila read-only UI is DB-snapshot backed, not web adapter backed', () => {
     expect(data).toMatch(/function dbSnapshotMode\(productCode: BotProductCode\)/);
     expect(data).toMatch(/productCode === 'tortila_bot'/);
+    expect(data).toMatch(/productCode === 'legacy_bot'/);
     expect(data).toMatch(/process\.env\.NODE_ENV === 'production'/);
     expect(data).toMatch(/loadDbBotReadModel/);
     expect(data).toMatch(/integrationHealthChecks/);
@@ -151,9 +152,11 @@ describe('bot config captures manual/auto intent without live control', () => {
     expect(config).toMatch(/symbolConfigs: z\.array/);
   });
 
-  it('legacy live setup is blocked while still allowing WTC-side reference settings', () => {
-    expect(setup).toMatch(/Live setup blocked/);
-    expect(setup).toMatch(/liveAdapterBlocked/);
-    expect(settings).toMatch(/WTC-side reference config/);
+  it('legacy setup uses the existing pub_id runtime instead of collecting WTC exchange keys', () => {
+    expect(setup).toMatch(/Connected through existing Legacy pub_id/);
+    expect(setup).toMatch(/Exchange-key step is not used for Legacy/);
+    expect(setup).toMatch(/provider pub_id/);
+    expect(settings).toMatch(/Showing latest Legacy live snapshot/);
+    expect(settings).toMatch(/provider runtime by pub_id/);
   });
 });

@@ -23,6 +23,7 @@ import {
 import { TortilaSymbolConfigTable } from '@/features/bots/TortilaSymbolConfigTable';
 import { LegacyAveragingConfigTable } from '@/features/bots/LegacyAveragingConfigTable';
 import { Card, SectionHeader, StatusPill, RiskWarningBanner, EmptyState, buttonClasses } from '@wtc/ui';
+import { loadBotReadModel } from '@/features/bots/data';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,7 +45,7 @@ async function wizardAddKey(formData: FormData): Promise<void> {
   const bot = String(formData.get('bot') ?? '');
   const meta = botMeta(bot);
   if (!meta) return;
-  if (BOT_CAPS[meta.code].liveAdapterBlocked) redirect(`/app/bots/${bot}/setup?step=key&err=blocked`);
+  if (BOT_CAPS[meta.code].liveAdapterBlocked || meta.code === 'legacy_bot') redirect(`/app/bots/${bot}/setup?step=strategy`);
   const access = await botAccessForUser(user, meta.code);
   if (!access.allowed) return;
   const parsed = exchangeKeyInputSchema.safeParse({
@@ -121,14 +122,20 @@ export default async function BotSetupWizard({
   }
 
   const caps = BOT_CAPS[meta.code];
-  const liveBlocked = caps.liveAdapterBlocked;
-  const step: StepId = isStep(sp.step) ? sp.step : liveBlocked ? 'strategy' : 'key';
-  const [keys, cfg] = liveBlocked
-    ? [[], await loadBotConfig(user.id, meta.code)] as const
-    : await Promise.all([listExchangeKeys(user.id), loadBotConfig(user.id, meta.code)]);
+  const exchangeKeySetupDisabled = caps.liveAdapterBlocked || meta.code === 'legacy_bot';
+  const step: StepId = isStep(sp.step) ? sp.step : exchangeKeySetupDisabled ? 'strategy' : 'key';
+  const [keys, cfg, legacyRead] = await Promise.all([
+    exchangeKeySetupDisabled ? Promise.resolve([]) : listExchangeKeys(user.id),
+    loadBotConfig(user.id, meta.code),
+    meta.code === 'legacy_bot' ? loadBotReadModel(meta.code, ['config']) : Promise.resolve(null),
+  ]);
+  const legacyLiveConfig =
+    meta.code === 'legacy_bot' && legacyRead?.config.data?.raw && typeof legacyRead.config.data.raw === 'object'
+      ? legacyRead.config.data.raw as Record<string, unknown>
+      : null;
   const hasKeys = keys.length > 0;
-  const hasConfig = cfg.version != null;
-  const cur = cfg.current ?? {};
+  const hasConfig = cfg.version != null || legacyLiveConfig != null;
+  const cur = legacyLiveConfig ?? cfg.current ?? {};
   const fields = botConfigFieldsFor(meta.code).filter((f) => meta.code !== 'tortila_bot' || f.name !== 'symbols');
   const defaults = botConfigDefaultsFor(meta.code);
   const presets = botConfigPresetsFor(meta.code);
@@ -152,9 +159,9 @@ export default async function BotSetupWizard({
 
       <nav className="wtc-wizard-steps" aria-label="Setup steps">
         {STEPS.map((s, i) => {
-          const done = s.id === 'key' ? (liveBlocked ? true : hasKeys) : s.id === 'strategy' ? hasConfig : liveBlocked ? hasConfig : hasKeys && hasConfig;
+          const done = s.id === 'key' ? (exchangeKeySetupDisabled ? true : hasKeys) : s.id === 'strategy' ? hasConfig : exchangeKeySetupDisabled ? hasConfig : hasKeys && hasConfig;
           const active = s.id === step;
-          const locked = s.id === 'review' && (liveBlocked ? !hasConfig : !hasKeys);
+          const locked = s.id === 'review' && (exchangeKeySetupDisabled ? !hasConfig : !hasKeys);
           const cls = ['wtc-step', active ? 'active' : '', done && !active ? 'done' : '', locked ? 'locked' : ''].filter(Boolean).join(' ');
           const inner = (
             <>
@@ -170,11 +177,17 @@ export default async function BotSetupWizard({
         })}
       </nav>
 
-      {liveBlocked ? (
+      {caps.liveAdapterBlocked ? (
         <RiskWarningBanner
           severity="error"
-          title="Live setup blocked (B3)"
-          detail="This setup page still saves manual/automatic WTC-side reference settings, but WTC will not collect exchange keys or connect to the live Legacy Bot until the upstream plaintext-key issue is fixed."
+          title="Legacy HTTP setup blocked"
+          detail="The old direct HTTP/control path stays blocked. Use the worker DB live-read path to view current Legacy settings and save WTC reference versions."
+        />
+      ) : meta.code === 'legacy_bot' ? (
+        <RiskWarningBanner
+          severity="info"
+          title="Connected through existing Legacy pub_id"
+          detail={legacyLiveConfig ? 'Current Legacy settings are loaded from the provider runtime by pub_id through WTC worker snapshots. WTC does not collect new exchange keys for this bot.' : 'Legacy onboarding uses the existing bot runtime and WTC worker snapshots. WTC does not collect new exchange keys for this bot; strategy settings are saved as WTC-side reference versions.'}
         />
       ) : (
         <RiskWarningBanner
@@ -186,12 +199,12 @@ export default async function BotSetupWizard({
 
       {step === 'key' && (
         <Card title="Step 1 - Add an exchange API key">
-          {liveBlocked ? (
+          {exchangeKeySetupDisabled ? (
             <>
               <RiskWarningBanner
-                severity="error"
-                title="Exchange-key collection disabled for this bot"
-                detail="Legacy live setup is blocked by B3. You can still configure symbols, manual/auto mode, averaging, TP, slots, and leverage as a WTC-side reference."
+                severity={caps.liveAdapterBlocked ? 'error' : 'info'}
+                title={caps.liveAdapterBlocked ? 'Exchange-key collection disabled for this bot' : 'Exchange-key step is not used for Legacy'}
+                detail={caps.liveAdapterBlocked ? 'The Legacy HTTP/control setup path is blocked. You can still configure symbols, manual/auto mode, averaging, TP, slots, and leverage as a WTC-side reference.' : 'The Legacy bot already owns its provider-side API accounts. WTC reads by pub_id through worker snapshots and does not ask for new exchange keys here.'}
               />
               <Link href={`/app/bots/${bot}/setup?step=strategy`} className={buttonClasses('primary')}>Configure reference settings</Link>
             </>
@@ -286,17 +299,17 @@ export default async function BotSetupWizard({
 
       {step === 'review' && (
         <Card title="Step 3 - Review & finish">
-          {!liveBlocked && !hasKeys ? (
+          {!exchangeKeySetupDisabled && !hasKeys ? (
             <EmptyState title="Add an exchange key first" hint="Step 1 is required before you can review your setup." />
-          ) : liveBlocked && !hasConfig ? (
-            <EmptyState title="Save reference settings first" hint="Legacy exchange-key setup is blocked, so this review is based on your WTC-side configuration version." />
+          ) : exchangeKeySetupDisabled && !hasConfig ? (
+            <EmptyState title="Save reference settings first" hint="Legacy exchange-key setup is skipped; this review is based on your WTC-side configuration version and worker live snapshots." />
           ) : (
             <div className="wtc-stack">
               <div className="wtc-card-row">
                 <span className="k">Exchange keys</span>
-                <span className="v">{liveBlocked ? 'not collected - live adapter blocked (B3)' : `${keys.length} saved (encrypted)`}</span>
+                <span className="v">{exchangeKeySetupDisabled ? 'not collected by WTC - legacy uses provider pub_id' : `${keys.length} saved (encrypted)`}</span>
               </div>
-              <div className="wtc-card-row"><span className="k">Strategy config</span><span className="v">{hasConfig ? `v${cfg.version} saved` : 'not yet saved'}</span></div>
+              <div className="wtc-card-row"><span className="k">Strategy config</span><span className="v">{cfg.version != null ? `v${cfg.version} saved` : legacyLiveConfig ? 'live snapshot loaded' : 'not yet saved'}</span></div>
               <RiskWarningBanner severity="warning" title="Live control stays disabled" detail="Start/stop and applying config to a running bot are disabled by safety policy. Stop never closes positions." />
               <div className="wtc-row">
                 <Link href={`/app/bots/${bot}`} className={buttonClasses('primary')}>Open the dashboard</Link>

@@ -101,10 +101,8 @@ test('bot dashboard sub-tabs render with unified analytics (Tortila)', async ({ 
   await page.goto('/app/bots');
   await expect(page.getByText('Combined portfolio (entitled bots)')).toBeVisible();
   await expect(page.getByText('Total wallet equity')).toBeVisible();
-  // PG3: the Legacy Bot card shows an honest "live adapter unavailable — blocked (B3)" banner
-  // (its real adapter is permanently blocked on the upstream plaintext-key fix), NOT the generic
-  // "simulated data" message that implies it could be configured on.
-  await expect(page.getByText('Live adapter unavailable — blocked (B3)')).toBeVisible();
+  // Legacy onboarding now uses the existing provider pub_id runtime instead of collecting WTC keys.
+  await expect(page.getByText('Limited data - trade history and equity curve are not available for this bot.')).toBeVisible();
   await page.screenshot({ path: shot('bots-combined', info.project.name), fullPage: true });
 
   // Positions sub-tab (read-only, mock) — a real position row, not a placeholder
@@ -125,7 +123,7 @@ test('bot dashboard sub-tabs render with unified analytics (Tortila)', async ({ 
   
     await page.goto('/app/bots/statistics?bot=legacy');
     await expect(page.getByRole('heading', { name: 'Trading bot performance' })).toBeVisible();
-    await expect(page.getByText('Live adapter unavailable - blocked (B3)')).toBeVisible();
+    await expect(page.getByText('Legacy operations')).toBeVisible();
     await expect(page.getByText('No equity curve available')).toBeVisible();
     await expect(page.getByText('No monthly return data')).toBeVisible();
 

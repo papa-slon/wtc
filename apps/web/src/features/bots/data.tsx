@@ -97,7 +97,7 @@ const FALLBACK_HEALTH: Record<BotProductCode, BotHealth> = {
     processAlive: false,
     status: 'down',
     readState: 'not_configured',
-    readStateDetail: 'Legacy live adapter is blocked pending B3.',
+    readStateDetail: 'Legacy DB live-read is not configured; the direct HTTP/control adapter remains blocked.',
     lastSyncAt: null,
     staleDataSeconds: null,
     uptimeSeconds: null,
@@ -109,8 +109,8 @@ export function botReadIssueFromError(err: unknown): BotReadIssue {
   if (err instanceof LegacyAdapterBlockedError) {
     return {
       kind: 'blocked',
-      title: 'Live adapter blocked (B3)',
-      detail: err.message,
+      title: 'Legacy HTTP adapter blocked',
+      detail: 'The direct Legacy HTTP/control adapter is disabled. In production, Legacy live data is read from worker DB snapshots by provider pub_id.',
     };
   }
   if (err instanceof AdapterNotReadyError) {
@@ -146,7 +146,7 @@ const notReadyIssue = (detail: string): BotReadIssue => ({
 const DB_SNAPSHOT_STALE_MS = 10 * 60 * 1000;
 
 function dbSnapshotMode(productCode: BotProductCode): boolean {
-  return productCode === 'tortila_bot' && process.env.NODE_ENV === 'production' && botAdapterOptions().mode !== 'mock';
+  return (productCode === 'tortila_bot' || productCode === 'legacy_bot') && process.env.NODE_ENV === 'production' && botAdapterOptions().mode !== 'mock';
 }
 
 function isReadState(value: unknown): value is NonNullable<BotHealth['readState']> {
@@ -169,6 +169,20 @@ function side(value: string): 'long' | 'short' {
 
 function dbWarnings(productCode: BotProductCode): RiskWarning[] {
   return productCode === 'tortila_bot' ? TORTILA_PERSISTENT_WARNINGS : LEGACY_WARNINGS;
+}
+
+function dbWarningsFromDetail(productCode: BotProductCode, detail: Record<string, unknown>): RiskWarning[] {
+  const warnings = [...dbWarnings(productCode)];
+  const codes = Array.isArray(detail.warningCodes) ? detail.warningCodes : [];
+  if (productCode === 'legacy_bot' && codes.includes('legacy_quarantined')) {
+    warnings.push({
+      code: 'legacy_quarantined',
+      severity: 'warning',
+      title: 'Legacy account quarantined',
+      detail: 'At least one provider-side Legacy pub_id is quarantined. Live-read continues, but runtime trading may be paused for that account.',
+    });
+  }
+  return warnings;
 }
 
 function healthFromDb(
@@ -205,12 +219,12 @@ function healthFromDb(
     readState === 'ok'
       ? undefined
       : tooOld
-        ? 'Latest Tortila worker snapshot is stale; read-only data is shown only from the last persisted WTC DB snapshot.'
+        ? `Latest ${productCode === 'legacy_bot' ? 'Legacy' : 'Tortila'} worker snapshot is stale; read-only data is shown only from the last persisted WTC DB snapshot.`
         : typeof detail.readStateDetail === 'string'
           ? detail.readStateDetail
           : latestHealth
-            ? `Latest Tortila worker health status: ${latestHealth.status}.`
-            : 'No Tortila worker health snapshot has been recorded yet.';
+            ? `Latest ${productCode === 'legacy_bot' ? 'Legacy' : 'Tortila'} worker health status: ${latestHealth.status}.`
+            : `No ${productCode === 'legacy_bot' ? 'Legacy' : 'Tortila'} worker health snapshot has been recorded yet.`;
 
   return {
     productCode,
@@ -221,7 +235,7 @@ function healthFromDb(
     lastSyncAt: checkedAt ? checkedAt.getTime() : null,
     staleDataSeconds: ageMs !== null ? Math.max(0, Math.round(ageMs / 1000)) : null,
     uptimeSeconds: null,
-    warnings: dbWarnings(productCode),
+    warnings: dbWarningsFromDetail(productCode, detail),
   };
 }
 
@@ -230,6 +244,7 @@ async function loadDbBotReadModel(productCode: BotProductCode, parts: readonly B
   if (!db) return null;
 
   const want = new Set(parts);
+  const healthTarget = productCode === 'legacy_bot' ? 'legacy-bot' : 'tortila-journal';
   const [latestHealth] = await db
     .select({
       status: schema.integrationHealthChecks.status,
@@ -237,7 +252,7 @@ async function loadDbBotReadModel(productCode: BotProductCode, parts: readonly B
       checkedAt: schema.integrationHealthChecks.checkedAt,
     })
     .from(schema.integrationHealthChecks)
-    .where(eq(schema.integrationHealthChecks.target, 'tortila-journal'))
+    .where(eq(schema.integrationHealthChecks.target, healthTarget))
     .orderBy(desc(schema.integrationHealthChecks.checkedAt))
     .limit(1);
 
@@ -280,12 +295,14 @@ async function loadDbBotReadModel(productCode: BotProductCode, parts: readonly B
     .limit(1);
 
   const botInstanceId = latestMetric?.botInstanceId ?? latestPosition?.botInstanceId ?? latestTrade?.botInstanceId ?? null;
-  const sourceAdapter = latestMetric?.sourceAdapter ?? latestPosition?.sourceAdapter ?? latestTrade?.sourceAdapter ?? 'tortila';
+  const sourceAdapter = latestMetric?.sourceAdapter ?? latestPosition?.sourceAdapter ?? latestTrade?.sourceAdapter ?? (productCode === 'legacy_bot' ? 'legacy-db' : 'tortila');
   const adapterMode: 'mock' | 'real' = sourceAdapter.endsWith('-mock') ? 'mock' : 'real';
   const health = healthFromDb(productCode, latestHealth, latestMetric?.snapshotAt ?? latestPosition?.snapshotAt ?? null);
+  const healthDetail = (latestHealth?.detail ?? {}) as Record<string, unknown>;
+  const warnings = dbWarningsFromDetail(productCode, healthDetail);
 
   if (!botInstanceId) {
-    const issue = notReadyIssue('No Tortila metric, position, or trade snapshots exist in WTC Postgres yet. Run the read-only worker tick first.');
+    const issue = notReadyIssue(`No ${productCode === 'legacy_bot' ? 'Legacy' : 'Tortila'} metric, position, or trade snapshots exist in WTC Postgres yet. Run the read-only worker tick first.`);
     return {
       adapterMode,
       health,
@@ -294,7 +311,7 @@ async function loadDbBotReadModel(productCode: BotProductCode, parts: readonly B
       trades: want.has('trades') ? { data: null, issue } : skipped<CanonicalTrade[]>(),
       equityCurve: want.has('equityCurve') ? { data: null, issue } : skipped<EquityPoint[]>(),
       config: skipped<BotConfigView>(),
-      warnings: want.has('warnings') ? { data: dbWarnings(productCode), issue: null } : skipped<RiskWarning[]>(),
+      warnings: want.has('warnings') ? { data: warnings, issue: null } : skipped<RiskWarning[]>(),
     };
   }
 
@@ -376,6 +393,24 @@ async function loadDbBotReadModel(productCode: BotProductCode, parts: readonly B
   const cleanEquity = filterZeroEquity(equityCurve);
   const firstEquity = cleanEquity[0]?.equity ?? null;
   const latestWallet = num(latestMetric?.walletEquityUsd) ?? cleanEquity.at(-1)?.equity ?? 0;
+  const rawMetric = (latestMetric?.rawJson ?? {}) as Record<string, unknown>;
+  const liveConfig = rawMetric.liveConfig && typeof rawMetric.liveConfig === 'object'
+    ? rawMetric.liveConfig as Record<string, unknown>
+    : null;
+  const configSymbols = typeof liveConfig?.symbols === 'string'
+    ? liveConfig.symbols.split(',').map((s) => s.trim()).filter(Boolean)
+    : [];
+  const configView: BotConfigView | null = liveConfig
+    ? {
+        productCode,
+        instanceId: botInstanceId,
+        symbols: configSymbols,
+        leverage: num(liveConfig.defaultLeverage) ?? undefined,
+        takeProfitPercent: num(liveConfig.defaultTakeProfitPercent) ?? undefined,
+        mode: productCode === 'legacy_bot' ? 'live' : 'unknown',
+        raw: liveConfig,
+      }
+    : null;
   const metrics = want.has('metrics')
     ? computeMetrics({
         trades,
@@ -383,7 +418,7 @@ async function loadDbBotReadModel(productCode: BotProductCode, parts: readonly B
         equityCurve,
         walletEquity: latestWallet,
         firstEquity,
-        safetyEventCount: dbWarnings(productCode).filter((w) => w.severity !== 'info').length,
+        safetyEventCount: warnings.filter((w) => w.severity !== 'info').length,
       })
     : null;
 
@@ -399,8 +434,12 @@ async function loadDbBotReadModel(productCode: BotProductCode, parts: readonly B
     positions: want.has('positions') ? { data: positions, issue: null } : skipped<CanonicalPosition[]>(),
     trades: want.has('trades') ? { data: trades, issue: null } : skipped<CanonicalTrade[]>(),
     equityCurve: want.has('equityCurve') ? { data: equityCurve, issue: equityCurve.length === 0 ? missingSnapshotIssue : null } : skipped<EquityPoint[]>(),
-    config: skipped<BotConfigView>(),
-    warnings: want.has('warnings') ? { data: dbWarnings(productCode), issue: null } : skipped<RiskWarning[]>(),
+    config: want.has('config')
+      ? configView
+        ? { data: configView, issue: null }
+        : skipped<BotConfigView>()
+      : skipped<BotConfigView>(),
+    warnings: want.has('warnings') ? { data: warnings, issue: null } : skipped<RiskWarning[]>(),
   };
 }
 

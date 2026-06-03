@@ -10,7 +10,7 @@ import 'server-only';
  * adminUsersLoader strips passwordHash via mapToAdminUserView — never returned to any caller.
  */
 
-import { eq, and, like, ne, desc } from 'drizzle-orm';
+import { eq, and, ne, desc } from 'drizzle-orm';
 import { getServerDb } from '@/lib/backend';
 import { listUsersWithCreatedAt, listAllTv, recentAuditEvents, listManualReviewItems, summarizeLmsObjectCleanupOperations } from '@wtc/db';
 import { schema } from '@wtc/db';
@@ -335,19 +335,23 @@ export async function loadManualReviewItems(
 
 /**
  * Load cross-user bot health data for the /admin/bots page.
- * Reads integration_health_checks for bot.* targets + bot_metric_snapshots latest row.
+ * Reads integration_health_checks for bot targets + bot_metric_snapshots latest row.
  * Never exposes exchange keys, URLs (only boolean presence), stack traces.
- * liveControlDisabled and legacyAdapterBlocked are always hardcoded true (safety policy).
+ * liveControlDisabled is hardcoded true (safety policy). Legacy DB live-read is a separate read-only path.
  */
 export async function loadAdminBotHealth(): Promise<AdminBotHealthResult> {
   const adapterMode = botAdapterMode();
   const tortilaBaseUrlConfigured = !!(process.env.TORTILA_JOURNAL_URL || process.env.TORTILA_JOURNAL_BASE_URL);
+  const legacyDbLiveReadEnabled = process.env.LEGACY_LIVE_READS_ENABLED === 'true' || process.env.LEGACY_LIVE_READS_ENABLED === '1';
+  const legacyDatabaseConfigured = !!process.env.LEGACY_DATABASE_URL;
   const db = getServerDb();
 
   const base = {
     adapterMode,
     liveControlDisabled: true as const,
-    legacyAdapterBlocked: true as const,
+    legacyAdapterBlocked: true,
+    legacyDbLiveReadEnabled,
+    legacyDatabaseConfigured,
     tortilaBaseUrlConfigured,
   };
 
@@ -416,21 +420,23 @@ export async function loadAdminBotHealth(): Promise<AdminBotHealthResult> {
     .orderBy(desc(schema.botMetricSnapshots.snapshotAt))
     .limit(1);
 
-  // All bot.* health checks (last 20)
+  // Bot-related health checks (last 20). Targets include old bot.* names plus worker DB targets.
   const botHealthCheckRows = await db
     .select()
     .from(schema.integrationHealthChecks)
-    .where(like(schema.integrationHealthChecks.target, 'bot.%'))
     .orderBy(desc(schema.integrationHealthChecks.checkedAt))
-    .limit(20);
+    .limit(50);
 
-  const botHealthChecks: HealthCheckView[] = botHealthCheckRows.map((r) => ({
-    id: r.id,
-    target: r.target,
-    status: r.status,
-    detail: r.detail as Record<string, unknown> | null,
-    checkedAt: r.checkedAt.getTime(),
-  }));
+  const botHealthChecks: HealthCheckView[] = botHealthCheckRows
+    .filter((r) => r.target.startsWith('bot.') || r.target === 'tortila-journal' || r.target === 'legacy-bot')
+    .slice(0, 20)
+    .map((r) => ({
+      id: r.id,
+      target: r.target,
+      status: r.status,
+      detail: r.detail as Record<string, unknown> | null,
+      checkedAt: r.checkedAt.getTime(),
+    }));
 
   return {
     ...base,

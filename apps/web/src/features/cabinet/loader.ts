@@ -80,12 +80,19 @@ async function gatherSignals(userId: string, code: ProductCode): Promise<Cabinet
   switch (code) {
     case 'tortila_bot':
     case 'legacy_bot': {
-      const [keys, cfg] = await Promise.all([listExchangeKeys(userId), loadBotConfig(userId, code)]);
+      const [keys, cfg] = code === 'legacy_bot'
+        ? [[], await loadBotConfig(userId, code)] as const
+        : await Promise.all([listExchangeKeys(userId), loadBotConfig(userId, code)]);
       const signals: CabinetSignals = {
-        setupItems: [
-          { label: 'Add an exchange API key', done: keys.length > 0 },
-          { label: 'Save a strategy configuration', done: cfg.version != null },
-        ],
+        setupItems: code === 'legacy_bot'
+          ? [
+              { label: 'Use existing Legacy pub_id runtime', done: true },
+              { label: 'Save a strategy configuration', done: cfg.version != null },
+            ]
+          : [
+              { label: 'Add an exchange API key', done: keys.length > 0 },
+              { label: 'Save a strategy configuration', done: cfg.version != null },
+            ],
         activityLine: cfg.version != null ? `Strategy config v${cfg.version} saved` : null,
         activityAt: cfg.versions[0]?.createdAt ?? null,
       };

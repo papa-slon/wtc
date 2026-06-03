@@ -110,8 +110,8 @@ export default async function BotsPage() {
               <div style={{ marginTop: 10 }}>
                 <RiskWarningBanner
                   severity="error"
-                  title="Live adapter unavailable — blocked (B3)"
-                  detail={BOT_CAPS[b.code].liveAdapterBlockedReason ?? 'The live read-only adapter for this bot is blocked upstream.'}
+                  title="Legacy HTTP adapter unavailable"
+                  detail={BOT_CAPS[b.code].liveAdapterBlockedReason ?? 'The direct HTTP/control adapter for this bot is blocked. Use worker DB snapshots for production live-read data.'}
                 />
               </div>
             )}

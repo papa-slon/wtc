@@ -87,8 +87,8 @@ export default async function BotDetailPage({ params }: { params: Promise<{ bot:
       {caps.liveAdapterBlocked ? (
         <RiskWarningBanner
           severity="error"
-          title="Live adapter unavailable — blocked pending upstream fix (B3)"
-          detail={caps.liveAdapterBlockedReason ?? 'The live read-only adapter for this bot is blocked. See docs/PRODUCTION_BLOCKERS.md (B3).'}
+          title="Legacy HTTP adapter unavailable"
+          detail={caps.liveAdapterBlockedReason ?? 'The direct HTTP/control adapter for this bot is blocked. Use the worker DB live-read path for production snapshots.'}
         />
       ) : (
         read.adapterMode === 'mock' && (

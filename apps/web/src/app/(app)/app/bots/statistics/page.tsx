@@ -203,7 +203,7 @@ export default async function BotStatisticsPage({
     BOT_LIST.map(async (bot) => {
       const access = await botAccessForUser(user, bot.code);
       const read = access.allowed
-        ? await loadBotReadModel(bot.code, ['metrics', 'positions', 'trades', 'equityCurve', 'warnings'])
+        ? await loadBotReadModel(bot.code, ['metrics', 'positions', 'trades', 'equityCurve', 'config', 'warnings'])
         : null;
       return { ...bot, accessAllowed: access.allowed, accessReason: reasonLabel(access.reason), read };
     }),
@@ -219,8 +219,13 @@ export default async function BotStatisticsPage({
   const markUnavailable = active.code === 'tortila_bot' && activeRead?.adapterMode === 'real';
   const advanced = computeAdvancedAnalytics({ trades, positions, equityCurve: equity });
   const configState = active.accessAllowed ? await loadBotConfig(user.id, active.code) : null;
-  const legacyRows = active.code === 'legacy_bot' ? legacySymbolConfigsFromConfig(configState?.current ?? null) : [];
-  const legacyStages = active.code === 'legacy_bot' ? legacyStageConfigsFromConfig(configState?.current ?? null) : [];
+  const legacyLiveConfig =
+    active.code === 'legacy_bot' && activeRead?.config.data?.raw && typeof activeRead.config.data.raw === 'object'
+      ? activeRead.config.data.raw as Record<string, unknown>
+      : null;
+  const legacyConfig = legacyLiveConfig ?? configState?.current ?? null;
+  const legacyRows = active.code === 'legacy_bot' ? legacySymbolConfigsFromConfig(legacyConfig) : [];
+  const legacyStages = active.code === 'legacy_bot' ? legacyStageConfigsFromConfig(legacyConfig) : [];
   const totalWalletEquity = rows.reduce((sum, row) => sum + (row.read?.metrics.data?.walletEquity ?? 0), 0);
   const totalOpenPositions = rows.reduce((sum, row) => sum + (row.read?.positions.data?.length ?? 0), 0);
 
@@ -291,8 +296,8 @@ export default async function BotStatisticsPage({
           {caps.liveAdapterBlocked && (
             <RiskWarningBanner
               severity="error"
-              title="Live adapter unavailable - blocked (B3)"
-              detail={caps.liveAdapterBlockedReason ?? 'This bot cannot use a live read-only adapter until its blocker clears.'}
+              title="Legacy HTTP adapter unavailable"
+              detail={caps.liveAdapterBlockedReason ?? 'The direct HTTP/control adapter for this bot is blocked. Use worker DB snapshots for production live-read data.'}
             />
           )}
 

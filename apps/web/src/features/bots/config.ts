@@ -295,7 +295,7 @@ const LEGACY_PRESETS: readonly BotConfigPreset[] = [
     id: 'legacy-balanced-reference',
     name: 'Live matrix reference',
     mode: 'manual',
-    description: 'Reference profile shaped after the discovered RSI/CCI averaging bot matrix. Live adapter remains blocked, so this is WTC-side configuration only.',
+    description: 'Reference profile shaped after the discovered RSI/CCI averaging bot matrix. Live-read uses provider pub_id snapshots; live apply remains disabled.',
     summary: ['12 per-symbol rows', 'RSI and CCI signal split', '3-level averaging ladders', 'stage slot matrix'],
     config: { ...LEGACY_DEFAULTS, operationMode: 'manual', symbolConfigs: LEGACY_SYMBOL_DEFAULTS, stageConfigs: LEGACY_STAGE_DEFAULTS },
   },
@@ -332,8 +332,8 @@ const LEGACY_PRESETS: readonly BotConfigPreset[] = [
     id: 'legacy-auto-reference',
     name: 'Automatic intent reference',
     mode: 'auto',
-    description: 'Stores the user intent for automated legacy operation once the B3 upstream key leak is fixed and reviewed.',
-    summary: ['Auto intent only', 'full symbol matrix', 'stage slots retained', 'blocked from live connection today'],
+    description: 'Stores the user intent for automated legacy operation while WTC reads the current runtime by provider pub_id snapshots.',
+    summary: ['Auto intent only', 'full symbol matrix', 'stage slots retained', 'read-only live snapshots'],
     config: { ...LEGACY_DEFAULTS, operationMode: 'auto', symbolConfigs: LEGACY_SYMBOL_DEFAULTS, stageConfigs: LEGACY_STAGE_DEFAULTS },
   },
 ];
@@ -565,7 +565,7 @@ export function exportBotConfig(productCode: BotProductCode, config: Record<stri
     contentType: 'application/json; charset=utf-8',
     body: `${JSON.stringify({
       productCode,
-      warning: 'Reference config only. Live Legacy adapter remains blocked (B3). No exchange keys included. No live apply token included.',
+      warning: 'Safe config export only. Legacy live-read uses provider pub_id snapshots. No exchange keys included. No live apply token included.',
       config: {
         ...safeConfig,
         symbols: symbolConfigs.map((row) => row.symbol).join(', '),
