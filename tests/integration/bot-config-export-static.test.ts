@@ -23,7 +23,7 @@ describe('bot config export', () => {
 
   it('gates config-export route by session and entitlement', () => {
     expect(exportRoute).toMatch(/requireUser/);
-    expect(exportRoute).toMatch(/accessFor/);
+    expect(exportRoute).toMatch(/botAccessForUser/);
     expect(exportRoute).toMatch(/access_required/);
     expect(exportRoute).toMatch(/content-disposition/);
     expect(exportRoute).toMatch(/no-store/);

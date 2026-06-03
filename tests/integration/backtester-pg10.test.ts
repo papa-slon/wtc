@@ -36,7 +36,7 @@ describe('download-only backtester MVP', () => {
 
   it('download route is session + entitlement gated and rejects legacy', () => {
     expect(route).toMatch(/requireUser\(\)/);
-    expect(route).toMatch(/accessFor\(user\.id, 'tortila_bot'\)/);
+    expect(route).toMatch(/botAccessForUser\(user, 'tortila_bot'\)/);
     expect(route).toMatch(/bot !== 'tortila'/);
     expect(route).toMatch(/entitlement_denied/);
     expect(route).toMatch(/application\/zip/);
