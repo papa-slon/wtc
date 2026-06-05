@@ -182,7 +182,10 @@ describe('bot config effective review guardrails', () => {
     expect(operationPanel).toContain('live control disabled');
     expect(operationPanel).toContain('no live apply, start, or stop');
     expect(legacyTable).toContain('legacy_symbol_custom_');
-    expect(legacyTable).toContain('Add coin...');
+    expect(legacyTable).toContain('InstrumentPicker');
+    expect(legacyTable).toContain("instrumentOptionsForBot('legacy_bot'");
+    expect(legacyTable).toContain('Search the Legacy/BingX catalog or type a dash-format symbol');
+    expect(legacyTable).toContain('legacy_symbol_${i}');
     expect(legacyTable).toContain('Stage {draftRow.stage || 1} / {signal.toUpperCase()} slot');
     expect(legacyTable).toContain('A coin consumes one slot in its selected stage and trigger bucket');
     expect(legacyTable).toContain('Trigger resolution map');

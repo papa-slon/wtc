@@ -16,6 +16,8 @@
   glyph that can render as mojibake in Windows/server output.
 - `tests/e2e/bot-settings.spec.ts` - rendered coverage for catalog picker copy/list attributes, one canonical admin
   portfolio-cap input per field, and no setup mojibake marker.
+- `tests/integration/bot-config-review-static.test.ts` - static guard updated for the shared `InstrumentPicker` after
+  PR #8 caught the retired add-coin control expectation.
 - `docs/handoffs/20260606-0240-phase-467-bot-settings-catalog-admin-polish.md` plus three read-only agent handoffs -
   records the local UI/product correctness phase, green rendered bot/admin gate, and remaining source/prod blockers.
 
