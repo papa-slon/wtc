@@ -3,31 +3,32 @@
 > Owner: ecosystem-devops-implementer. Phased, approval-gated. No live server is touched without
 > explicit operator approval. Never copy server secrets. Never edit live nginx/systemd/.env.
 
-## Current WTC Canary (Phase 4.66)
+## Current WTC Canary (Phase 4.68)
 
 As of 2026-06-06, the existing HTTPS canary is running GitHub `main`
-`72f21d5a735ba5ce3a1b6e112cebf70742b72b62` from:
+`3aff2738815562c18f5623e9686c4c2f4ba2ef3a` from:
 
 ```text
-/home/ubuntu/apps/wtc_ecosystem_platform_releases/20260605-180016-72f21d5-phase465-main
+/home/ubuntu/apps/wtc_ecosystem_platform_releases/20260605-203900-3aff273-phase467-picker
 ```
 
 `wtc-ecosystem-canary` and `wtc-ecosystem-worker` mount that release. The prior rollback release is:
 
 ```text
-/home/ubuntu/apps/wtc_ecosystem_platform_releases/20260603-1525-e2d705f-legacy-premium
+/home/ubuntu/apps/wtc_ecosystem_platform_releases/20260605-180016-72f21d5-phase465-main
 ```
 
-Pre-migration backup:
+Latest pre-migration backup from the previous DB-changing canary deploy:
 
 ```text
 /home/ubuntu/apps/wtc_ecosystem_platform_releases/_db_backups/20260605-180016-wtc_platform_canary_20260602_1412-pre-72f21d5.dump
 ```
 
-Phase 4.66 built the web app in a one-off `node:22-bookworm` container, applied pending WTC DB migrations, recreated only
-the WTC canary/worker containers, and verified public `/api/health`, protected-route login redirects, worker continuity,
-and live bot service continuity. It did not restart `journal-server.service`, `turtle-bot.service`, `turtle-journal.service`,
-nginx, PostgreSQL, Docker, or any exchange-facing bot process.
+Phase 4.68 built the web app in a one-off `node:22-bookworm` container, verified `db:migrate` as green with no new
+migration beyond `0021_complete_pepper_potts.sql`, recreated only the WTC canary/worker containers, and verified local and
+public `/api/health`, protected-route login redirects, worker continuity, and live bot service continuity. It did not
+restart `journal-server.service`, `turtle-bot.service`, `turtle-journal.service`, nginx, PostgreSQL, Docker, or any
+exchange-facing bot process.
 
 ## Local development
 

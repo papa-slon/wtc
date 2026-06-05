@@ -1,6 +1,20 @@
 # STATUS
 
-_Latest update: 2026-06-06 - Phase 4.67 bot settings catalog/admin polish._
+_Latest update: 2026-06-06 - Phase 4.68 canary deploy to `3aff273`._
+Phase 4.68 deploys PR #8's shared bot instrument picker release to the existing WTC HTTPS canary. PR #8 merged to `main`
+at `3aff2738815562c18f5623e9686c4c2f4ba2ef3a`; PR checks and post-merge `main` CI run `27038370453` both passed
+`gates` and `e2e`. Current server release:
+`/home/ubuntu/apps/wtc_ecosystem_platform_releases/20260605-203900-3aff273-phase467-picker`, mounted into
+`wtc-ecosystem-canary` and `wtc-ecosystem-worker`. Server build passed in `node:22-bookworm`; `db:migrate` passed with no
+new migration beyond the prior `0021` state. Public `<wtc-canary-host>` smoke is green: `/api/health`, `/`, `/login`, and
+`/products` returned `200`, while protected bot/admin routes redirected to login. Short burn-in was green across three
+one-minute cycles: WTC health `200`, worker `bot_continuity ok`, `tortila ok`, `legacy ok`, bot PIDs unchanged,
+`NRestarts=0`, and recent warning count `0`. Aggregate:
+[`docs/handoffs/20260606-0356-phase-468-canary-deploy-3aff273.md`](handoffs/20260606-0356-phase-468-canary-deploy-3aff273.md).
+This clears the current WTC canary deploy for `3aff273`; it still does not clear full branded production, canonical
+Tortila source, Legacy realized closed-trade source/import, live-control audit, or external provider credential gates.
+
+_Previous local update: 2026-06-06 - Phase 4.67 bot settings catalog/admin polish._
 Phase 4.67 is a local UI/product correctness pass after the server canary update. It launches three read-only auditors,
 then adds a shared `@wtc/shared` instrument catalog plus a reusable web `InstrumentPicker` so Legacy and Tortila settings
 use one canonical symbol source with runtime-symbol fallback instead of duplicated hardcoded UI lists. Admin Tortila system
