@@ -49,6 +49,16 @@ function safeEditableConfig(meta: BotMeta, current: BotGlobalConfigRow | null): 
   };
 }
 
+const TORTILA_EMBEDDED_FIELD_NAMES = new Set([
+  'symbols',
+  'maxOpenSymbols',
+  'maxTotalUnits',
+  'maxUnitsPerDirection',
+  'haltDrawdownPercent',
+  'dailyMaxLossPercent',
+  'maxNewEntriesPerTick',
+]);
+
 function ProductDefaultsEditor({
   meta,
   current,
@@ -62,7 +72,7 @@ function ProductDefaultsEditor({
 }) {
   const { config, source, invalidCurrent } = safeEditableConfig(meta, current);
   const defaults = botConfigDefaultsFor(meta.code);
-  const fields = botConfigFieldsFor(meta.code).filter((f) => meta.code !== 'tortila_bot' || f.name !== 'symbols');
+  const fields = botConfigFieldsFor(meta.code).filter((f) => meta.code !== 'tortila_bot' || !TORTILA_EMBEDDED_FIELD_NAMES.has(f.name));
   const presets = botConfigPresetsFor(meta.code);
   const modeValue = config.operationMode != null ? String(config.operationMode) : defaults.operationMode;
   const modeMeta = BOT_OPERATION_MODES.find((m) => m.value === modeValue) ?? BOT_OPERATION_MODES[0]!;

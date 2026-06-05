@@ -101,6 +101,7 @@ test('bot settings workbench renders safe coin configuration for Tortila and Leg
   await expect(page.getByText('Private exchange connection')).toBeVisible();
   await expect(page.getByText(/No encrypted exchange key saved|No live exchange ping is claimed|Exchange ping unavailable|Check WTC vault readiness/).first()).toBeVisible();
   await expect(page.getByText('Per-coin Tortila configuration')).toBeVisible();
+  await expect(page.getByText('Search the Tortila/BingX swap catalog').first()).toBeVisible();
   await expect(page.getByText('Effective settings review')).toBeVisible();
   await expect(page.getByText('Settings continuity monitor')).toBeVisible();
   await expect(page.getByText('Effective Tortila settings review')).toBeVisible();
@@ -130,6 +131,7 @@ test('bot settings workbench renders safe coin configuration for Tortila and Leg
   await page.locator('input[name="risk_0"]').fill('0.7');
   await expect(tortilaStrategyBucket(page, 'System 1 (20/10)').locator('td[data-label="Coin candidates"]')).toContainText('risk 0.7%');
   await expect(page.getByText('Manual symbol override').first()).toBeVisible();
+  await expect(page.locator('input[name="symbol_0"]')).toHaveAttribute('list', 'symbol_0-catalog');
   await expect(page.getByText('Turtle system').first()).toBeVisible();
   await expect(page.getByText('Runtime export preview (draft)')).toBeVisible();
   await expect(page.getByText('Generated SYMBOL_CONFIGS (draft)')).toBeVisible();
@@ -186,6 +188,7 @@ test('bot settings workbench renders safe coin configuration for Tortila and Leg
   await expect(operationLayer(page, '4. Runtime evidence')).toBeVisible();
   await expect(page.getByText('Signal map')).toBeVisible();
   await expect(page.getByText('Legacy strategy map')).toBeVisible();
+  await expect(page.getByText('Search the Legacy/BingX catalog').first()).toBeVisible();
   await expect(page.getByText('One coin uses one trigger: RSI or CCI')).toBeVisible();
   await expect(page.getByText('A coin consumes one slot in its selected stage and trigger bucket')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Trigger resolution map' })).toBeVisible();
@@ -203,6 +206,7 @@ test('bot settings workbench renders safe coin configuration for Tortila and Leg
   await expect(page.getByText(/RSI trigger threshold|CCI trigger threshold/).first()).toBeVisible();
   await expect(page.getByText('Stage slot group').first()).toBeVisible();
   await expect(page.getByText('Manual symbol override').first()).toBeVisible();
+  await expect(page.locator('input[name="legacy_symbol_0"]')).toHaveAttribute('list', 'legacy_symbol_0-catalog');
   await expect(page.getByText('Delay filter').first()).toBeVisible();
   await expect(page.getByText('Delta filter').first()).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Stage capacity' })).toBeVisible();
@@ -431,6 +435,7 @@ test('bot setup renders effective review and blocks incomplete Tortila review', 
 
   await page.goto('/app/bots/tortila/setup?step=strategy');
   await expect(page.getByRole('heading', { name: 'Guided onboarding' })).toBeVisible();
+  expect(await page.locator('body').innerText()).not.toMatch(/вњ|вЂ|�/);
   await expect(page.getByText('Bot setup control center')).toBeVisible();
   await expect(setupLayer(page, 'Default or custom')).toBeVisible();
   await expect(setupLayer(page, 'Exchange key')).toBeVisible();
@@ -498,6 +503,12 @@ test('admin bot defaults renders effective review without user override controls
   await expect(page.getByText('user settings unaffected').first()).toBeVisible();
   await expect(page.getByText('Effective Legacy settings review')).toBeVisible();
   await expect(page.getByText('Effective Tortila settings review')).toBeVisible();
+  await expect(page.locator('input[name="maxOpenSymbols"]')).toHaveCount(1);
+  await expect(page.locator('input[name="maxTotalUnits"]')).toHaveCount(1);
+  await expect(page.locator('input[name="maxUnitsPerDirection"]')).toHaveCount(1);
+  await expect(page.locator('input[name="haltDrawdownPercent"]')).toHaveCount(1);
+  await expect(page.locator('input[name="dailyMaxLossPercent"]')).toHaveCount(1);
+  await expect(page.locator('input[name="maxNewEntriesPerTick"]')).toHaveCount(1);
   await expect(page.getByText('Connection verified')).toHaveCount(0);
   expect(await noHScroll(page), 'Admin bot defaults scrolls horizontally').toBe(true);
   await page.screenshot({ path: shot('admin-bot-defaults', info.project.name), fullPage: true });

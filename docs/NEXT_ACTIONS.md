@@ -1,6 +1,6 @@
 # NEXT ACTIONS
 
-**Current local/server bot/admin state after Phase 4.66:** the WTC-side Legacy/Tortila settings, setup, readiness, warning,
+**Current local/server bot/admin state after Phase 4.67:** the WTC-side Legacy/Tortila settings, setup, readiness, warning,
 statistics, admin fleet, selected-user read-only, provider-scoping, no-live-control, root test, and retained visual evidence
 surfaces are substantially built, locally green in mock/no-live mode, and deployed to the WTC HTTPS canary at
 `72f21d5a735ba5ce3a1b6e112cebf70742b72b62`. Phase 4.66 created a server-side DB backup, built the current `main` tree in
@@ -93,12 +93,17 @@ Phase 4.66 deploys that protected `main` to the existing WTC canary target. Curr
 is `/home/ubuntu/apps/wtc_ecosystem_platform_releases/20260603-1525-e2d705f-legacy-premium`; DB backup is
 `_db_backups/20260605-180016-wtc_platform_canary_20260602_1412-pre-72f21d5.dump`. Continue monitoring, but do not add local
 UI polish as a substitute for the remaining source/live-control gates.
+Phase 4.67 is a focused local UI correctness pass, not another source-proof substitute: Legacy and Tortila settings now use
+a shared instrument catalog/picker, admin Tortila system defaults no longer duplicate portfolio-cap inputs, setup wizard
+completion text is ASCII-safe, and `accept:bots:rendered` is green (`65` passed plus visual inventory). The next real
+product-completion work is still source/prod gate work: Tortila canonical source/token/network/burn-in, Legacy closed-trade
+source packet, and audited live-control design later.
 
-**Current gate state as of Phase 4.66:**
+**Current gate state as of Phase 4.67:**
 
 | Gate | Current state | Next action |
 | --- | --- | --- |
-| Local bot/admin UX, settings, statistics, admin drilldowns | Substantially built locally across Phase 3.70-4.60; `accept:bots:local` green in Phase 4.60 | Do not add more local UI polish unless a fresh gate fails |
+| Local bot/admin UX, settings, statistics, admin drilldowns | Substantially built; Phase 4.67 `accept:bots:rendered` green with shared instrument picker/admin cap de-duplication | Do not add more local UI polish unless a fresh gate fails or locked override read-only UX is explicitly prioritized |
 | Managed DB user/admin/worker proof | Green in Phase 4.57 for this tree; rerun after relevant DB/web/worker changes | Rerun managed gates only under disposable local `wtc_test_*` DB lifecycle |
 | Tortila local real-read and token proof | Green in Phase 4.60 after env/wrong-token hardening and disposable local Postgres rerun | Rerun only after adapter/worker/journal/auth changes |
 | Tortila production auth/firewall/deploy | NOT RUN | Requires canonical bot repo/source landing, production secret provisioning, firewall/private-network proof, authorized probes, deploy, monitoring, artifact scans |

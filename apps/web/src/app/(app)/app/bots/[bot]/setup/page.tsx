@@ -281,7 +281,7 @@ export default async function BotSetupWizard({
           const cls = ['wtc-step', active ? 'active' : '', done && !active ? 'done' : '', locked ? 'locked' : ''].filter(Boolean).join(' ');
           const inner = (
             <>
-              <span className="wtc-step-circle">{done && !active ? '✓' : i + 1}</span>
+              <span className="wtc-step-circle">{done && !active ? 'OK' : i + 1}</span>
               <span className="wtc-step-label">{s.label}</span>
             </>
           );

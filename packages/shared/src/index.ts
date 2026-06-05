@@ -9,6 +9,14 @@ export { assertNotProduction, requiredSecret, isPlaceholderSecret, isLowEntropyS
 export { newId } from './ids.ts';
 
 export {
+  LEGACY_BINGX_LINEAR_SYMBOLS,
+  TORTILA_BINGX_SWAP_SYMBOLS,
+  instrumentOptionsForBot,
+  instrumentSymbolsForBot,
+} from './instrument-catalog.ts';
+export type { BotInstrumentProduct, InstrumentCatalogSource, InstrumentOption } from './instrument-catalog.ts';
+
+export {
   emailSchema,
   passwordSchema,
   registerSchema,

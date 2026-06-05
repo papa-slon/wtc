@@ -1,5 +1,26 @@
 # Implemented files (current code vs. target contracts)
 
+## 2026-06-06 Phase 4.67 bot settings catalog/admin polish
+- `packages/shared/src/instrument-catalog.ts`, `packages/shared/src/instrument-catalog.test.ts`, and
+  `packages/shared/src/index.ts` - shared Legacy/Tortila instrument catalog with runtime-symbol merge, format metadata,
+  and regression coverage for Legacy dash symbols vs Tortila CCXT swap symbols.
+- `apps/web/src/features/bots/InstrumentPicker.tsx` - reusable datalist-backed coin picker that keeps manual entry as a
+  fallback while making the supported catalog visible in bot settings.
+- `apps/web/src/features/bots/LegacyAveragingConfigTable.tsx` and
+  `apps/web/src/features/bots/TortilaSymbolConfigTable.tsx` - switched from duplicated local symbol arrays to the shared
+  catalog/picker without changing live-control behavior.
+- `apps/web/src/app/admin/bots/config/page.tsx` - admin Tortila system-default editor now excludes embedded portfolio cap
+  fields from the generic field renderer, so the Tortila strategy table is the single canonical editor for those `name=`
+  values.
+- `apps/web/src/app/(app)/app/bots/[bot]/setup/page.tsx` - setup wizard completion marker uses ASCII `OK` instead of a
+  glyph that can render as mojibake in Windows/server output.
+- `tests/e2e/bot-settings.spec.ts` - rendered coverage for catalog picker copy/list attributes, one canonical admin
+  portfolio-cap input per field, and no setup mojibake marker.
+- `tests/integration/bot-config-review-static.test.ts` - static guard updated for the shared `InstrumentPicker` after
+  PR #8 caught the retired add-coin control expectation.
+- `docs/handoffs/20260606-0240-phase-467-bot-settings-catalog-admin-polish.md` plus three read-only agent handoffs -
+  records the local UI/product correctness phase, green rendered bot/admin gate, and remaining source/prod blockers.
+
 ## 2026-06-06 Phase 4.66 server canary update
 - `docs/handoffs/20260606-0104-phase-466-server-canary-update.md` plus two read-only agent handoffs - records the
   operator-approved server canary rollout of GitHub `main` `72f21d5a735ba5ce3a1b6e112cebf70742b72b62` to
