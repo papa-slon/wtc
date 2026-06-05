@@ -1,6 +1,19 @@
 # STATUS
 
-_Latest update: 2026-06-05 - Phase 4.65 main required CI ruleset._
+_Latest update: 2026-06-06 - Phase 4.66 server canary update to `72f21d5`._
+Phase 4.66 uses the operator-approved SSH target to deploy the current GitHub `main` commit
+`72f21d5a735ba5ce3a1b6e112cebf70742b72b62` to the WTC HTTPS canary without restarting live bot services.
+New server release:
+`/home/ubuntu/apps/wtc_ecosystem_platform_releases/20260605-180016-72f21d5-phase465-main`, mounted into
+`wtc-ecosystem-canary` and `wtc-ecosystem-worker`. Pre-migration DB backup:
+`/home/ubuntu/apps/wtc_ecosystem_platform_releases/_db_backups/20260605-180016-wtc_platform_canary_20260602_1412-pre-72f21d5.dump`.
+Server build passed in `node:22-bookworm`; WTC DB migrations advanced from Drizzle id `17` to `22`; public
+`https://<wtc-canary-host>/api/health` now returns `200`. Post-switch monitoring showed
+`journal-server.service`, `turtle-bot.service`, and `turtle-journal.service` still `active/running` with unchanged PIDs
+and `NRestarts=0`; the new worker logged `tortila-snapshot ok`, `legacy-snapshot ok`, `bot_continuity ok`, and WTC DB
+health rows for `worker`, `tortila-journal`, and `legacy-bot` were `ok` at `2026-06-05 18:03:10 UTC`. Aggregate:
+[`docs/handoffs/20260606-0104-phase-466-server-canary-update.md`](handoffs/20260606-0104-phase-466-server-canary-update.md).
+This clears the current WTC canary deploy for `72f21d5`, not full production/live-control completion.
 The current WTC-side Legacy/Tortila bot workbench is substantially built locally: settings/setup quick paths, symbol/stage
 configuration, safe config export/review, metadata-only exchange-key readiness, launch-readiness maps, warning summaries,
 admin fleet views, selected-user read-only drilldowns, provider-scoped Legacy runtime evidence, Tortila statistics, Legacy
