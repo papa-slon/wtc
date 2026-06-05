@@ -1,5 +1,18 @@
 # Implemented files (current code vs. target contracts)
 
+## 2026-06-06 Phase 4.66 server canary update
+- `docs/handoffs/20260606-0104-phase-466-server-canary-update.md` plus two read-only agent handoffs - records the
+  operator-approved server canary rollout of GitHub `main` `72f21d5a735ba5ce3a1b6e112cebf70742b72b62` to
+  `wtc-ecosystem-canary` and `wtc-ecosystem-worker`. The phase created a WTC DB backup, built the web app in
+  `node:22-bookworm`, applied pending WTC migrations, switched only the WTC canary/worker containers, verified public
+  `/api/health`, verified protected routes redirect to login, and monitored worker/Tortila/Legacy health after the switch.
+  `journal-server.service`, `turtle-bot.service`, and `turtle-journal.service` were not restarted and stayed
+  `active/running`.
+- Server evidence also confirms the current Legacy `tradingbot` schema has operational tables (`api_keys`, `orders`,
+  `slots`, `stageconfigs`, `symbolsettingss`, `users`) but no valid closed-trade economics table/API. Legacy realized
+  analytics/import remains source-blocked; WTC must not fabricate realized PnL/win-rate from active/inactive orders or
+  slots.
+
 ## 2026-06-04 to 2026-06-05 Phase 4.18-4.60 additions (local bot/admin completion push)
 - `apps/web/src/app/(app)/app/bots/[bot]/{page,settings,setup,trades}/page.tsx`,
   `apps/web/src/app/(app)/app/bots/statistics/page.tsx`, and `apps/web/src/features/bots/*` - WTC-side bot workbench:

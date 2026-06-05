@@ -1,12 +1,14 @@
 # Current Production Blockers
 
-Last updated: 2026-06-05, Phase 4.62 production/source input map.
+Last updated: 2026-06-06, Phase 4.66 server canary update.
 
-Phase 4.62 confirms that the remaining production blockers are input-gated, not locally implementable without new
-operator/source evidence. Production deploy needs an explicit target packet; Tortila production read-only needs canonical
-git-backed source landing plus production secret/firewall/probe approval; Legacy realized analytics needs a valid
-closed-trade source artifact/API/table. Do not substitute local UI polish, active orders/slots, non-git Tortila source, or
-green GitHub CI for those gates.
+Phase 4.66 clears the existing WTC HTTPS canary rollout for current GitHub `main`
+`72f21d5a735ba5ce3a1b6e112cebf70742b72b62`: the new server release is mounted into `wtc-ecosystem-canary` and
+`wtc-ecosystem-worker`, WTC DB migrations applied after backup, public `/api/health` returns `200`, and post-switch worker
+health is `ok` for `worker`, `tortila-journal`, and `legacy-bot`. Live bot services stayed running with unchanged PIDs and
+were not restarted. Remaining production blockers are now full branded-domain/burn-in rollout, canonical git-backed Tortila
+source landing, Legacy realized closed-trade source/import proof, live-control audit, and other credentialed provider gates.
+Do not substitute local UI polish, active orders/slots, non-git Tortila source, or green GitHub CI for those remaining gates.
 
 Phase 4.61 clears the GitHub CI blocker for the current merged WTC repo tree, not production deployment. PR #1 merged to
 `main` at `ed31aaaf89ebc4920a13887542fa3bb0bbd99545`; pre-merge PR CI run `27015532545` and post-merge `main` push CI
