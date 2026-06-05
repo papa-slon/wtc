@@ -2151,3 +2151,6 @@ Phase 4.63 updates the active workflow action runtimes after GitHub's Node.js 20
 `actions/upload-artifact@v7`. The workflow still runs the same repository gates and still uses project `node-version: 24`.
 Phase 4.64 records GitHub proof for that active workflow: PR #4 CI run `27022463493` and post-merge `main` run
 `27023047118` both passed `gates` and `e2e` for merge commit `787443d8ca040cf94d001f79d1a28bbdc0d84bd3`.
+Phase 4.65 adds repo-level CI enforcement outside the file tree: GitHub ruleset `17324564` protects `refs/heads/main` with
+strict required GitHub Actions checks `gates` and `e2e` pinned to integration `15368`, no force-push, no deletion, and no
+bypass actors. This setting is verified through GitHub ruleset/branch/rules APIs, not by a local file.

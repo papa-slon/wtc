@@ -1,6 +1,6 @@
 # STATUS
 
-_Latest update: 2026-06-05 - Phase 4.64 Node 24 Actions merge and CI truth._
+_Latest update: 2026-06-05 - Phase 4.65 main required CI ruleset._
 The current WTC-side Legacy/Tortila bot workbench is substantially built locally: settings/setup quick paths, symbol/stage
 configuration, safe config export/review, metadata-only exchange-key readiness, launch-readiness maps, warning summaries,
 admin fleet views, selected-user read-only drilldowns, provider-scoped Legacy runtime evidence, Tortila statistics, Legacy
@@ -19,7 +19,17 @@ the exact Phase 4.60 tree through PR #1, observes green PR and post-merge `main`
 Phase 4.62 proves the remaining production/source gates need external target/source packets, not another local UI/static
 loop; Phase 4.63 updates the active GitHub Actions workflow to Node 24-runtime action majors after GitHub's deprecation
 warning surfaced on the green `main` runs; Phase 4.64 records the PR and post-merge `main` GitHub proof for that exact
-workflow migration. This is still **not final production completion** and not a live-control release.
+workflow migration; Phase 4.65 protects `main` with an active GitHub repository ruleset requiring WTC's Actions checks.
+This is still **not final production completion** and not a live-control release.
+
+Phase 4.65 closes the repo-level CI enforcement gap found after the Node 24 Actions proof. `main` was previously
+unprotected (`protected=false`, no branch protection, no rulesets). A GitHub repository ruleset now protects
+`refs/heads/main`: `WTC main required CI`, ID `17324564`, enforcement `active`, no bypass actors, strict required status
+checks `gates` and `e2e` pinned to GitHub Actions integration `15368`, plus `non_fast_forward` and `deletion` rules.
+Verification observed `main protected=true`, `gh ruleset check main` reporting exactly those three rules, and the latest
+Checks API still green for `gates` and `e2e`. Legacy commit statuses remain empty/`pending` and are not the CI source of
+truth. The two read-only ruleset audits were closed after handoff collection. Aggregate:
+[`docs/handoffs/20260605-2304-phase-465-main-required-ci-ruleset.md`](handoffs/20260605-2304-phase-465-main-required-ci-ruleset.md).
 
 Phase 4.64 closes the CI-truth follow-up for the Node 24 action-runtime migration. PR #4 merged to `main` at
 `787443d8ca040cf94d001f79d1a28bbdc0d84bd3` after green PR CI run `27022463493` (`gates=success`, `e2e=success`).

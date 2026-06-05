@@ -452,6 +452,10 @@ majors: `actions/checkout@v6`, `actions/setup-node@v6`, and `actions/upload-arti
 Node.js 20 action-runtime deprecation warning; the project runtime remains `node-version: 24`. Phase 4.64 proves that
 migration on GitHub: PR #4 CI run `27022463493` passed `gates` and `e2e`, PR #4 merged at
 `787443d8ca040cf94d001f79d1a28bbdc0d84bd3`, and post-merge `main` run `27023047118` passed `gates` and `e2e`.
+Phase 4.65 adds repository ruleset `17324564` (`WTC main required CI`) for `refs/heads/main`: strict required GitHub
+Actions checks `gates` and `e2e` pinned to integration `15368`, plus no force-push and no branch deletion. The ruleset has
+no bypass actors. CI truth for this repo is GitHub Checks/Actions, not the legacy commit-status API; empty legacy statuses
+can show `pending` while required Actions checks are green.
 
 The local equivalent remains:
 
@@ -557,6 +561,8 @@ separately to `/home/ubuntu/apps/wtc_ecosystem_platform` behind nginx at the ope
 - `db:migrate` / `db:seed` against any production database (NOT RUN)
 - CI via GitHub Actions for the Phase 4.60 merge commit is RUN/PASS in Phase 4.61; future release commits must be watched
   on both PR and post-merge `main` runs before deployment
+- GitHub repository ruleset `17324564` now protects `main` with required Actions checks `gates` and `e2e`; future release
+  PRs should confirm only those checks are required, not Cursor suites or legacy statuses
 - Production server deployment with `DATABASE_URL`, real secrets, migrations, seed, rollback, and production start path (NOT RUN)
 - Production nginx/domain/TLS cutover (NOT RUN). The current raw-IP nginx route is only a Postgres-backed safe preview.
 - Production auth `limit_req` / trusted proxy header verification (NOT RUN). The app middleware is per instance; production must prove nginx/shared-store throttling and trusted `X-Forwarded-For`/`X-Real-IP` handling separately.
