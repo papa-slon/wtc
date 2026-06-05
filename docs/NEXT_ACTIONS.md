@@ -1,12 +1,14 @@
 # NEXT ACTIONS
 
-**Current local/server bot/admin state after Phase 4.67:** the WTC-side Legacy/Tortila settings, setup, readiness, warning,
-statistics, admin fleet, selected-user read-only, provider-scoping, no-live-control, root test, and retained visual evidence
-surfaces are substantially built, locally green in mock/no-live mode, and deployed to the WTC HTTPS canary at
-`72f21d5a735ba5ce3a1b6e112cebf70742b72b62`. Phase 4.66 created a server-side DB backup, built the current `main` tree in
-`node:22-bookworm`, applied pending WTC migrations, recreated only `wtc-ecosystem-canary` and `wtc-ecosystem-worker`, and
-proved public `/api/health` plus worker/bot continuity. `journal-server.service`, `turtle-bot.service`, and
-`turtle-journal.service` stayed `active/running` with unchanged PIDs and no restarts. Phase 4.46 closes the no-env worker interval
+**Current local/server bot/admin state after Phase 4.68:** the WTC-side Legacy/Tortila settings, setup, readiness, warning,
+statistics, admin fleet, selected-user read-only, provider-scoping, no-live-control, root test, retained visual evidence,
+and shared instrument picker surfaces are substantially built, locally green in mock/no-live mode, merged through PR #8,
+and deployed to the WTC HTTPS canary at `3aff2738815562c18f5623e9686c4c2f4ba2ef3a`. Phase 4.68 built the current `main`
+tree in `node:22-bookworm`, verified DB migrate with no new migration beyond the prior `0021` state, recreated only
+`wtc-ecosystem-canary` and `wtc-ecosystem-worker`, and proved local/public `/api/health`, protected-route redirects, worker
+continuity, and bot continuity. `journal-server.service`, `turtle-bot.service`, and `turtle-journal.service` stayed
+`active/running` with unchanged PIDs and `NRestarts=0`; Legacy stayed live under tmux; no bot restart was needed or run.
+Phase 4.46 closes the no-env worker interval
 overlap gap: long-running DB worker intervals now use a serialized in-flight guard that skips overlapping attempts with
 constant/numeric telemetry and does not refresh worker continuity proof. Phase 4.45 closes the `/app/bots` two-bot finish
 board product gap: users now land on a user-scoped Tortila/Legacy completion map with direct settings, setup, dashboard,
@@ -88,11 +90,11 @@ Phase 4.65 protects `main` with repository ruleset `17324564` (`WTC main require
 checks `gates` and `e2e` pinned to integration `15368`, no force-push, no branch deletion, and no bypass actors. Future
 release PRs should verify the merge box requires only `gates` and `e2e`; do not treat empty legacy commit statuses as CI
 failure when Checks/Actions are green.
-Phase 4.66 deploys that protected `main` to the existing WTC canary target. Current release path is
-`/home/ubuntu/apps/wtc_ecosystem_platform_releases/20260605-180016-72f21d5-phase465-main`; rollback web/worker release path
-is `/home/ubuntu/apps/wtc_ecosystem_platform_releases/20260603-1525-e2d705f-legacy-premium`; DB backup is
-`_db_backups/20260605-180016-wtc_platform_canary_20260602_1412-pre-72f21d5.dump`. Continue monitoring, but do not add local
-UI polish as a substitute for the remaining source/live-control gates.
+Phase 4.68 deploys that protected `main` to the existing WTC canary target. Current release path is
+`/home/ubuntu/apps/wtc_ecosystem_platform_releases/20260605-203900-3aff273-phase467-picker`; rollback web/worker release
+path is `/home/ubuntu/apps/wtc_ecosystem_platform_releases/20260605-180016-72f21d5-phase465-main`; latest DB backup from
+the previous DB-changing canary deploy is `_db_backups/20260605-180016-wtc_platform_canary_20260602_1412-pre-72f21d5.dump`.
+Continue monitoring, but do not add local UI polish as a substitute for the remaining source/live-control gates.
 Phase 4.67 is a focused local UI correctness pass, not another source-proof substitute: Legacy and Tortila settings now use
 a shared instrument catalog/picker, admin Tortila system defaults no longer duplicate portfolio-cap inputs, setup wizard
 completion text is ASCII-safe, and `accept:bots:rendered` is green (`65` passed plus visual inventory). The next real
@@ -110,14 +112,14 @@ source packet, and audited live-control design later.
 | Legacy closed-trade realized analytics/import | Blocked by source proof | Do not implement importer or loaded realized PnL until a valid Legacy source artifact exists |
 | Live control, exchange ping, test-connection, start/stop/apply-config | NOT RUN and intentionally disabled | Needs separate bot-integration plus security approval; no local shortcut |
 | Exact-tree release/CI | Phase 4.65: `main` protected by ruleset `17324564`; required checks are GitHub Actions `gates` and `e2e` only, strict policy enabled. | Future release changes must branch from `main`, run PR CI, confirm merge box requires only `gates`/`e2e`, then watch post-merge `main` CI |
-| Current WTC canary deploy | RUN/PASS in Phase 4.66 for `72f21d5` | Continue monitoring; rollback web/worker to `20260603-1525-e2d705f-legacy-premium` only if health fails |
+| Current WTC canary deploy | RUN/PASS in Phase 4.68 for `3aff273` | Continue monitoring; rollback web/worker to `20260605-180016-72f21d5-phase465-main` only if health fails |
 | Full production/branded-domain rollout | NOT RUN | Requires branded target, DNS/TLS cutover, longer burn-in, provider/live gates, and rollback plan |
 
 **Phase 4.62 required external packets:**
 
 | Packet | Required contents | Why it is required |
 | --- | --- | --- |
-| Deploy target packet | Phase 4.66 supplied and used the existing canary target for WTC `72f21d5`; full branded production still needs target host/domain, release SHA, rollback target, allowed services, DB migration/seed approval, secret provisioning method, smoke routes, firewall/proxy probes, monitoring window | Local repo + GitHub CI prove code; Phase 4.66 proves the existing WTC canary only |
+| Deploy target packet | Phase 4.68 supplied and used the existing canary target for WTC `3aff273`; full branded production still needs branded target host/domain, release SHA, rollback target, allowed services, DB migration/seed approval, secret provisioning method, smoke routes, firewall/proxy probes, monitoring window | Local repo + GitHub CI prove code; Phase 4.68 proves the existing WTC canary only |
 | Canonical Tortila source packet | git-backed repo/path/remote/branch or source bundle, proof of `JOURNAL_READ_TOKEN` middleware/tests, bot-side pytest/ruff plan | Adjacent `../bot_tortila` has the patch but is not source-control authority |
 | Legacy closed-trade source packet | source table/API/artifact, provider/pub_id filter, stable trade/fill id, symbol/side/size, entry/exit, realized PnL, fees/funding sign policy, opened/closed timestamps, exit reason, replay/backfill semantics, raw payload allowlist | Active orders/slots/FILLED handling cannot prove realized analytics honestly |
 Phase 4.44 closes the admin worker-continuity

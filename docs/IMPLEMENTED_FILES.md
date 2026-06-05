@@ -1,5 +1,16 @@
 # Implemented files (current code vs. target contracts)
 
+## 2026-06-06 Phase 4.68 canary deploy 3aff273
+- Server release `/home/ubuntu/apps/wtc_ecosystem_platform_releases/20260605-203900-3aff273-phase467-picker` - current
+  WTC HTTPS canary/worker release for GitHub `main` `3aff2738815562c18f5623e9686c4c2f4ba2ef3a`.
+- `docs/handoffs/20260606-0356-phase-468-canary-deploy-3aff273.md` plus two post-deploy read-only auditor handoffs -
+  records PR #8 merge, green PR/main CI, server build, no-new-migration migrate check, WTC canary/worker switch, public
+  smoke, three-cycle short burn-in, and live bot continuity with no bot restart.
+- `docs/DEPLOYMENT.md`, `docs/STATUS.md`, `docs/NEXT_ACTIONS.md`, `docs/PRODUCTION_BLOCKERS_CURRENT.md`, and
+  `docs/CREDENTIAL_ACCEPTANCE_BLOCKERS_CURRENT.md` - current canary truth updated from `72f21d5` to `3aff273`, while
+  preserving remaining blockers for canonical Tortila source, Legacy closed-trade source, live-control audit, full branded
+  production, and external provider credential gates.
+
 ## 2026-06-06 Phase 4.67 bot settings catalog/admin polish
 - `packages/shared/src/instrument-catalog.ts`, `packages/shared/src/instrument-catalog.test.ts`, and
   `packages/shared/src/index.ts` - shared Legacy/Tortila instrument catalog with runtime-symbol merge, format metadata,

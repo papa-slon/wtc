@@ -1,6 +1,6 @@
 # Credential Acceptance Blockers Current
 
-Last updated: 2026-06-06, Phase 4.66 server canary update.
+Last updated: 2026-06-06, Phase 4.68 server canary update.
 
 This packet is the current operator-facing blocker list after Phase 4.62. The LMS DB browser managed gate, active managed
 real-Postgres proof, local managed throwaway audit-role proof, local site-readiness proof, and local auth DB-backed
@@ -46,9 +46,9 @@ Observed in this session:
   (`934` passed, `10` skipped), web build, core smoke, root/web typecheck, lint, secret scan, default e2e (`44` passed,
   `6` skipped), auth production-profile e2e (`2` passed), and managed auth DB e2e against existing-bot Postgres source
   (`wtc_test_auth_20260602130742_099899` created/dropped, 17 migrations plus seed, Playwright `2` passed).
-- Phase 4.66 used the operator-approved SSH target to update only the WTC canary/worker containers to `72f21d5`, after a
-  WTC DB backup and migrations. It did not restart live bot services, nginx, PostgreSQL, or Docker, and did not run live bot
-  control or exchange probes.
+- Phase 4.68 used the operator-approved SSH target to update only the WTC canary/worker containers to `3aff273`, after PR
+  #8 and post-merge `main` CI passed. DB migrate was checked green with no new migration beyond the prior `0021` state. It
+  did not restart live bot services, nginx, PostgreSQL, or Docker, and did not run live bot control or exchange probes.
 
 Previously checked env vars without printing values in Phase 3.58; remaining gates still require these names unless a later
 phase supplies them:
@@ -97,9 +97,9 @@ AXIOMA_BRIDGE_API_TOKEN=NOT_SET
 | Axioma live bridge / handoff acceptance | `npm run accept:axioma:handoff-preflight` plus live endpoint-shape/account-link/download checks as scoped | Confirmed Axioma endpoint shapes, `AXIOMA_HANDOFF_SIGNING_KEY`, `AXIOMA_HANDOFF_KEY_ID`, bridge token where required | **NOT RUN** - ES256 key/kid and bridge token absent | ES256/JWKS/handoff/account-link/download acceptance passes with confirmed endpoint shapes and retained evidence scans clean |
 | Local site-readiness / safe-preview smoke | `npm test`; `npm run build -w @wtc/web`; `npm run e2e`; `npm run preview:safe` or scoped preview smoke | Local demo/mock preview scope; no live bot/provider/deploy mutation | **RUN/PASS in Phase 3.62** - root tests `921` passed, web build PASS, default e2e `44` passed / `8` skipped, `http://127.0.0.1:3000` returned `200` with a title containing `WTC Ecosystem` and `World Trader Club` | Cleared for local manual demo/mock website review only; screenshot inventory is not screenshot acceptance |
 | Local auth DB-backed browser acceptance | `npm run e2e:auth:db:managed` | Existing-bot Postgres source approved by operator; in-process `AUTH_E2E_ADMIN_DATABASE_URL`, value never printed | **RUN/PASS in Phase 3.63** - throwaway DB `wtc_test_auth_20260602130742_099899` created/dropped, 17 migrations plus seed, real register/login Playwright `2` passed | Cleared for local auth registration/login DB-backed acceptance; not a production DB/server/deploy proof |
-| Current WTC canary server smoke | Existing HTTPS canary smoke | Operator-approved SSH target, existing canary domain, rollback release, DB backup | **RUN/PASS in Phase 4.66** - public `/api/health` 200, home/login/products 200, protected bot/admin routes redirect to login, worker/Tortila/Legacy health ok | Cleared for WTC canary release `72f21d5`; continue monitoring and rerun after future deploys |
-| GitHub CI for current WTC release | GitHub Actions workflow on PR and `main` push | Git-backed repo, PR/push to GitHub | **RUN/PASS in Phase 4.61** - PR CI `27015532545` and post-merge `main` CI `27016644974` both passed `gates` and `e2e` | Cleared for merge commit `ed31aaaf89ebc4920a13887542fa3bb0bbd99545`; rerun for every future release commit |
-| Current WTC canary deploy/server checks | Approved canary deploy checklist | Operator-approved SSH target, existing server secrets, rollback release, DB backup | **RUN/PASS in Phase 4.66** - new release mounted into `wtc-ecosystem-canary` and `wtc-ecosystem-worker`; bot services stayed active with unchanged PIDs | Cleared for existing WTC canary only; full branded production/live provider rollout remains separate |
+| Current WTC canary server smoke | Existing HTTPS canary smoke | Operator-approved SSH target, existing canary domain, rollback release, DB backup | **RUN/PASS in Phase 4.68** - public `/api/health` 200, home/login/products 200, protected bot/admin routes redirect to login, worker/Tortila/Legacy health ok | Cleared for WTC canary release `3aff273`; continue monitoring and rerun after future deploys |
+| GitHub CI for current WTC release | GitHub Actions workflow on PR and `main` push | Git-backed repo, PR/push to GitHub | **RUN/PASS in Phase 4.68** - PR #8 and post-merge `main` CI run `27038370453` both passed `gates` and `e2e` | Cleared for merge commit `3aff2738815562c18f5623e9686c4c2f4ba2ef3a`; rerun for every future release commit |
+| Current WTC canary deploy/server checks | Approved canary deploy checklist | Operator-approved SSH target, existing server secrets, rollback release, DB backup | **RUN/PASS in Phase 4.68** - new release mounted into `wtc-ecosystem-canary` and `wtc-ecosystem-worker`; bot services stayed active with unchanged PIDs | Cleared for existing WTC canary only; full branded production/live provider rollout remains separate |
 | Canonical Tortila source landing | Source-control proof plus bot-side tests | Canonical git repo/path/remote/branch or source bundle | **NOT RUN** - adjacent `bot_tortila` patch exists but directory is not git-backed | Token middleware/tests verified in canonical source; bot pytest/ruff pass; WTC managed read proof rerun against canonical checkout |
 | Legacy closed-trade source proof | Source artifact/API/table contract | Provider/pub_id scope, stable id, economics, timestamps, replay, raw allowlist | **NOT RUN** - no valid upstream Legacy source found | Source-proof preflight reports `ready_for_mapper`; fixture-backed mapper/import tests pass without secret/raw payload leakage |
 
@@ -118,5 +118,5 @@ DB/provider/server gates above are observed green in their intended environments
 browser acceptance; Phase 3.60 cleared local active managed real-PG proof; Phase 3.61 cleared local generated-role
 append-only audit proof, not the production/preview intended-role proof; Phase 3.62 cleared local demo/mock site-readiness;
 Phase 3.63 cleared local production-readiness harness gaps and DB-backed auth browser acceptance; Phase 4.61 cleared
-GitHub CI for the merged WTC release commit; Phase 4.62 clarified the missing deploy/source packets; Phase 4.66 clears the
-existing WTC canary deploy for `72f21d5`. None of those clear full branded/live-provider production readiness.
+GitHub CI for the merged WTC release commit; Phase 4.62 clarified the missing deploy/source packets; Phase 4.68 clears the
+existing WTC canary deploy for `3aff273`. None of those clear full branded/live-provider production readiness.
