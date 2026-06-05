@@ -2145,3 +2145,7 @@ runtime secrets; e2e with `playwright install --with-deps chromium`). Phase 4.61
 PR run `27015532545` and post-merge `main` run `27016644974` both passed `gates` and `e2e`. Local equivalent:
 `npm run ci:local` (root `package.json`). CI green is commit-level repo evidence only; it is not production deploy,
 production DB, firewall, provider, or monitoring proof.
+
+Phase 4.63 updates the active workflow action runtimes after GitHub's Node.js 20 deprecation warning: checkout/setup use
+`actions/checkout@v6` and `actions/setup-node@v6`, and the visual-evidence artifact upload uses
+`actions/upload-artifact@v7`. The workflow still runs the same repository gates and still uses project `node-version: 24`.
