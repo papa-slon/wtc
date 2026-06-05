@@ -1,6 +1,6 @@
 # NEXT ACTIONS
 
-**Current local bot/admin state after Phase 4.61:** the WTC-side Legacy/Tortila settings, setup, readiness, warning,
+**Current local bot/admin state after Phase 4.62:** the WTC-side Legacy/Tortila settings, setup, readiness, warning,
 statistics, admin fleet, selected-user read-only, provider-scoping, no-live-control, root test, and retained visual evidence
 surfaces are substantially built and locally green in mock/no-live mode. Phase 4.46 closes the no-env worker interval
 overlap gap: long-running DB worker intervals now use a serialized in-flight guard that skips overlapping attempts with
@@ -70,8 +70,12 @@ Phase 4.61 is the release/CI truth pass: PR #1 was merged to `main` at
 `27016644974` both passed `gates` and `e2e`. This closes the "GitHub Actions for the committed exact tree" gap for this
 release, but it does not deploy production and does not clear canonical Tortila source, production Tortila
 auth/firewall/probes, Legacy closed-trade source, live-control audit, monitoring, or burn-in.
+Phase 4.62 turns those remaining gates into a concrete input map instead of another local implementation loop: deploy
+requires an operator-approved target packet; Tortila production source requires the canonical git-backed Tortila repo/source
+bundle; Legacy realized analytics requires a valid closed-trade source artifact/API/table. Without one of those packets, do
+not start another local UI/source-proof polish phase.
 
-**Current gate state as of Phase 4.61:**
+**Current gate state as of Phase 4.62:**
 
 | Gate | Current state | Next action |
 | --- | --- | --- |
@@ -83,6 +87,14 @@ auth/firewall/probes, Legacy closed-trade source, live-control audit, monitoring
 | Live control, exchange ping, test-connection, start/stop/apply-config | NOT RUN and intentionally disabled | Needs separate bot-integration plus security approval; no local shortcut |
 | Exact-tree release/CI | PR #1 merged to `main`; PR CI `27015532545` and post-merge main CI `27016644974` green (`gates`, `e2e`) | Future release changes must branch from `main`, run PR CI, then watch post-merge `main` CI |
 | Production deploy/canary | NOT RUN | Requires explicit production target, rollback plan, secrets, migrations/seed approval, firewall/probe plan, and monitoring |
+
+**Phase 4.62 required external packets:**
+
+| Packet | Required contents | Why it is required |
+| --- | --- | --- |
+| Deploy target packet | target host/domain/canary URL, release SHA, rollback target, allowed services, DB migration/seed approval, secret provisioning method, smoke routes, firewall/proxy probes, monitoring window | Local repo + GitHub CI prove code, not server state or production mutation safety |
+| Canonical Tortila source packet | git-backed repo/path/remote/branch or source bundle, proof of `JOURNAL_READ_TOKEN` middleware/tests, bot-side pytest/ruff plan | Adjacent `../bot_tortila` has the patch but is not source-control authority |
+| Legacy closed-trade source packet | source table/API/artifact, provider/pub_id filter, stable trade/fill id, symbol/side/size, entry/exit, realized PnL, fees/funding sign policy, opened/closed timestamps, exit reason, replay/backfill semantics, raw payload allowlist | Active orders/slots/FILLED handling cannot prove realized analytics honestly |
 Phase 4.44 closes the admin worker-continuity
 freshness gap: stale `target='worker'` rows now stay attention and cannot make `/admin/bots` show green continuity proof.
 Phase 4.43 closes the admin read-only-label copy
