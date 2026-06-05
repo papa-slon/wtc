@@ -101,6 +101,13 @@
   PR #1 is merged to `main`, pre-merge PR CI run `27015532545` and post-merge `main` CI run `27016644974` passed
   `gates` and `e2e`, active docs no longer classify GitHub Actions for the committed exact tree as NOT RUN, and GitHub
   `gates` now explicitly runs `npm run typecheck -w @wtc/worker` to match the local `ci:local` proof envelope.
+- `docs/handoffs/20260605-2058-{deploy-target-discovery-auditor,tortila-source-landing-auditor,legacy-source-proof-auditor}.md`,
+  `docs/handoffs/20260605-2112-phase-462-production-source-input-map.md`, `docs/STATUS.md`, `docs/NEXT_ACTIONS.md`,
+  `docs/CREDENTIAL_ACCEPTANCE_BLOCKERS_CURRENT.md`, and `docs/PRODUCTION_BLOCKERS_CURRENT.md` - Phase 4.62 input-map
+  closure: production deploy is missing the current target packet, canonical Tortila source landing is still absent because
+  adjacent `bot_tortila` is not git-backed, and Legacy realized analytics/import remains blocked because no valid upstream
+  closed-trade source artifact/API/table was found. This records the non-looping next inputs instead of adding another local
+  UI/static source-proof pass.
 - `apps/web/src/app/admin/{users,bots,users/[userId]/bots}/page.tsx`, `docs/BOT_CONTROL_SAFETY_MODEL.md`,
   `tests/integration/{admin-user-bot-detail-static,bot-read-safety-static}.test.ts`, and
   `tests/e2e/{smoke,admin-mobile-pg8}.spec.ts` - Phase 4.43 admin read-only label closure: admin owner/user actions now

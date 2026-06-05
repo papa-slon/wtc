@@ -1,8 +1,8 @@
 # Credential Acceptance Blockers Current
 
-Last updated: 2026-06-05, Phase 4.61 main merge and CI truth.
+Last updated: 2026-06-05, Phase 4.62 production/source input map.
 
-This packet is the current operator-facing blocker list after Phase 4.61. The LMS DB browser managed gate, active managed
+This packet is the current operator-facing blocker list after Phase 4.62. The LMS DB browser managed gate, active managed
 real-Postgres proof, local managed throwaway audit-role proof, local site-readiness proof, and local auth DB-backed
 production-profile browser proof are now **RUN/PASS** with
 operator-approved local sources where needed. Remaining live or credentialed gates are still **NOT RUN** unless explicitly
@@ -16,6 +16,8 @@ Observed in this session:
 - Phase 4.61 git/CI release proof -> **RUN/PASS** for the WTC repo: PR #1 merged at
   `ed31aaaf89ebc4920a13887542fa3bb0bbd99545`; pre-merge PR CI run `27015532545` and post-merge `main` CI run
   `27016644974` both passed `gates` and `e2e`.
+- Phase 4.62 deploy/source discovery -> **RUN/PASS in read-only scope**: deploy target packet absent, canonical git-backed
+  Tortila source absent, and Legacy closed-trade source absent. These remain external input gates, not local-code gates.
 - `C:\Users\maxib\GTE BOT\bot\.env` had Postgres connection fields; the connection and `CREATE DATABASE` permission were
   checked without printing values.
 - `LMS_E2E_ADMIN_DATABASE_URL` was built only in-process for the managed runner and removed from the shell after the run.
@@ -97,6 +99,8 @@ AXIOMA_BRIDGE_API_TOKEN=NOT_SET
 | Live/server preview smoke | Approved server/preview target smoke | Operator-approved server target, retained evidence plan, rollback/cleanup plan if needed | **NOT RUN** - no server/SSH/nginx/systemd/deploy target approved in Phase 3.62 | Approved smoke actually runs on intended target; retained evidence is compact, redacted, scanner-clean, and screenshot-reviewed if retained |
 | GitHub CI for current WTC release | GitHub Actions workflow on PR and `main` push | Git-backed repo, PR/push to GitHub | **RUN/PASS in Phase 4.61** - PR CI `27015532545` and post-merge `main` CI `27016644974` both passed `gates` and `e2e` | Cleared for merge commit `ed31aaaf89ebc4920a13887542fa3bb0bbd99545`; rerun for every future release commit |
 | Deploy/server checks | Approved deploy checklist | Explicit operator approval, server target, secrets, rollback plan | **NOT RUN** - forbidden in this phase | Approved deploy/SSH/nginx/systemd checks execute and are documented without secrets |
+| Canonical Tortila source landing | Source-control proof plus bot-side tests | Canonical git repo/path/remote/branch or source bundle | **NOT RUN** - adjacent `bot_tortila` patch exists but directory is not git-backed | Token middleware/tests verified in canonical source; bot pytest/ruff pass; WTC managed read proof rerun against canonical checkout |
+| Legacy closed-trade source proof | Source artifact/API/table contract | Provider/pub_id scope, stable id, economics, timestamps, replay, raw allowlist | **NOT RUN** - no valid upstream Legacy source found | Source-proof preflight reports `ready_for_mapper`; fixture-backed mapper/import tests pass without secret/raw payload leakage |
 
 ## Safe Run Order When Credentials Arrive
 
@@ -113,4 +117,5 @@ DB/provider/server gates above are observed green in their intended environments
 browser acceptance; Phase 3.60 cleared local active managed real-PG proof; Phase 3.61 cleared local generated-role
 append-only audit proof, not the production/preview intended-role proof; Phase 3.62 cleared local demo/mock site-readiness;
 Phase 3.63 cleared local production-readiness harness gaps and DB-backed auth browser acceptance; Phase 4.61 cleared
-GitHub CI for the merged WTC release commit, not live/server production readiness.
+GitHub CI for the merged WTC release commit; Phase 4.62 clarified the missing deploy/source packets. None of those clear
+live/server production readiness.

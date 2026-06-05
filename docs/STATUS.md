@@ -1,6 +1,6 @@
 # STATUS
 
-_Latest update: 2026-06-05 - Phase 4.61 main merge and CI truth._
+_Latest update: 2026-06-05 - Phase 4.62 production/source input map._
 The current WTC-side Legacy/Tortila bot workbench is substantially built locally: settings/setup quick paths, symbol/stage
 configuration, safe config export/review, metadata-only exchange-key readiness, launch-readiness maps, warning summaries,
 admin fleet views, selected-user read-only drilldowns, provider-scoped Legacy runtime evidence, Tortila statistics, Legacy
@@ -15,8 +15,20 @@ disposable Postgres lane to run the previously blocked managed DB gates; Phase 4
 source path through the worker with `/api/marks` blocked; Phase 4.59 adds a local Tortila journal read-token boundary and
 proves WTC can read through it without widening the endpoint allowlist; Phase 4.60 hardens production-like configuration,
 worker token-failure behavior, Tortila contract truth, CI env validation, and non-secret web liveness; Phase 4.61 merges
-the exact Phase 4.60 tree through PR #1, observes green PR and post-merge `main` GitHub Actions, and updates CI truth.
-This is still **not final production completion** and not a live-control release.
+the exact Phase 4.60 tree through PR #1, observes green PR and post-merge `main` GitHub Actions, and updates CI truth;
+Phase 4.62 proves the remaining production/source gates need external target/source packets, not another local UI/static
+loop. This is still **not final production completion** and not a live-control release.
+
+Phase 4.62 maps the remaining non-looping blockers with three read-only source/deploy auditors. Production deploy cannot
+proceed from local repo evidence alone: the current target packet is missing target host/domain/canary URL, exact release
+SHA, rollback target, DB migration/seed approval, secret provisioning method, service boundaries, firewall/proxy probe
+plan, smoke routes, and monitoring/burn-in plan. Canonical Tortila source landing is still not complete: the
+`JOURNAL_READ_TOKEN` patch exists in adjacent `C:\Users\maxib\GTE BOT\bot_tortila`, but that folder is not git-backed and
+no canonical git-backed Tortila repo/source bundle was found locally. Legacy realized analytics/import remains blocked:
+WTC has the destination contract, but local Legacy-like sources expose active orders/slots/settings and no durable
+closed-trade table/API with stable trade id, provider/pub_id scope, economics, timestamps, replay semantics, and raw
+payload allowlist. All Phase 4.62 agents were closed. Aggregate:
+[`docs/handoffs/20260605-2112-phase-462-production-source-input-map.md`](handoffs/20260605-2112-phase-462-production-source-input-map.md).
 
 Phase 4.61 closes the GitHub release/CI proof gap for the Phase 4.60 tree without deploying production or enabling live
 controls. PR #1 is merged at `ed31aaaf89ebc4920a13887542fa3bb0bbd99545` after green pre-merge PR CI run
