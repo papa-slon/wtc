@@ -62,6 +62,9 @@ jobs:
       - name: Typecheck @wtc/web
         run: npm run typecheck -w @wtc/web
 
+      - name: Typecheck @wtc/worker
+        run: npm run typecheck -w @wtc/worker
+
       - name: Secret scan
         run: npm run secret:scan
 

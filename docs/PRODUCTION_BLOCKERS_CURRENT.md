@@ -1,6 +1,12 @@
 # Current Production Blockers
 
-Last updated: 2026-06-03, Phase 3.68 Legacy DB live-read canary deploy.
+Last updated: 2026-06-05, Phase 4.61 main merge and CI truth.
+
+Phase 4.61 clears the GitHub CI blocker for the current merged WTC repo tree, not production deployment. PR #1 merged to
+`main` at `ed31aaaf89ebc4920a13887542fa3bb0bbd99545`; pre-merge PR CI run `27015532545` and post-merge `main` push CI
+run `27016644974` both passed `gates` and `e2e`. Remaining production blockers are now production deploy/canary,
+production DB/secret/firewall/proxy/monitoring proof, canonical Tortila source and production journal auth/firewall probes,
+Legacy closed-trade source/import proof, live-control audit, and other credentialed provider gates.
 
 Phase 3.68 deploys Legacy Bot read-only live visibility to the WTC HTTPS canary as release
 `20260603-0724-0eb22a2-legacy-live-read`. Legacy live-read now flows through:
@@ -12,8 +18,8 @@ kept live controls disabled, and kept external bot API ports closed.
 This does **not** clear full production readiness. Legacy direct HTTP/control adapter and live apply remain blocked by
 live-control safety gates; the new Legacy UI is read-only snapshot/config visibility. Remaining blockers also include
 provider-side journal bearer-auth proof, any live bot control, Stripe checkout/webhook acceptance, Axioma live
-bridge/download/account-link, live LMS object-store/scanner, branded-domain DNS/TLS, long-running burn-in/alerting, GitHub CI
-for the exact deployed working tree, and direct intended production append-only audit-role proof.
+bridge/download/account-link, live LMS object-store/scanner, branded-domain DNS/TLS, long-running burn-in/alerting, and
+direct intended production append-only audit-role proof.
 
 Phase 3.65 clears the Tortila mock-only blocker for the production canary. Tortila real read-only data now flows through
 WTC DB snapshots/imports: Tortila journal -> `wtc-ecosystem-worker` -> WTC Postgres -> web/admin UI. The accepted release is
@@ -70,7 +76,7 @@ existing-bot Postgres source to run `npm run accept:real-pg:managed` successfull
 `wtc_test_realpg20260602105824d18bef`; the active real-PG harness passed (`14 passed`) and the generated DB was dropped.
 These local DB acceptance and site-readiness runs do **not** replace production/preview append-only audit-role proof,
 live object-store/scanner/provider preflights, live/server preview smoke,
-SSH/nginx/systemd checks, production deploy, GitHub CI execution, or production monitoring. The current operator packet for
+SSH/nginx/systemd checks, production deploy, or production monitoring. The current operator packet for
 the remaining blocked credential/live gates is `docs/CREDENTIAL_ACCEPTANCE_BLOCKERS_CURRENT.md`. The next-session prompt is
 `docs/NEXT_SESSION_PROMPT_AFTER_PHASE_3_62_20260602.md`.
 

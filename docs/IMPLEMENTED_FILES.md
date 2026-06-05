@@ -94,6 +94,13 @@
   coverage; the Tortila contract distinguishes local adjacent token proof from canonical-source and production
   firewall/deploy proof; `/api/overview` and `/api/marks` stay excluded from WTC ingestion; and `GET`/`HEAD /api/health`
   provide a no-store, non-secret liveness surface for hosting checks.
+- `.github/workflows/ci.yml`, `docs/STATUS.md`, `docs/NEXT_ACTIONS.md`, `docs/DEPLOYMENT.md`,
+  `docs/CREDENTIAL_ACCEPTANCE_BLOCKERS_CURRENT.md`, `docs/PRODUCTION_BLOCKERS_CURRENT.md`,
+  `docs/handoffs/20260605-2005-{release-merge-deploy-auditor,production-boundary-auditor,ci-pr-auditor}.md`, and
+  `docs/handoffs/20260605-2018-phase-461-main-merge-ci-truth.md` - Phase 4.61 release/CI truth closure:
+  PR #1 is merged to `main`, pre-merge PR CI run `27015532545` and post-merge `main` CI run `27016644974` passed
+  `gates` and `e2e`, active docs no longer classify GitHub Actions for the committed exact tree as NOT RUN, and GitHub
+  `gates` now explicitly runs `npm run typecheck -w @wtc/worker` to match the local `ci:local` proof envelope.
 - `apps/web/src/app/admin/{users,bots,users/[userId]/bots}/page.tsx`, `docs/BOT_CONTROL_SAFETY_MODEL.md`,
   `tests/integration/{admin-user-bot-detail-static,bot-read-safety-static}.test.ts`, and
   `tests/e2e/{smoke,admin-mobile-pg8}.spec.ts` - Phase 4.43 admin read-only label closure: admin owner/user actions now
@@ -2125,8 +2132,9 @@ idempotent seed, unique entitlement, **true cross-connection concurrent `grantPr
 session create/resolve/destroy, FK cascade, pool teardown. The PGlite `db-persistence.test.ts` remains the
 default (no-DB) integration path. Real `db:migrate`/`db:seed` still NOT RUN (no DB URL provided).
 
-## CI — staged, inert
+## CI - active GitHub Actions
 `.github/workflows/ci.yml` exists (two jobs: gates with a `postgres:17-alpine` service + ephemeral
-runtime secrets; e2e with `playwright install --with-deps chromium`). It does **not** run: this is **not a
-git repo** and there is no GitHub remote. Local equivalent: `npm run ci:local` (root `package.json`).
-"CI exists" must not be claimed until git + a remote are set up.
+runtime secrets; e2e with `playwright install --with-deps chromium`). Phase 4.61 observed it running on GitHub:
+PR run `27015532545` and post-merge `main` run `27016644974` both passed `gates` and `e2e`. Local equivalent:
+`npm run ci:local` (root `package.json`). CI green is commit-level repo evidence only; it is not production deploy,
+production DB, firewall, provider, or monitoring proof.
