@@ -19,6 +19,7 @@ const read = (rel: string) => readFileSync(join(ADMIN_DIR, rel), 'utf8');
 const PAGES = [
   'page.tsx',
   'users/page.tsx',
+  'users/[userId]/bots/page.tsx',
   'entitlements/page.tsx',
   'entitlements/review/page.tsx',
   'tradingview-access/page.tsx',

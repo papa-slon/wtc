@@ -33,10 +33,20 @@ export interface CabinetWarnings {
   maxSeverity: WarnSeverity | null;
 }
 
+export type CabinetReadinessStatus = 'ready' | 'attention' | 'blocked' | 'readonly';
+
+export interface CabinetReadinessItem {
+  label: string;
+  status: CabinetReadinessStatus;
+  value: string;
+  detail?: string;
+}
+
 /** Per-user signals — present ONLY when the access decision is `allowed` (fail-closed data minimisation). */
 export interface CabinetSignals {
   /** setup checklist already computed by the loader from per-product repos (exchange keys, config, …). */
   setupItems?: CabinetSetupItem[];
+  readinessItems?: CabinetReadinessItem[];
   /** one-line recent activity, or null when there is none. Never a secret value. */
   activityLine?: string | null;
   activityAt?: number | null;
@@ -57,7 +67,7 @@ export interface CabinetCardInput {
   availability: Availability;
   /** running the in-memory demo backend (changes are not persisted). */
   isDemo: boolean;
-  /** static product blocker, if the product is hard-blocked (B3 legacy adapter, B4 Axioma CTAs). */
+  /** static product blocker, if the product is hard-blocked (legacy HTTP/control adapter, B4 Axioma CTAs). */
   blockerRef?: BlockerRef | null;
   /** self-serve checkout live? (B2). false today — drives "Get access" vs "Contact support". */
   checkoutEnabled: boolean;
@@ -91,6 +101,7 @@ export interface CabinetCardView {
   reason: AccessReason;
   entitlement: { label: string; tone: Tone; detail: string; expiresInDays: number | null };
   setup: { state: SetupState; label: string; items: CabinetSetupItem[] };
+  readiness: { items: CabinetReadinessItem[] };
   activity: { line: string | null; at: number | null };
   nextAction: CabinetNextAction;
   blockers: CabinetBlocker[];
@@ -131,7 +142,7 @@ export function reasonLabel(reason: AccessReason): string {
 
 const BLOCKER_TEXT: Record<BlockerRef, string> = {
   B2: 'Self-serve checkout is not yet live — access is granted manually for now.',
-  B3: 'Live data is blocked: the legacy API exposes exchange keys in plaintext. Figures are illustrative until the upstream fix and security review clear (B3).',
+  B3: 'The legacy direct HTTP/control path is blocked. Use the worker DB live-read path for safe pub_id snapshots; live control remains disabled (B3).',
   B4: 'Download / Open-Journal / account-link are disabled until the Axioma handoff is provisioned (B4).',
 };
 
@@ -207,6 +218,7 @@ export function deriveProductCard(input: CabinetCardInput): CabinetCardView {
 
   // Setup/activity ONLY from signals that the loader supplies (and it supplies them only when allowed).
   const items = input.allowed ? (input.signals?.setupItems ?? []) : [];
+  const readinessItems = input.allowed ? (input.signals?.readinessItems ?? []) : [];
   const setupState: SetupState = input.allowed ? setupStateFromItems(items) : 'not_applicable';
 
   const activityLine = input.allowed ? (input.signals?.activityLine ?? null) : null;
@@ -228,6 +240,7 @@ export function deriveProductCard(input: CabinetCardInput): CabinetCardView {
     reason: input.reason,
     entitlement: { label: copy.label, tone: copy.tone, detail: copy.detail, expiresInDays },
     setup: { state: setupState, label: setupLabel(setupState, items), items },
+    readiness: { items: readinessItems },
     activity: { line: activityLine, at: activityAt },
     nextAction: deriveNextAction(input, setupState),
     blockers,

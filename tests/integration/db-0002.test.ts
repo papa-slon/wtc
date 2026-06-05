@@ -16,6 +16,7 @@ import {
   grantProduct, listProductAccessEvents, entitlementsOf, createCourse,
   ensureBotInstance, saveBotConfig, insertBotConfigVersion, listBotConfigVersions,
   insertBotMetricSnapshot, listBotMetricSnapshots, importBotTrade,
+  upsertBotProviderAccountMapping, disableBotProviderAccountMapping,
   insertBotSafetyEvent, listBotSafetyEvents, acknowledgeBotSafetyEvent,
   createTeacherProfile, getTeacherProfile, upsertEnrollment, listEnrollments, markEnrollmentComplete,
   upsertLessonProgress, getLessonProgress, listCourseProgress, createPinnedLink, listPinnedLinks, deletePinnedLink,
@@ -60,12 +61,59 @@ describe('0002 Bots: config history, snapshots, trades, safety', () => {
     expect(versions[0]!.version).toBe(2); // DESC
     const events = await recentAuditEvents(db, 1000);
     expect(events.some((e) => e.action === 'bot.config.save' && e.targetId === botInstanceId)).toBe(true);
+    const saves = events.filter((e) => e.action === 'bot.config.save' && e.targetId === botInstanceId);
+    expect(saves.some((e) => JSON.stringify(e.before) === JSON.stringify({ version: 1 }) && JSON.stringify(e.after) === JSON.stringify({ version: 2 }))).toBe(true);
+    expect(JSON.stringify(saves)).not.toContain('BTCUSDT');
+    expect(JSON.stringify(saves)).not.toContain('ETHUSDT');
+  });
+
+  it('saveBotConfig rejects secret/provider/raw/live-control keys before writing history', async () => {
+    const before = await listBotConfigVersions(db, botInstanceId);
+    await expect(saveBotConfig(db, {
+      botInstanceId,
+      config: { operationMode: 'manual', apiKey: 'SHOULD_NOT_SAVE' },
+      changedBy: userA,
+    })).rejects.toThrow(/bot_config_forbidden_key/);
+    await expect(saveBotConfig(db, {
+      botInstanceId,
+      config: { symbolConfigs: [{ symbol: 'AAVE-USDT', providerPubId: 'PROVIDER_SHOULD_NOT_SAVE' }] },
+      changedBy: userA,
+    })).rejects.toThrow(/bot_config_forbidden_key/);
+    await expect(saveBotConfig(db, {
+      botInstanceId,
+      config: { applyConfig: true },
+      changedBy: userA,
+    })).rejects.toThrow(/bot_config_forbidden_key/);
+    const after = await listBotConfigVersions(db, botInstanceId);
+    expect(after.length).toBe(before.length);
   });
 
   it('insertBotConfigVersion: duplicate (instance, version) throws 23505', async () => {
     const inst = await ensureBotInstance(db, { userId: userB, productCode: 'legacy_bot' });
     await insertBotConfigVersion(db, { botInstanceId: inst.id, version: 1, configJson: { a: 1 } });
     await expect(insertBotConfigVersion(db, { botInstanceId: inst.id, version: 1, configJson: { a: 2 } })).rejects.toThrow();
+  });
+
+  it('insertBotConfigVersion rejects secret/provider/raw/live-control keys before appending history', async () => {
+    const inst = await ensureBotInstance(db, { userId: userB, productCode: 'legacy_bot' });
+    const before = await listBotConfigVersions(db, inst.id);
+    await expect(insertBotConfigVersion(db, {
+      botInstanceId: inst.id,
+      version: 99,
+      configJson: { symbolConfigs: [{ symbol: 'AAVE-USDT', providerPubId: 'PROVIDER_SHOULD_NOT_SAVE' }] },
+    })).rejects.toThrow(/bot_config_forbidden_key/);
+    await expect(insertBotConfigVersion(db, {
+      botInstanceId: inst.id,
+      version: 100,
+      configJson: { rawJson: { liveConfig: 'SHOULD_NOT_SAVE' } },
+    })).rejects.toThrow(/bot_config_forbidden_key/);
+    await expect(insertBotConfigVersion(db, {
+      botInstanceId: inst.id,
+      version: 101,
+      configJson: { liveControl: true },
+    })).rejects.toThrow(/bot_config_forbidden_key/);
+    const after = await listBotConfigVersions(db, inst.id);
+    expect(after.length).toBe(before.length);
   });
 
   it('importBotTrade is idempotent: duplicate import returns inserted:false', async () => {
@@ -76,6 +124,67 @@ describe('0002 Bots: config history, snapshots, trades, safety', () => {
     };
     expect((await importBotTrade(db, trade)).inserted).toBe(true);
     expect((await importBotTrade(db, trade)).inserted).toBe(false);
+    const rows = await db
+      .select()
+      .from(schema.botTradeImports)
+      .where(and(
+        eq(schema.botTradeImports.botInstanceId, trade.botInstanceId),
+        eq(schema.botTradeImports.externalTradeId, trade.externalTradeId),
+      ));
+    expect(rows).toHaveLength(1);
+  });
+
+  it('importBotTrade keeps Legacy provider-account ids in the idempotency key', async () => {
+    const legacyInstance = await ensureBotInstance(db, { userId: userA, productCode: 'legacy_bot' });
+    const providerA = await upsertBotProviderAccountMapping(db, {
+      userId: userA,
+      botInstanceId: legacyInstance.id,
+      productCode: 'legacy_bot',
+      provider: 'legacy-db',
+      providerAccountId: '0002_LEGACY_PROVIDER_A',
+      actorUserId: admin,
+    });
+    await disableBotProviderAccountMapping(db, {
+      id: providerA.id,
+      userId: userA,
+      actorUserId: admin,
+      reason: 'provider-aware idempotency regression setup',
+    });
+    const providerB = await upsertBotProviderAccountMapping(db, {
+      userId: userA,
+      botInstanceId: legacyInstance.id,
+      productCode: 'legacy_bot',
+      provider: 'legacy-db',
+      providerAccountId: '0002_LEGACY_PROVIDER_B',
+      actorUserId: admin,
+    });
+    const baseTrade = {
+      botInstanceId: legacyInstance.id,
+      externalTradeId: 'legacy-shared-external-001',
+      symbol: 'BTC-USDT',
+      side: 'long',
+      entryPrice: '40000',
+      exitPrice: '41000',
+      size: '0.01',
+      realizedPnlUsd: '10.00',
+      openedAt: new Date('2026-01-02T10:00:00Z'),
+      closedAt: new Date('2026-01-02T12:00:00Z'),
+      sourceAdapter: 'legacy-db',
+    };
+
+    expect((await importBotTrade(db, { ...baseTrade, botProviderAccountId: providerA.id })).inserted).toBe(true);
+    expect((await importBotTrade(db, { ...baseTrade, botProviderAccountId: providerA.id })).inserted).toBe(false);
+    expect((await importBotTrade(db, { ...baseTrade, botProviderAccountId: providerB.id })).inserted).toBe(true);
+
+    const rows = await db
+      .select()
+      .from(schema.botTradeImports)
+      .where(and(
+        eq(schema.botTradeImports.botInstanceId, legacyInstance.id),
+        eq(schema.botTradeImports.externalTradeId, baseTrade.externalTradeId),
+      ));
+    expect(rows.map((row) => row.botProviderAccountId).sort()).toEqual([providerA.id, providerB.id].sort());
+    expect(JSON.stringify(rows)).not.toContain('0002_LEGACY_PROVIDER_');
   });
 
   it('metric snapshots list DESC; numeric formats to scale', async () => {

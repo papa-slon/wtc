@@ -40,6 +40,11 @@ const envSchema = z.object({
   SYSTEM_BOT_INSTANCE_ID: optionalUuid,
   SYSTEM_BOT_OWNER_ID: optionalUuid,
   LEGACY_BOT_BASE_URL: z.string().url().default('http://127.0.0.1:8000'),
+  LEGACY_LIVE_READS_ENABLED: boolFromEnv,
+  LEGACY_DATABASE_URL: optionalNonEmpty,
+  LEGACY_API_ID: optionalNonEmpty,
+  SYSTEM_LEGACY_BOT_INSTANCE_ID: optionalUuid,
+  SYSTEM_LEGACY_BOT_OWNER_ID: optionalUuid,
   // Bearer token for the (auth-gated) Tortila journal. Optional overall; required in a real adapter
   // mode in production (superRefine below). Never logged or returned — see @wtc/audit redact.
   JOURNAL_READ_TOKEN: optionalNonEmpty,
@@ -110,8 +115,23 @@ const envSchema = z.object({
   }
   // A real (non-mock) adapter mode in production REQUIRES the journal read token — the journal is
   // auth-gated. Without it the adapter reports readState 'not_configured' and never reads live data.
-  if (data.NODE_ENV === 'production' && data.BOT_ADAPTER_MODE !== 'mock' && !data.JOURNAL_READ_TOKEN) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['JOURNAL_READ_TOKEN'], message: 'JOURNAL_READ_TOKEN is required when BOT_ADAPTER_MODE is not mock in production' });
+  if (productionLike && data.BOT_ADAPTER_MODE !== 'mock' && !data.JOURNAL_READ_TOKEN) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['JOURNAL_READ_TOKEN'], message: 'JOURNAL_READ_TOKEN is required when BOT_ADAPTER_MODE is not mock in production-like environments' });
+  }
+  if (productionLike && data.BOT_ADAPTER_MODE !== 'mock' && !data.TORTILA_JOURNAL_URL) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['TORTILA_JOURNAL_URL'], message: 'TORTILA_JOURNAL_URL is required when BOT_ADAPTER_MODE is not mock in production-like environments' });
+  }
+  if (productionLike && data.LEGACY_LIVE_READS_ENABLED) {
+    if (!data.LEGACY_DATABASE_URL) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['LEGACY_DATABASE_URL'], message: 'LEGACY_DATABASE_URL is required when LEGACY_LIVE_READS_ENABLED=true in production-like environments' });
+    }
+    if (!data.SYSTEM_LEGACY_BOT_INSTANCE_ID && !data.SYSTEM_LEGACY_BOT_OWNER_ID && !data.SYSTEM_BOT_OWNER_ID) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['SYSTEM_LEGACY_BOT_OWNER_ID'],
+        message: 'SYSTEM_LEGACY_BOT_INSTANCE_ID or SYSTEM_LEGACY_BOT_OWNER_ID/SYSTEM_BOT_OWNER_ID is required when LEGACY_LIVE_READS_ENABLED=true',
+      });
+    }
   }
   if (data.LMS_FILE_STORAGE_PROVIDER === 'fs-local' && !data.LMS_FILE_STORAGE_ROOT) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['LMS_FILE_STORAGE_ROOT'], message: 'LMS_FILE_STORAGE_ROOT is required when LMS_FILE_STORAGE_PROVIDER=fs-local' });

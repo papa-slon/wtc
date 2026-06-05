@@ -10,12 +10,15 @@ out/
 apps/web/.next-e2e/
 apps/web/.next-e2e-auth/
 apps/web/.next-e2e-auth-db/
+apps/web/.next-e2e-admin-user-bots/
 apps/web/.next-e2e-db/
 .next-e2e-auth/
 .next-e2e-auth-db/
+.next-e2e-admin-user-bots/
 dev-server.log
 .runtime/
 logs/
+.codex-logs/
 logs/preview-safe*.log
 logs/retained-visual-artifacts/
 # env / secrets — NEVER commit

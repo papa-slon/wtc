@@ -22,6 +22,8 @@ import {
   revokeProduct,
   addExchangeKey,
   listExchangeKeys,
+  summarizeExchangeKeyMetadata,
+  recordExchangeKeyMetadataCheck,
   createDbAuditWriter,
   recentAuditEvents,
   submitTvRequest,
@@ -115,9 +117,50 @@ describe('@wtc/db persistence (PGlite — real Postgres engine)', () => {
     const view = await addExchangeKey(db, { userId: u!.id, exchange: 'bingx', label: 'Main', mode: 'demo', keyMask: '••••1234', sealed, keyId: 'kek-dev' });
     const keys = await listExchangeKeys(db, u!.id);
     expect(keys.find((k) => k.id === view.id)?.keyMask).toBe('••••1234');
+    const summary = await summarizeExchangeKeyMetadata(db, u!.id);
+    expect(summary.accountCount).toBe(keys.length);
+    expect(summary.vaultMetadataCount).toBeGreaterThanOrEqual(1);
     const serialized = JSON.stringify(keys);
     expect(serialized).not.toContain('wrappedDek');
     expect(serialized).not.toContain('cGF5AAA');
+    const check = await recordExchangeKeyMetadataCheck(db, { userId: u!.id, exchangeAccountId: view.id, now: 1_700_000_000_000 });
+    expect(check).toMatchObject({
+      exchangeAccountId: view.id,
+      exchange: 'bingx',
+      mode: 'demo',
+      keyMask: view.keyMask,
+      checkKind: 'sealed_metadata_only',
+      livePing: false,
+      outcome: 'vault_present',
+      reason: 'vault_metadata_present_live_ping_not_run',
+    });
+    expect(JSON.stringify(check)).not.toContain('wrappedDek');
+    expect(JSON.stringify(check)).not.toContain('cGF5AAA');
+
+    const other = await createUser(db, { email: 'other-key-check@wtc.local', passwordHash: 'h', displayName: 'Other Key Check' });
+    await expect(summarizeExchangeKeyMetadata(db, other.id)).resolves.toEqual({ accountCount: 0, vaultMetadataCount: 0 });
+    const missing = await recordExchangeKeyMetadataCheck(db, { userId: other.id, exchangeAccountId: view.id });
+    expect(missing).toMatchObject({
+      exchangeAccountId: view.id,
+      exchange: null,
+      mode: null,
+      keyMask: null,
+      checkKind: 'sealed_metadata_only',
+      livePing: false,
+      outcome: 'missing',
+      reason: 'owned_key_not_found_or_incomplete',
+    });
+
+    const events = await recentAuditEvents(db, 1000);
+    const metadataCheck = events.find((e) => e.action === 'exchange_key.metadata_check' && e.targetId === view.id);
+    expect(metadataCheck).toBeTruthy();
+    expect(events.find((e) => e.action === 'exchange_key.test' && e.targetId === view.id)).toBeUndefined();
+    expect(JSON.stringify(metadataCheck)).toContain('sealed_metadata_only');
+    expect(JSON.stringify(metadataCheck)).toContain('"livePing":false');
+    expect(JSON.stringify(metadataCheck)).not.toContain('wrappedDek');
+    expect(JSON.stringify(metadataCheck)).not.toContain('cGF5AAA');
+    expect(JSON.stringify(metadataCheck)).not.toContain('apiKey');
+    expect(JSON.stringify(metadataCheck)).not.toContain('apiSecret');
   });
 
   it('writes redacted audit events to the DB', async () => {

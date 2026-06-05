@@ -5,7 +5,12 @@
  */
 import { describe, it, expect } from 'vitest';
 import { healthCheckStatusFor } from '../../apps/worker/src/jobs.ts';
-import { workerRequiresDatabase, workerSafetyState } from '../../apps/worker/src/index.ts';
+import {
+  botContinuityStatus,
+  finalWorkerHealthStatus,
+  workerRequiresDatabase,
+  workerSafetyState,
+} from '../../apps/worker/src/index.ts';
 
 describe('worker readState → integration_health_checks status mapping', () => {
   it('not_configured → not_configured (setup-needed is NOT an outage)', () => {
@@ -62,5 +67,43 @@ describe('worker safety heartbeat state', () => {
       tvAutomationDisabled: false,
       status: 'misconfigured',
     });
+  });
+});
+
+describe('final worker bot-continuity status', () => {
+  const okOutcomes = [
+    { snapshot: 'ok' as const, readState: 'ok', healthStatus: 'ok' },
+    { snapshot: 'ok' as const, readState: 'ok', healthStatus: 'ok' },
+  ];
+
+  it('is green only after core worker and both bot reads are ok', () => {
+    expect(finalWorkerHealthStatus('ok', okOutcomes)).toBe('ok');
+    expect(botContinuityStatus(okOutcomes)).toBe('ok');
+  });
+
+  it('marks skipped/not_configured bot reads as attention instead of green', () => {
+    const outcomes = [
+      { snapshot: 'ok' as const, readState: 'ok', healthStatus: 'ok' },
+      { snapshot: 'skipped' as const, readState: 'not_configured', healthStatus: 'not_configured' },
+    ];
+
+    expect(finalWorkerHealthStatus('ok', outcomes)).toBe('not_configured');
+    expect(botContinuityStatus(outcomes)).toBe('attention');
+  });
+
+  it('marks malformed or unreachable bot reads as worker errors', () => {
+    expect(finalWorkerHealthStatus('ok', [
+      { snapshot: 'error', readState: 'malformed', healthStatus: 'error' },
+      { snapshot: 'ok', readState: 'ok', healthStatus: 'ok' },
+    ])).toBe('error');
+    expect(botContinuityStatus([
+      { snapshot: 'ok', readState: 'ok', healthStatus: 'ok' },
+      { snapshot: 'error', readState: 'unreachable', healthStatus: 'down' },
+    ])).toBe('error');
+  });
+
+  it('preserves core worker error or misconfiguration severity', () => {
+    expect(finalWorkerHealthStatus('error', okOutcomes)).toBe('error');
+    expect(finalWorkerHealthStatus('misconfigured', okOutcomes)).toBe('misconfigured');
   });
 });

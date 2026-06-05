@@ -54,6 +54,7 @@ function isProduction(): boolean {
 function isDocumentNavigation(request: NextRequest): boolean {
   return (
     request.method === 'GET' &&
+    !request.nextUrl.pathname.startsWith('/api/') &&
     !request.headers.has('rsc') &&
     !request.headers.has('next-action')
   );

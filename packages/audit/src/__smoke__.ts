@@ -32,4 +32,15 @@ await writer.write({ actorUserId: 'u1', actorRole: 'admin', action: 'product.gra
 assert.equal(events.length, 1);
 assert.ok(!JSON.stringify(events[0]).includes('SEKRIT'), 'written event has no secrets');
 
+// 4. provider-account mapping audit codes are registered and redacted.
+await writer.write({
+  actorUserId: 'admin',
+  actorRole: 'admin',
+  action: 'bot.provider_account.map',
+  targetType: 'bot_provider_account',
+  after: { providerAccountId: 'pub_demo', apiSecret: 'SHOULD_NOT_LEAK' },
+});
+assert.equal(events.length, 2);
+assert.ok(!JSON.stringify(events[1]).includes('SHOULD_NOT_LEAK'), 'provider mapping audit redacts secret-looking fields');
+
 console.log('OK  @wtc/audit: redaction + buildEvent + memory writer verified (no secrets leak)');

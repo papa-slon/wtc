@@ -29,11 +29,12 @@ export function getBotAdapter(productCode: BotProductCode, opts: AdapterOptions)
   if (productCode === 'tortila_bot') {
     return useReal && opts.tortilaBaseUrl ? createHttpTortilaAdapter(opts.tortilaBaseUrl, opts.tortilaReadToken) : createMockTortilaAdapter();
   }
-  // Legacy bot HARD GATE (B3): the legacy /api_management/ API returns plaintext exchange keys, so the
-  // real legacy HTTP adapter was deleted — there is NO live data path in any mode. In a non-mock mode we
+  // Legacy bot HTTP HARD GATE (B3): the direct legacy /api_management/ control path is not exposed
+  // through WTC. Production live-read is handled separately by worker DB snapshots keyed by provider
+  // pub_id. The real legacy HTTP adapter was deleted. In a non-mock mode we
   // return the explicit blocked adapter (data methods throw LegacyAdapterBlockedError; never a network
   // call). `legacyBaseUrl` is intentionally ignored — it cannot activate a real adapter. In mock mode the
-  // synthetic demo adapter is returned (labelled mock). Un-blocking requires the upstream key fix + the 5
-  // BOT_CONTROL_SAFETY_MODEL gates (see docs/PRODUCTION_BLOCKERS.md B3).
+  // synthetic demo adapter is returned (labelled mock). Un-blocking live control requires a separate
+  // audited control adapter and BOT_CONTROL_SAFETY_MODEL gates.
   return useReal ? createLegacyBlockedAdapter() : createMockLegacyAdapter();
 }

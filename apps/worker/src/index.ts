@@ -10,8 +10,9 @@ import { createConsoleAuditWriter } from '@wtc/audit';
 import { getBotAdapter } from '@wtc/bot-adapters';
 import type { Db } from '@wtc/db';
 import { pathToFileURL } from 'node:url';
-import { reconcileEntitlements, sweepTradingViewAccess, snapshotTortilaJournal } from './jobs.ts';
+import { reconcileEntitlements, sweepTradingViewAccess, snapshotTortilaJournal, type BotSnapshotStatus } from './jobs.ts';
 import { reconcileExpiredLmsObjectMaterials, reconcilePendingLmsObjectCleanupTasks } from './lms-object-cleanup.ts';
+import { snapshotLegacyBotPostgres } from './legacy-live.ts';
 
 const TICK_MS = 60_000;
 
@@ -37,9 +38,12 @@ export interface DbWorkerTickResult {
   lmsPendingObjectCleanupCompleted: number;
   lmsPendingObjectCleanupFailed: number;
   lmsPendingObjectCleanupDeadLettered: number;
-  workerHealthStatus: 'ok' | 'misconfigured' | 'error';
-  tortilaSnapshot: 'ok' | 'error' | 'skipped';
+  workerHealthStatus: 'ok' | 'not_configured' | 'misconfigured' | 'error';
+  botContinuityStatus: 'ok' | 'attention' | 'error';
+  tortilaSnapshot: BotSnapshotStatus;
   tortilaLastError: string | null;
+  legacySnapshot: BotSnapshotStatus;
+  legacyLastError: string | null;
 }
 
 /** Read BOT_ADAPTER_MODE from env. Fails closed to 'mock' for any unknown/missing value. */
@@ -61,6 +65,89 @@ function redactedOperationalMessage(err: unknown): string {
     .slice(0, 200);
 }
 
+type WorkerWarnLogger = Pick<Console, 'warn'>;
+
+export interface SerializedDbWorkerTickState {
+  inFlight: boolean;
+  startedAtMs: number | null;
+  skippedWhileInFlight: number;
+  lastSkipAtMs: number | null;
+}
+
+export type SerializedDbWorkerTickOutcome<T> =
+  | {
+      status: 'ran';
+      result: T;
+      startedAtMs: number;
+      finishedAtMs: number;
+      durationMs: number;
+    }
+  | {
+      status: 'skipped_in_flight';
+      startedAtMs: number | null;
+      skippedAtMs: number;
+      ageMs: number;
+      skippedWhileInFlight: number;
+    };
+
+export function createSerializedDbWorkerTickRunner<T>(input: {
+  runTick: () => Promise<T>;
+  now?: () => number;
+  logger?: WorkerWarnLogger;
+}): {
+  run: () => Promise<SerializedDbWorkerTickOutcome<T>>;
+  getState: () => SerializedDbWorkerTickState;
+} {
+  const now = input.now ?? Date.now;
+  const logger = input.logger ?? console;
+  let inFlight = false;
+  let startedAtMs: number | null = null;
+  let skippedWhileInFlight = 0;
+  let lastSkipAtMs: number | null = null;
+
+  return {
+    async run(): Promise<SerializedDbWorkerTickOutcome<T>> {
+      if (inFlight) {
+        const skippedAtMs = now();
+        const ageMs = startedAtMs === null ? 0 : Math.max(0, skippedAtMs - startedAtMs);
+        skippedWhileInFlight += 1;
+        lastSkipAtMs = skippedAtMs;
+        logger.warn(
+          `[worker:db] tick skipped: previous db worker tick still in flight; age_ms=${ageMs}; skipped_while_in_flight=${skippedWhileInFlight}`,
+        );
+        return {
+          status: 'skipped_in_flight',
+          startedAtMs,
+          skippedAtMs,
+          ageMs,
+          skippedWhileInFlight,
+        };
+      }
+
+      inFlight = true;
+      startedAtMs = now();
+      try {
+        const result = await input.runTick();
+        const finishedAtMs = now();
+        return {
+          status: 'ran',
+          result,
+          startedAtMs,
+          finishedAtMs,
+          durationMs: Math.max(0, finishedAtMs - startedAtMs),
+        };
+      } finally {
+        inFlight = false;
+        startedAtMs = null;
+        skippedWhileInFlight = 0;
+      }
+    },
+    getState(): SerializedDbWorkerTickState {
+      return { inFlight, startedAtMs, skippedWhileInFlight, lastSkipAtMs };
+    },
+  };
+}
+
 export function workerSafetyState(env: WorkerEnv = process.env): {
   liveControlDisabled: boolean;
   tvAutomationDisabled: boolean;
@@ -77,6 +164,35 @@ export function workerSafetyState(env: WorkerEnv = process.env): {
 
 export function workerRequiresDatabase(env: WorkerEnv = process.env): boolean {
   return env.NODE_ENV === 'production' || env.APP_ENV === 'staging' || env.APP_ENV === 'production';
+}
+
+type BotContinuityOutcome = { snapshot: BotSnapshotStatus; readState?: string | null; healthStatus?: string | null };
+
+function botSnapshotNeedsWorkerError(input: {
+  snapshot: BotSnapshotStatus;
+  readState?: string | null;
+  healthStatus?: string | null;
+}): boolean {
+  if (input.snapshot === 'error') return true;
+  if (input.healthStatus === 'error') return true;
+  return input.readState === 'unreachable' || input.readState === 'malformed';
+}
+
+export function finalWorkerHealthStatus(
+  baseStatus: DbWorkerTickResult['workerHealthStatus'],
+  outcomes: BotContinuityOutcome[],
+): DbWorkerTickResult['workerHealthStatus'] {
+  if (baseStatus === 'error') return 'error';
+  if (outcomes.some(botSnapshotNeedsWorkerError)) return 'error';
+  if (baseStatus === 'misconfigured') return 'misconfigured';
+  return outcomes.every((outcome) => outcome.snapshot === 'ok' && outcome.readState === 'ok')
+    ? 'ok'
+    : 'not_configured';
+}
+
+export function botContinuityStatus(outcomes: BotContinuityOutcome[]): 'ok' | 'attention' | 'error' {
+  if (outcomes.some(botSnapshotNeedsWorkerError)) return 'error';
+  return outcomes.every((outcome) => outcome.snapshot === 'ok' && outcome.readState === 'ok') ? 'ok' : 'attention';
 }
 
 export async function runDbWorkerTick(db: Db, now = Date.now(), env: WorkerEnv = process.env): Promise<DbWorkerTickResult> {
@@ -121,8 +237,8 @@ export async function runDbWorkerTick(db: Db, now = Date.now(), env: WorkerEnv =
     });
     throw err;
   }
-  const workerHealthStatus = lmsObjectMaterials.failed > 0 || lmsPendingObjectCleanup.failed > 0 || lmsPendingObjectCleanup.deadLettered > 0 ? 'error' : safety.status;
-  await recordHealthCheck(db, 'worker', workerHealthStatus, {
+  const workerCoreStatus = lmsObjectMaterials.failed > 0 || lmsPendingObjectCleanup.failed > 0 || lmsPendingObjectCleanup.deadLettered > 0 ? 'error' : safety.status;
+  const workerCoreDetail = {
     entitlementsChanged: ent.changed,
     tvExpiringSoon: expiring.marked,
     tvExpired: tv.expired,
@@ -145,28 +261,46 @@ export async function runDbWorkerTick(db: Db, now = Date.now(), env: WorkerEnv =
     adapterMode: botAdapterMode,
     liveControlDisabled: safety.liveControlDisabled,
     tvAutomationDisabled: safety.tvAutomationDisabled,
-  });
-  console.log(`[worker:db] status ${workerHealthStatus}, entitlements changed ${ent.changed}, tv expiring_soon ${expiring.marked}, tv expired ${tv.expired}, revoke tasks ${tv.tasksQueued}, repaired revoke tasks ${tvRepair.repaired}, handoff jtis purged ${jti.purged}, lms materials purged ${lmsMaterials.purged}, lms object materials scanned ${lmsObjectMaterials.scanned}, lms object delete attempted ${lmsObjectMaterials.objectDeleteAttempted}, lms object delete confirmed ${lmsObjectMaterials.objectDeleteConfirmed}, lms object metadata-only purged ${lmsObjectMaterials.metadataOnlyPurged}, lms object materials purged ${lmsObjectMaterials.purged}, lms object cleanup failed ${lmsObjectMaterials.failed}, lms pending object cleanup scanned ${lmsPendingObjectCleanup.scanned}, lms pending object delete attempted ${lmsPendingObjectCleanup.objectDeleteAttempted}, lms pending object delete confirmed ${lmsPendingObjectCleanup.objectDeleteConfirmed}, lms pending object cleanup completed ${lmsPendingObjectCleanup.completed}, lms pending object cleanup failed ${lmsPendingObjectCleanup.failed}, lms pending object cleanup dead-lettered ${lmsPendingObjectCleanup.deadLettered}`);
+  };
 
   const tortilaBaseUrl = env.TORTILA_JOURNAL_URL ?? env.TORTILA_JOURNAL_BASE_URL;
   const botInstanceId = env.SYSTEM_BOT_INSTANCE_ID ?? null;
   const systemBotOwnerId = env.SYSTEM_BOT_OWNER_ID ?? null;
   let tortilaSnapshot: DbWorkerTickResult['tortilaSnapshot'] = 'skipped';
   let tortilaLastError: string | null = null;
+  let tortilaHealthStatus: string | null = null;
+  let tortilaReadState: string | null = null;
+  let tortilaReadStateDetail: string | null = null;
+  let tortilaMetricsAvailable = false;
+  let tortilaPositionsSnapshotted = 0;
+  let tortilaTradesSeen = 0;
+  let tortilaTradesImported = 0;
+  let legacySnapshot: DbWorkerTickResult['legacySnapshot'] = 'skipped';
+  let legacyLastError: string | null = null;
+  let legacyHealthStatus: string | null = null;
+  let legacyReadState: string | null = null;
+  let legacyAccountsSeen = 0;
+  let legacySettingsSeen = 0;
+  let legacyPositionsSeen = 0;
+  let legacyProviderAccountsScoped = 0;
 
   if (!botInstanceId && !systemBotOwnerId) {
-    if (!tortilaBaseUrl && botAdapterMode === 'mock') {
-      await recordHealthCheck(db, 'tortila-journal', 'not_configured', {
-        readState: 'not_configured',
-        readStateDetail: 'set SYSTEM_BOT_INSTANCE_ID or SYSTEM_BOT_OWNER_ID to enable snapshots',
-        adapterMode: botAdapterMode,
-      });
-    }
+    tortilaReadState = 'not_configured';
+    tortilaReadStateDetail = 'set SYSTEM_BOT_INSTANCE_ID or SYSTEM_BOT_OWNER_ID to enable snapshots';
+    tortilaHealthStatus = 'not_configured';
+    await recordHealthCheck(db, 'tortila-journal', 'not_configured', {
+      readState: tortilaReadState,
+      readStateDetail: tortilaReadStateDetail,
+      adapterMode: botAdapterMode,
+    });
     console.warn('[worker:tortila-snapshot] skipped: SYSTEM_BOT_INSTANCE_ID or SYSTEM_BOT_OWNER_ID not set');
   } else if (botAdapterMode !== 'mock' && !tortilaBaseUrl) {
+    tortilaReadState = 'not_configured';
+    tortilaReadStateDetail = 'set TORTILA_JOURNAL_URL or TORTILA_JOURNAL_BASE_URL for read-only snapshots';
+    tortilaHealthStatus = 'not_configured';
     await recordHealthCheck(db, 'tortila-journal', 'not_configured', {
-      readState: 'not_configured',
-      readStateDetail: 'set TORTILA_JOURNAL_URL or TORTILA_JOURNAL_BASE_URL for read-only snapshots',
+      readState: tortilaReadState,
+      readStateDetail: tortilaReadStateDetail,
       adapterMode: botAdapterMode,
     });
     console.warn('[worker:tortila-snapshot] skipped: TORTILA_JOURNAL_URL or TORTILA_JOURNAL_BASE_URL not set for read-only mode');
@@ -184,19 +318,87 @@ export async function runDbWorkerTick(db: Db, now = Date.now(), env: WorkerEnv =
       });
 
       const snap = await snapshotTortilaJournal(db, adapter, resolvedInstanceId, now);
-      tortilaSnapshot = snap.ok ? 'ok' : 'error';
-      tortilaLastError = snap.lastError;
-      if (snap.ok) {
+      tortilaSnapshot = snap.snapshotStatus;
+      tortilaLastError = snap.lastError ? redactedOperationalMessage(snap.lastError) : null;
+      tortilaHealthStatus = snap.healthStatus;
+      tortilaReadState = snap.readState;
+      tortilaReadStateDetail = snap.readStateDetail;
+      tortilaMetricsAvailable = snap.metricsAvailable;
+      tortilaPositionsSnapshotted = snap.positionsSnapshotted;
+      tortilaTradesSeen = snap.tradesSeen;
+      tortilaTradesImported = snap.tradesImported;
+      if (snap.snapshotStatus === 'ok') {
         console.log(`[worker:tortila-snapshot] ok (mode=${botAdapterMode}, sourceAdapter=${adapter.mode === 'real' ? 'tortila' : 'tortila-mock'})`);
+      } else if (snap.snapshotStatus === 'skipped') {
+        console.warn(`[worker:tortila-snapshot] skipped: ${snap.readStateDetail ?? 'runtime not configured'}`);
       } else {
-        console.warn(`[worker:tortila-snapshot] error: ${snap.lastError ?? 'unknown'}`);
+        console.warn(`[worker:tortila-snapshot] error: ${tortilaLastError ?? 'unknown'}`);
       }
     } catch (err) {
       tortilaSnapshot = 'error';
-      tortilaLastError = err instanceof Error ? err.message : String(err);
+      tortilaHealthStatus = 'error';
+      tortilaLastError = redactedOperationalMessage(err);
       console.error(`[worker:tortila-snapshot] unhandled error (tick continues): ${tortilaLastError}`);
     }
   }
+
+  try {
+    const legacy = await snapshotLegacyBotPostgres(db, now, env);
+    legacySnapshot = legacy.status;
+    legacyLastError = legacy.lastError ? redactedOperationalMessage(legacy.lastError) : null;
+    legacyHealthStatus = legacy.healthStatus;
+    legacyReadState = legacy.readState;
+    legacyAccountsSeen = legacy.accountsSeen;
+    legacySettingsSeen = legacy.settingsSeen;
+    legacyPositionsSeen = legacy.positionsSeen;
+    legacyProviderAccountsScoped = legacy.providerAccountsScoped;
+    if (legacy.status === 'ok') {
+      console.log(
+        `[worker:legacy-snapshot] ok (sourceAdapter=legacy-db, accounts=${legacy.accountsSeen}, settings=${legacy.settingsSeen}, positions=${legacy.positionsSeen})`,
+      );
+    } else if (legacy.status === 'error') {
+      console.warn(`[worker:legacy-snapshot] error: ${legacy.lastError ?? 'unknown'}`);
+    } else {
+      console.warn('[worker:legacy-snapshot] skipped: LEGACY_LIVE_READS_ENABLED/LEGACY_DATABASE_URL/system owner not configured');
+    }
+  } catch (err) {
+    legacySnapshot = 'error';
+    legacyHealthStatus = 'error';
+    legacyLastError = redactedOperationalMessage(err);
+    console.error(`[worker:legacy-snapshot] unhandled error (tick continues): ${legacyLastError}`);
+  }
+
+  const botOutcomes = [
+    { snapshot: tortilaSnapshot, readState: tortilaReadState, healthStatus: tortilaHealthStatus },
+    { snapshot: legacySnapshot, readState: legacyReadState, healthStatus: legacyHealthStatus },
+  ];
+  const workerHealthStatus = finalWorkerHealthStatus(workerCoreStatus, botOutcomes);
+  const continuityStatus = botContinuityStatus(botOutcomes);
+  await recordHealthCheck(db, 'worker', workerHealthStatus, {
+    ...workerCoreDetail,
+    coreWorkerStatus: workerCoreStatus,
+    botContinuityStatus: continuityStatus,
+    tortilaSnapshot,
+    tortilaHealthStatus,
+    tortilaReadState,
+    tortilaReadStateDetail,
+    tortilaMetricsAvailable,
+    tortilaPositionsSnapshotted,
+    tortilaTradesSeen,
+    tortilaTradesImported,
+    tortilaLastError,
+    legacySnapshot,
+    legacyHealthStatus,
+    legacyReadState,
+    legacyAccountsSeen,
+    legacySettingsSeen,
+    legacyPositionsSeen,
+    legacyProviderAccountsScoped,
+    legacyLastError,
+  });
+  console.log(
+    `[worker:db] status ${workerHealthStatus}, bot_continuity ${continuityStatus}, tortila ${tortilaSnapshot}, legacy ${legacySnapshot}, entitlements changed ${ent.changed}, tv expiring_soon ${expiring.marked}, tv expired ${tv.expired}, revoke tasks ${tv.tasksQueued}, repaired revoke tasks ${tvRepair.repaired}, handoff jtis purged ${jti.purged}, lms materials purged ${lmsMaterials.purged}, lms object materials scanned ${lmsObjectMaterials.scanned}, lms object delete attempted ${lmsObjectMaterials.objectDeleteAttempted}, lms object delete confirmed ${lmsObjectMaterials.objectDeleteConfirmed}, lms object metadata-only purged ${lmsObjectMaterials.metadataOnlyPurged}, lms object materials purged ${lmsObjectMaterials.purged}, lms object cleanup failed ${lmsObjectMaterials.failed}, lms pending object cleanup scanned ${lmsPendingObjectCleanup.scanned}, lms pending object delete attempted ${lmsPendingObjectCleanup.objectDeleteAttempted}, lms pending object delete confirmed ${lmsPendingObjectCleanup.objectDeleteConfirmed}, lms pending object cleanup completed ${lmsPendingObjectCleanup.completed}, lms pending object cleanup failed ${lmsPendingObjectCleanup.failed}, lms pending object cleanup dead-lettered ${lmsPendingObjectCleanup.deadLettered}`,
+  );
 
   return {
     entitlementsChanged: ent.changed,
@@ -219,8 +421,11 @@ export async function runDbWorkerTick(db: Db, now = Date.now(), env: WorkerEnv =
     lmsPendingObjectCleanupFailed: lmsPendingObjectCleanup.failed,
     lmsPendingObjectCleanupDeadLettered: lmsPendingObjectCleanup.deadLettered,
     workerHealthStatus,
+    botContinuityStatus: continuityStatus,
     tortilaSnapshot,
     tortilaLastError,
+    legacySnapshot,
+    legacyLastError,
   };
 }
 
@@ -270,13 +475,16 @@ async function main(): Promise<void> {
 
   const { createDbClient } = await import('@wtc/db');
   const { db } = createDbClient(url);
+  const dbTickRunner = createSerializedDbWorkerTickRunner({
+    runTick: () => runDbWorkerTick(db),
+  });
   try {
-    await runDbWorkerTick(db);
+    await dbTickRunner.run();
   } catch (err) {
     console.error(`[worker:db] initial tick failed: ${redactedOperationalMessage(err)}`);
   }
   setInterval(() => {
-    void runDbWorkerTick(db).catch((err) => {
+    void dbTickRunner.run().catch((err) => {
       console.error(`[worker:db] tick failed: ${redactedOperationalMessage(err)}`);
     });
   }, TICK_MS);

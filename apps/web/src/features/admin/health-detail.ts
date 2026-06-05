@@ -1,7 +1,10 @@
 import { redact } from '@wtc/audit';
+import { warningCodesFromDetail } from '@wtc/bot-adapters';
 
 const SAFE_HEALTH_DETAIL_KEYS = new Set([
   'adapterMode',
+  'botContinuityStatus',
+  'coreWorkerStatus',
   'entitlementsChanged',
   'error',
   'handoffJtisPurged',
@@ -23,9 +26,21 @@ const SAFE_HEALTH_DETAIL_KEYS = new Set([
   'metricsAvailable',
   'positionsSnapshotted',
   'processAlive',
+  'providerAccountMappingErrors',
+  'providerAccountMappingsSeen',
+  'providerAccountMappingsSnapshotted',
   'readState',
   'readStateDetail',
   'status',
+  'tortilaHealthStatus',
+  'tortilaLastError',
+  'tortilaMetricsAvailable',
+  'tortilaPositionsSnapshotted',
+  'tortilaReadState',
+  'tortilaReadStateDetail',
+  'tortilaSnapshot',
+  'tortilaTradesImported',
+  'tortilaTradesSeen',
   'tradesImported',
   'tradesSeen',
   'tvAutomationDisabled',
@@ -33,7 +48,16 @@ const SAFE_HEALTH_DETAIL_KEYS = new Set([
   'tvExpiringSoon',
   'tvTasksQueued',
   'tvTasksRepaired',
+  'warningCodes',
   'warnings',
+  'legacyAccountsSeen',
+  'legacyHealthStatus',
+  'legacyLastError',
+  'legacyPositionsSeen',
+  'legacyProviderAccountsScoped',
+  'legacyReadState',
+  'legacySettingsSeen',
+  'legacySnapshot',
 ]);
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -64,11 +88,16 @@ export function projectHealthDetail(detail: unknown): Record<string, unknown> | 
   const redacted = redact(detail);
   if (!isPlainRecord(redacted)) return null;
 
+  const warnings = warningCodesFromDetail(redacted).slice(0, 20);
   const safe: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(redacted)) {
     if (!SAFE_HEALTH_DETAIL_KEYS.has(key)) continue;
     const next = safeValue(value);
     if (next !== undefined) safe[key] = next;
   }
+
+  if (warnings.length > 0) safe.warnings = warnings;
+  delete safe.warningCodes;
+
   return Object.keys(safe).length > 0 ? safe : null;
 }

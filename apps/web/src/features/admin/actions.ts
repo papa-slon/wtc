@@ -17,15 +17,24 @@ import { getServerDb } from '@/lib/backend';
 import { updateSupportTicket } from '@wtc/db';
 import {
   acknowledgeLmsCleanupSchema,
+  disableLegacyProviderAccountSchema,
   flagReviewSchema,
   grantProductSchema,
+  mapLegacyProviderAccountSchema,
   retryLmsCleanupSchema,
   revokeProductSchema,
   resolveReviewSchema,
+  saveBotGlobalConfigSchema,
   ticketUpdateSchema,
   unlockAccountSchema,
 } from './schemas';
 import type { ProductCode } from '@wtc/entitlements';
+import {
+  botConfigFormInput,
+  botConfigFormIssues,
+  botConfigSchemaFor,
+} from '@/features/bots/config';
+import type { BotProductCode } from '@/features/bots/meta';
 
 // ---- Entitlement: grant with reason + validUntil ----
 
@@ -338,4 +347,202 @@ export async function adminRetryAcknowledgedLmsCleanupDeadLettersAction(formData
     expectedLatestAcknowledgedAt: parsed.data.expectedLatestAcknowledgedAt,
   });
   revalidatePath('/admin/system-health');
+}
+
+// ---- Bot provider accounts: Legacy pub_id mapping ----
+
+export async function adminMapLegacyProviderAccountAction(formData: FormData): Promise<void> {
+  const actor = await requireUser();
+  assertAdmin(actor.roles);
+  await assertCsrf(formData);
+
+  const parsed = mapLegacyProviderAccountSchema.safeParse({
+    userId: formData.get('userId'),
+    botInstanceId: formData.get('botInstanceId') ?? undefined,
+    providerAccountId: formData.get('providerAccountId'),
+    label: formData.get('label'),
+    reason: formData.get('reason'),
+  });
+  if (!parsed.success) {
+    throw new Error(`Validation failed: ${parsed.error.issues.map((i) => i.message).join(', ')}`);
+  }
+
+  const db = getServerDb();
+  if (!db) throw new Error('Database is required for Legacy provider account mapping');
+
+  const { ensureBotInstance, upsertBotProviderAccountMapping } = await import('@wtc/db');
+  const botInstanceId =
+    parsed.data.botInstanceId ??
+    (await ensureBotInstance(db, {
+      userId: parsed.data.userId,
+      productCode: 'legacy_bot',
+    })).id;
+
+  await upsertBotProviderAccountMapping(db, {
+    userId: parsed.data.userId,
+    botInstanceId,
+    productCode: 'legacy_bot',
+    provider: 'legacy-db',
+    providerAccountId: parsed.data.providerAccountId,
+    label: parsed.data.label,
+    actorUserId: actor.id,
+    reason: parsed.data.reason,
+  });
+
+  revalidatePath(`/admin/users/${parsed.data.userId}/bots`);
+  revalidatePath('/admin/bots');
+  revalidatePath('/admin/audit-log');
+}
+
+export async function adminDisableLegacyProviderAccountAction(formData: FormData): Promise<void> {
+  const actor = await requireUser();
+  assertAdmin(actor.roles);
+  await assertCsrf(formData);
+
+  const parsed = disableLegacyProviderAccountSchema.safeParse({
+    userId: formData.get('userId'),
+    mappingId: formData.get('mappingId'),
+    reason: formData.get('reason'),
+  });
+  if (!parsed.success) {
+    throw new Error(`Validation failed: ${parsed.error.issues.map((i) => i.message).join(', ')}`);
+  }
+
+  const db = getServerDb();
+  if (!db) throw new Error('Database is required for Legacy provider account disable');
+
+  const { disableBotProviderAccountMapping } = await import('@wtc/db');
+  await disableBotProviderAccountMapping(db, {
+    id: parsed.data.mappingId,
+    actorUserId: actor.id,
+    userId: parsed.data.userId,
+    productCode: 'legacy_bot',
+    provider: 'legacy-db',
+    reason: parsed.data.reason,
+  });
+
+  revalidatePath(`/admin/users/${parsed.data.userId}/bots`);
+  revalidatePath('/admin/bots');
+  revalidatePath('/admin/audit-log');
+}
+
+// ---- Bot system defaults: admin-owned WTC reference profiles ----
+
+const FORBIDDEN_GLOBAL_BOT_CONFIG_KEYS = new Set([
+  'apikey',
+  'apisecret',
+  'secret',
+  'password',
+  'passwordhash',
+  'token',
+  'authorization',
+  'cookie',
+  'sealed',
+  'keyid',
+  'wrappeddek',
+  'vaultrecord',
+  'credentials',
+  'providerpubid',
+  'provideraccountid',
+  'pubid',
+  'provideraccounts',
+  'liveconfig',
+  'rawjson',
+  'activeslots',
+  'activeordersummary',
+  'legacydatabaseurl',
+  'tortilajournalbaseurl',
+  'tortilajournalurl',
+  'headers',
+  'applyconfig',
+  'startbot',
+  'stopbot',
+  'start',
+  'stop',
+  'restart',
+  'retest',
+  'testexchange',
+  'exchangeapply',
+  'exchangeorder',
+  'livecontrol',
+]);
+
+function normalizedConfigKey(key: string): string {
+  return key.replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+}
+
+function assertNoForbiddenGlobalBotConfigKeys(value: unknown, path = 'config'): void {
+  if (!value || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => assertNoForbiddenGlobalBotConfigKeys(item, `${path}[${index}]`));
+    return;
+  }
+  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+    if (FORBIDDEN_GLOBAL_BOT_CONFIG_KEYS.has(normalizedConfigKey(key))) {
+      throw new Error(`Forbidden global bot config field: ${path}.${key}`);
+    }
+    assertNoForbiddenGlobalBotConfigKeys(nested, `${path}.${key}`);
+  }
+}
+
+function assertNoForbiddenGlobalBotConfigFormKeys(formData: FormData): void {
+  for (const key of formData.keys()) {
+    if (FORBIDDEN_GLOBAL_BOT_CONFIG_KEYS.has(normalizedConfigKey(key))) {
+      throw new Error(`Forbidden global bot config form field: ${key}`);
+    }
+  }
+}
+
+export async function adminSaveBotGlobalConfigAction(formData: FormData): Promise<void> {
+  const actor = await requireUser();
+  assertAdmin(actor.roles);
+  await assertCsrf(formData);
+  assertNoForbiddenGlobalBotConfigFormKeys(formData);
+
+  const parsed = saveBotGlobalConfigSchema.safeParse({
+    productCode: formData.get('productCode'),
+    profileCode: formData.get('profileCode'),
+    label: formData.get('label'),
+    status: formData.get('status'),
+    appliesToNewUsers: formData.get('appliesToNewUsers'),
+    allowUserOverride: formData.get('allowUserOverride'),
+    expectedVersion: formData.get('expectedVersion'),
+    reason: formData.get('reason'),
+  });
+  if (!parsed.success) {
+    throw new Error(`Validation failed: ${parsed.error.issues.map((i) => i.message).join(', ')}`);
+  }
+
+  const productCode = parsed.data.productCode as BotProductCode;
+  const issues = botConfigFormIssues(productCode, formData);
+  if (issues.length > 0) {
+    throw new Error(`Validation failed: ${issues.join(', ')}`);
+  }
+  const configParsed = botConfigSchemaFor(productCode).safeParse(botConfigFormInput(productCode, formData));
+  if (!configParsed.success) {
+    throw new Error(`Validation failed: ${configParsed.error.issues.map((i) => i.message).join(', ')}`);
+  }
+  const config = configParsed.data as unknown as Record<string, unknown>;
+  assertNoForbiddenGlobalBotConfigKeys(config);
+
+  const db = getServerDb();
+  if (!db) throw new Error('Database is required for admin bot system defaults');
+
+  const { saveBotGlobalConfig } = await import('@wtc/db');
+  await saveBotGlobalConfig(db, {
+    productCode,
+    profileCode: parsed.data.profileCode,
+    label: parsed.data.label,
+    status: parsed.data.status,
+    appliesToNewUsers: parsed.data.appliesToNewUsers,
+    allowUserOverride: parsed.data.allowUserOverride,
+    config,
+    changedBy: actor.id,
+    reason: parsed.data.reason,
+    expectedVersion: parsed.data.expectedVersion,
+  });
+
+  revalidatePath('/admin/bots');
+  revalidatePath('/admin/bots/config');
+  revalidatePath('/admin/audit-log');
 }

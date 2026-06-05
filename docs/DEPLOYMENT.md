@@ -517,6 +517,9 @@ See [`.env.example`](../.env.example). **Required in production** (the app fails
 `AXIOMA_HANDOFF_KEY_ID`. `AXIOMA_HANDOFF_SIGNING_SECRET` is an optional HS256 dev/test stub only and is not a production
 handoff signer. If Axioma is out of scope, keep `AXIOMA_ROUTE_SKELETON_ENABLED=false`; Axioma routes remain fail-closed.
 Safe defaults: `FEATURE_LIVE_BOT_CONTROL=false`, `FEATURE_TV_AUTOMATION=false`, `BOT_ADAPTER_MODE=mock`.
+If `BOT_ADAPTER_MODE` is promoted to `read-only` or `audited` in `NODE_ENV=production` or
+`APP_ENV=staging|production`, set `TORTILA_JOURNAL_URL` explicitly, provision `JOURNAL_READ_TOKEN` as a deployment secret,
+and verify the Tortila journal rejects missing/wrong tokens before exposing the worker to the endpoint.
 
 ## Wave-2 devops checklist
 
@@ -529,6 +532,8 @@ separately to `/home/ubuntu/apps/wtc_ecosystem_platform` behind nginx at the ope
 
 - [ ] `npm run ci:local` exits 0 (check:core, governance:check, lint, typecheck, typecheck web, secret:scan, test, build)
 - [ ] `npm run e2e` passes (requires `npx playwright install chromium` first run)
+- [ ] `GET /api/health` returns only the non-secret liveness payload `{ ok: true, status: "ok", service: "wtc-web" }`
+      with `cache-control: no-store`; detailed DB/worker/bot evidence stays on authenticated admin pages and persisted health rows
 - [ ] `docker-compose.yml` Postgres image is compatible with the target Postgres major (server observed as PG16; CI image may still be PG17)
 - [ ] `.env.example` is up-to-date and contains no real secrets
 - [ ] `apps/web/src/lib/backend.ts` selector is present (it is вЂ” Phase 1.7 shipped)
@@ -545,7 +550,8 @@ separately to `/home/ubuntu/apps/wtc_ecosystem_platform` behind nginx at the ope
 - Production auth `limit_req` / trusted proxy header verification (NOT RUN). The app middleware is per instance; production must prove nginx/shared-store throttling and trusted `X-Forwarded-For`/`X-Real-IP` handling separately.
 - Axioma bridge production handoff (NOT RUN вЂ” local ES256/JWKS dry-run exists; production key provisioning and live Axioma
   endpoint acceptance remain pending)
-- Real bot adapters (`BOT_ADAPTER_MODE=read-only`) (NOT RUN вЂ” endpoint shapes not confirmed)
+- Real bot adapters (`BOT_ADAPTER_MODE=read-only`) (local Tortila fixture/auth proof exists; production journal secret,
+  firewall, endpoint-shape, and monitoring proof remain NOT RUN)
 - Any live bot/exchange systemd/process-control from the WTC package (hard rule вЂ” never)
 
 ## Hard rules

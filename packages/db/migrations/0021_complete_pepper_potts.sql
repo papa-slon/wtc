@@ -1,0 +1,3 @@
+DROP INDEX "bti_external_trade_idx";--> statement-breakpoint
+CREATE UNIQUE INDEX "bti_external_trade_unscoped_idx" ON "bot_trade_imports" USING btree ("bot_instance_id","external_trade_id","source_adapter") WHERE "bot_provider_account_id" IS NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "bti_provider_external_trade_idx" ON "bot_trade_imports" USING btree ("bot_instance_id","bot_provider_account_id","external_trade_id","source_adapter") WHERE "bot_provider_account_id" IS NOT NULL;

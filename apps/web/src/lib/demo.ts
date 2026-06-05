@@ -54,6 +54,18 @@ export interface ExchangeAccountView {
   keyMask: string;
 }
 
+export interface ExchangeKeyMetadataCheckResult {
+  exchangeAccountId: string;
+  exchange: string | null;
+  mode: 'demo' | 'live' | null;
+  keyMask: string | null;
+  checkKind: 'sealed_metadata_only';
+  livePing: false;
+  outcome: 'vault_present' | 'missing';
+  reason: 'vault_metadata_present_live_ping_not_run' | 'owned_key_not_found_or_incomplete';
+  checkedAt: number;
+}
+
 interface DemoState {
   users: Map<string, DemoUser>;
   usersByEmail: Map<string, string>;
@@ -364,4 +376,41 @@ export async function addExchangeKey(userId: string, input: { exchange: string; 
 export async function listExchangeKeys(userId: string): Promise<ExchangeAccountView[]> {
   await ensureSeeded();
   return S().exchangeAccounts.filter((a) => a.userId === userId);
+}
+
+export async function recordExchangeKeyMetadataCheck(userId: string, exchangeAccountId: string): Promise<ExchangeKeyMetadataCheckResult> {
+  await ensureSeeded();
+  const checkedAt = Date.now();
+  const account = S().exchangeAccounts.find((a) => a.id === exchangeAccountId && a.userId === userId) ?? null;
+  const found = !!account && S().sealedById.has(account.id);
+  const result: ExchangeKeyMetadataCheckResult = {
+    exchangeAccountId: found ? account.id : exchangeAccountId,
+    exchange: found ? account.exchange : null,
+    mode: found ? account.mode : null,
+    keyMask: found ? account.keyMask : null,
+    checkKind: 'sealed_metadata_only',
+    livePing: false,
+    outcome: found ? 'vault_present' : 'missing',
+    reason: found ? 'vault_metadata_present_live_ping_not_run' : 'owned_key_not_found_or_incomplete',
+    checkedAt,
+  };
+  await audit.write({
+    actorUserId: userId,
+    actorRole: 'user',
+    action: 'exchange_key.metadata_check',
+    targetType: 'exchange_account',
+    targetId: found ? account.id : null,
+    result: found ? 'success' : 'failure',
+    after: {
+      checkKind: result.checkKind,
+      livePing: result.livePing,
+      outcome: result.outcome,
+      reason: result.reason,
+      exchange: result.exchange,
+      mode: result.mode,
+      keyMask: result.keyMask,
+      checkedAt: result.checkedAt,
+    },
+  });
+  return result;
 }

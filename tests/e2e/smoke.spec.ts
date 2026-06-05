@@ -28,7 +28,10 @@ test('user dashboard, bot warnings, terminal, security', async ({ page }, info) 
   await page.screenshot({ path: shot('app-overview', info.project.name), fullPage: true });
 
   await page.goto('/app/bots/tortila');
-  await expect(page.getByText('Risk & audit warnings')).toBeVisible(); // warnings are first-class
+  await expect(page.getByText('Continuity monitor')).toBeVisible();
+  await expect(page.getByText('Silent-stop guard')).toBeVisible();
+  await expect(page.getByText('Runtime evidence ladder')).toBeVisible();
+  await expect(page.getByText('Runtime status notes')).toBeVisible(); // warnings are first-class
   await expect(page.getByText('TP reconciliation / restore not implemented')).toBeVisible();
   await page.screenshot({ path: shot('bot-tortila', info.project.name), fullPage: true });
 
@@ -99,12 +102,25 @@ test('bot dashboard sub-tabs render with unified analytics (Tortila)', async ({ 
 
   // Unified/combined analytics on the bots list (Part 4)
   await page.goto('/app/bots');
+  await expect(page.getByText('Two-bot finish board')).toBeVisible();
+  await expect(page.getByText('Tortila finish path')).toBeVisible();
+  await expect(page.getByText('Legacy finish path')).toBeVisible();
+  await expect(page.getByText('Live controls disabled')).toBeVisible();
+  await expect(page.getByText('settings editor')).toBeVisible();
+  await expect(page.getByText('readiness dashboard')).toBeVisible();
+  await expect(page.getByText('statistics cockpit')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Review Tortila Turtle settings' })).toHaveAttribute('href', '/app/bots/tortila/settings');
+  await expect(page.getByRole('link', { name: 'Configure Legacy averaging' })).toHaveAttribute('href', '/app/bots/legacy/settings');
+  await expect(page.getByRole('link', { name: 'Open Tortila Bot statistics' })).toHaveAttribute('href', '/app/bots/statistics?bot=tortila');
+  await expect(page.getByRole('link', { name: 'Open Legacy Bot statistics' })).toHaveAttribute('href', '/app/bots/statistics?bot=legacy');
+  await expect(page.getByRole('link', { name: 'Open setup review' }).first()).toHaveAttribute('href', '/app/bots/tortila/setup?step=key');
+  await expect(page.getByRole('link', { name: 'Open setup review' }).nth(1)).toHaveAttribute('href', '/app/bots/legacy/setup?step=strategy');
+  await expect(page.getByText('Connection verified')).toHaveCount(0);
+  await expect(page.getByText(/startBot|stopBot|applyConfig/)).toHaveCount(0);
   await expect(page.getByText('Combined portfolio (entitled bots)')).toBeVisible();
   await expect(page.getByText('Total wallet equity')).toBeVisible();
-  // PG3: the Legacy Bot card shows an honest "live adapter unavailable — blocked (B3)" banner
-  // (its real adapter is permanently blocked on the upstream plaintext-key fix), NOT the generic
-  // "simulated data" message that implies it could be configured on.
-  await expect(page.getByText('Live adapter unavailable — blocked (B3)')).toBeVisible();
+  // Legacy onboarding now uses the existing provider pub_id runtime instead of collecting WTC keys.
+  await expect(page.getByText('Limited data - trade history and equity curve are not available for this bot.')).toBeVisible();
   await page.screenshot({ path: shot('bots-combined', info.project.name), fullPage: true });
 
   // Positions sub-tab (read-only, mock) — a real position row, not a placeholder
@@ -115,19 +131,28 @@ test('bot dashboard sub-tabs render with unified analytics (Tortila)', async ({ 
   await page.goto('/app/bots/statistics?bot=tortila');
   await expect(page.getByRole('heading', { name: 'Trading bot performance' })).toBeVisible();
   await expect(page.getByText('Portfolio snapshot')).toBeVisible();
-    await expect(page.getByText('Different strategies are not blended into one fake win rate')).toBeVisible();
-    await expect(page.getByText('Equity curve')).toBeVisible();
+  await expect(page.getByText('Statistics continuity monitor')).toBeVisible();
+  await expect(page.getByText('Statistics operation map')).toBeVisible();
+  await expect(page.getByText('Statistics evidence ladder')).toBeVisible();
+  await expect(page.getByText('Statistics command center')).toBeVisible();
+  await expect(page.getByText('Admin mirror')).toBeVisible();
+  await expect(page.getByText('Live boundary')).toBeVisible();
+  await expect(page.getByText('Different strategies are not blended into one fake win rate')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Equity curve', exact: true })).toBeVisible();
     await expect(page.getByText('Performance diagnostics')).toBeVisible();
     await expect(page.getByText('Monthly returns')).toBeVisible();
-    await expect(page.getByText('Symbol performance')).toBeVisible();
+    await expect(page.getByText('Symbol contribution')).toBeVisible();
     await expect(page.getByText('Open risk exposure')).toBeVisible();
     await page.screenshot({ path: shot('bot-statistics-journal', info.project.name), fullPage: true });
   
-    await page.goto('/app/bots/statistics?bot=legacy');
-    await expect(page.getByRole('heading', { name: 'Trading bot performance' })).toBeVisible();
-    await expect(page.getByText('Live adapter unavailable - blocked (B3)')).toBeVisible();
-    await expect(page.getByText('No equity curve available')).toBeVisible();
-    await expect(page.getByText('No monthly return data')).toBeVisible();
+  await page.goto('/app/bots/statistics?bot=legacy');
+  await expect(page.getByRole('heading', { name: 'Trading bot performance' })).toBeVisible();
+  await expect(page.getByText('Statistics operation map')).toBeVisible();
+  await expect(page.getByText('Statistics command center')).toBeVisible();
+  await expect(page.getByText('Live boundary')).toBeVisible();
+  await expect(page.getByText('Legacy operations')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Averaging bot configuration coverage', exact: true })).toBeVisible();
+    await expect(page.getByText('Provider pub_id', { exact: true })).toBeVisible();
 
   // Trades sub-tab — net-of-fees metric is present (fees never hidden)
   await page.goto('/app/bots/tortila/trades');
@@ -142,6 +167,7 @@ test('bot dashboard sub-tabs render with unified analytics (Tortila)', async ({ 
   // Safety sub-tab — known P0 risk warning is first-class, never hidden
   await page.goto('/app/bots/tortila/safety');
   await expect(page.getByRole('heading', { name: 'Safety & risk events', exact: true })).toBeVisible();
+  await expect(page.getByText('Safety continuity monitor')).toBeVisible();
   await expect(page.getByText('TP reconciliation / restore not implemented')).toBeVisible();
   await page.screenshot({ path: shot('bot-tortila-safety', info.project.name), fullPage: true });
 
@@ -171,6 +197,15 @@ test('Phase 2.3 admin pages: users list + system health safety states + support 
   // Admin users — renders (real-or-demo)
   await page.goto('/admin/users');
   await expect(page.getByRole('heading', { name: 'User directory' })).toBeVisible();
+  await expect(page.getByText('Bot owner selector')).toBeVisible();
+  await expect(page.getByPlaceholder('email, name, user id, masked pub_id')).toBeVisible();
+  await expect(page.getByText('Selected-user inspection only')).toBeVisible();
+  await expect(page.getByText('Results open read-only user settings and statistics')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Global defaults' })).toHaveAttribute('href', '/admin/bots/config');
+  await page.getByPlaceholder('email, name, user id, masked pub_id').fill('user');
+  await page.getByRole('button', { name: 'Search' }).click();
+  await expect(page).toHaveURL(/\/admin\/users\?q=user/);
+  await expect(page.getByText('Bot owner selector')).toBeVisible();
   // Storage pill is present (postgres or demo)
   await expect(page.getByText(/storage:/)).toBeVisible();
   await page.screenshot({ path: shot('admin-users', info.project.name), fullPage: true });
@@ -235,15 +270,17 @@ test('Phase 2.3 no live-control buttons enabled on bot pages', async ({ page }, 
   await page.goto('/app/bots/tortila');
 
   // Start/stop buttons must be present and DISABLED (safety policy)
-  const startBtn = page.getByRole('button', { name: /Start bot/ });
-  const stopBtn = page.getByRole('button', { name: /Stop bot/ });
+  const startBtn = page.getByRole('button', { name: 'Start bot (disabled)' });
+  const stopBtn = page.getByRole('button', { name: 'Stop bot (disabled)' });
   await expect(startBtn).toBeVisible();
   await expect(stopBtn).toBeVisible();
   await expect(startBtn).toBeDisabled();
   await expect(stopBtn).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Start bot unavailable' })).toBeDisabled();
 
   // Safety policy note is visible
-  await expect(page.getByText('Live controls are disabled by safety policy')).toBeVisible();
+  await expect(page.getByText('This room is read-only monitoring. Start, stop, and live config apply are not available here.')).toBeVisible();
+  await expect(page.getByText('live start disabled')).toBeVisible();
 
   await page.screenshot({ path: shot('bot-controls-disabled', info.project.name), fullPage: true });
 });
@@ -291,25 +328,27 @@ test('Phase 2.4 E2E-31/32: bot/tortila renders with mock pill + Start/Stop DISAB
 
   // Mock adapter mode pill is present and labelled "mock data"
   // (StatusPill renders adapter.mode + " data" when mode === 'mock')
-  await expect(page.getByText('mock data')).toBeVisible();
+  await expect(page.getByText('mock data').first()).toBeVisible();
 
-  // Simulated-data banner is shown when adapter.mode === 'mock'
-  await expect(page.getByText('Simulated data — not a live account')).toBeVisible();
+  // Simulated-data card is shown when adapter.mode === 'mock'
+  await expect(page.getByText('Simulated preview data')).toBeVisible();
 
   // P0/P1 risk warnings are always shown (never hidden behind a green card)
-  await expect(page.getByText('Risk & audit warnings')).toBeVisible();
+  await expect(page.getByText('Runtime status notes')).toBeVisible();
   await expect(page.getByText('TP reconciliation / restore not implemented')).toBeVisible();
 
   // Start/Stop buttons must be present and DISABLED (safety policy — all adapters)
-  const startBtn = page.getByRole('button', { name: /Start bot/ });
-  const stopBtn = page.getByRole('button', { name: /Stop bot/ });
+  const startBtn = page.getByRole('button', { name: 'Start bot (disabled)' });
+  const stopBtn = page.getByRole('button', { name: 'Stop bot (disabled)' });
   await expect(startBtn).toBeVisible();
   await expect(stopBtn).toBeVisible();
   await expect(startBtn).toBeDisabled();
   await expect(stopBtn).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Start bot unavailable' })).toBeDisabled();
 
   // Safety policy note is visible
-  await expect(page.getByText('Live controls are disabled by safety policy')).toBeVisible();
+  await expect(page.getByText('This room is read-only monitoring. Start, stop, and live config apply are not available here.')).toBeVisible();
+  await expect(page.getByText('live start disabled')).toBeVisible();
 
   await page.screenshot({ path: shot('bot-tortila-phase24', info.project.name), fullPage: true });
 });

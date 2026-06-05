@@ -6,7 +6,7 @@ const baseURL = `http://localhost:${e2ePort}`;
 
 export default defineConfig({
   testDir: './tests/e2e',
-  testIgnore: [/auth-production-profile\.spec\.ts/, /lms-db-materials\.spec\.ts/],
+  testIgnore: [/auth-production-profile\.spec\.ts/, /lms-db-materials\.spec\.ts/, /admin-user-bot-detail-db\.spec\.ts/, /user-bot-routes-db\.spec\.ts/],
   fullyParallel: false,
   workers: 1,
   // Strict e2e: auth uses /api/e2e/login (E2E_AUTH_BYPASS=1), so the suite no longer depends on

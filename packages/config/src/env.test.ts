@@ -429,4 +429,99 @@ describe('env: worker Tortila snapshot vars are typed and optional', () => {
     expect(env.SYSTEM_BOT_INSTANCE_ID).toBeUndefined();
     expect(env.SYSTEM_BOT_OWNER_ID).toBeUndefined();
   });
+
+  it('requires the journal read token for production-like real adapter modes', () => {
+    expect(() =>
+      loadEnv({
+        ...base,
+        NODE_ENV: 'development',
+        APP_ENV: 'staging',
+        BOT_ADAPTER_MODE: 'read-only',
+        TORTILA_JOURNAL_URL: 'http://127.0.0.1:8080',
+      } as unknown as NodeJS.ProcessEnv),
+    ).toThrow(/JOURNAL_READ_TOKEN/);
+
+    expect(() =>
+      loadEnv({
+        ...base,
+        NODE_ENV: 'development',
+        APP_ENV: 'production',
+        BOT_ADAPTER_MODE: 'audited',
+        TORTILA_JOURNAL_URL: 'http://127.0.0.1:8080',
+      } as unknown as NodeJS.ProcessEnv),
+    ).toThrow(/JOURNAL_READ_TOKEN/);
+  });
+
+  it('allows production-like mock mode without a journal read token', () => {
+    const env = loadEnv({
+      ...base,
+      NODE_ENV: 'development',
+      APP_ENV: 'staging',
+      BOT_ADAPTER_MODE: 'mock',
+      JOURNAL_READ_TOKEN: '',
+    } as unknown as NodeJS.ProcessEnv);
+    expect(env.BOT_ADAPTER_MODE).toBe('mock');
+    expect(env.JOURNAL_READ_TOKEN).toBeUndefined();
+  });
+
+  it('requires an explicit Tortila journal URL for production-like real adapter modes', () => {
+    expect(() =>
+      loadEnv({
+        ...base,
+        NODE_ENV: 'development',
+        APP_ENV: 'staging',
+        BOT_ADAPTER_MODE: 'read-only',
+        JOURNAL_READ_TOKEN: 'journal-read-token-fixture',
+      } as unknown as NodeJS.ProcessEnv),
+    ).toThrow(/TORTILA_JOURNAL_URL/);
+  });
+
+  it('accepts production-like read-only mode with a journal read token', () => {
+    const env = loadEnv({
+      ...base,
+      NODE_ENV: 'development',
+      APP_ENV: 'staging',
+      BOT_ADAPTER_MODE: 'read-only',
+      TORTILA_JOURNAL_URL: 'http://127.0.0.1:8080',
+      JOURNAL_READ_TOKEN: 'journal-read-token-fixture',
+    } as unknown as NodeJS.ProcessEnv);
+    expect(env.BOT_ADAPTER_MODE).toBe('read-only');
+    expect(env.JOURNAL_READ_TOKEN).toBe('journal-read-token-fixture');
+  });
+});
+
+describe('env: Legacy DB-backed live-read vars are typed and gated', () => {
+  beforeEach(() => __resetEnvCache());
+
+  it('keeps legacy live-read disabled by default', () => {
+    const env = loadEnv({ ...base, NODE_ENV: 'development' } as unknown as NodeJS.ProcessEnv);
+    expect(env.LEGACY_LIVE_READS_ENABLED).toBe(false);
+    expect(env.LEGACY_DATABASE_URL).toBeUndefined();
+  });
+
+  it('requires a legacy DB URL and owner binding when enabled in staging', () => {
+    expect(() =>
+      loadEnv({
+        ...base,
+        NODE_ENV: 'development',
+        APP_ENV: 'staging',
+        LEGACY_LIVE_READS_ENABLED: 'true',
+      } as unknown as NodeJS.ProcessEnv),
+    ).toThrow(/LEGACY_DATABASE_URL, SYSTEM_LEGACY_BOT_OWNER_ID/);
+  });
+
+  it('accepts staging legacy live-read with a provider DB URL and legacy owner id', () => {
+    const env = loadEnv({
+      ...base,
+      NODE_ENV: 'development',
+      APP_ENV: 'staging',
+      LEGACY_LIVE_READS_ENABLED: 'true',
+      LEGACY_DATABASE_URL: 'postgres://legacy_user@127.0.0.1:5432/legacy_bot',
+      SYSTEM_LEGACY_BOT_OWNER_ID: '33333333-3333-4333-8333-333333333333',
+      LEGACY_API_ID: 'legacy-pub-id-fixture',
+    } as unknown as NodeJS.ProcessEnv);
+    expect(env.LEGACY_LIVE_READS_ENABLED).toBe(true);
+    expect(env.LEGACY_API_ID).toBe('legacy-pub-id-fixture');
+    expect(env.SYSTEM_LEGACY_BOT_OWNER_ID).toBe('33333333-3333-4333-8333-333333333333');
+  });
 });

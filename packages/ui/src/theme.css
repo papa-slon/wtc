@@ -57,9 +57,11 @@ a { color: inherit; text-decoration: none; }
   border-radius: var(--radius-lg);
   background: linear-gradient(180deg, rgba(14, 26, 43, 0.7), rgba(7, 15, 28, 0.55));
   padding: 22px;
+  min-width: 0;
 }
 .wtc-card-tight { padding: 16px; border-radius: var(--radius); }
 .wtc-grid { display: grid; gap: 14px; }
+.wtc-grid > * { min-width: 0; }
 .wtc-grid-2 { grid-template-columns: repeat(2, 1fr); }
 .wtc-grid-3 { grid-template-columns: repeat(3, 1fr); }
 .wtc-grid-4 { grid-template-columns: repeat(4, 1fr); }
@@ -74,7 +76,7 @@ a { color: inherit; text-decoration: none; }
 .wtc-down { color: var(--red); }
 
 /* pills / badges */
-.wtc-pill { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--stroke); border-radius: 999px; padding: 6px 11px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.wtc-pill { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--stroke); border-radius: 999px; padding: 6px 11px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); max-width: 100%; min-width: 0; overflow-wrap: anywhere; white-space: normal; }
 .wtc-pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
 .wtc-pill.ok { border-color: rgba(84, 214, 161, 0.32); color: #b9ffe5; }
 .wtc-pill.ok i { background: var(--green); box-shadow: 0 0 12px var(--green); }
@@ -94,7 +96,8 @@ a { color: inherit; text-decoration: none; }
 .wtc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* warning banner */
-.wtc-warning { border-radius: var(--radius); padding: 13px 15px; border: 1px solid; margin: 8px 0; display: flex; gap: 12px; align-items: flex-start; }
+.wtc-warning { border-radius: var(--radius); padding: 13px 15px; border: 1px solid; margin: 8px 0; display: flex; gap: 12px; align-items: flex-start; min-width: 0; overflow-wrap: anywhere; }
+.wtc-warning > div { min-width: 0; }
 .wtc-warning.error { border-color: rgba(255, 107, 116, 0.4); background: rgba(255, 107, 116, 0.07); }
 .wtc-warning.warning { border-color: rgba(245, 196, 81, 0.4); background: rgba(245, 196, 81, 0.06); }
 .wtc-warning.info { border-color: var(--stroke); background: rgba(255, 255, 255, 0.03); }
@@ -113,7 +116,7 @@ a { color: inherit; text-decoration: none; }
  * view; an Action cell adds className="wtc-td-action". Pure CSS, no JavaScript —
  * each row becomes a self-contained label/value card so there is NO horizontal
  * page scroll at 375px regardless of column count (the 10-column TV queue included). */
-.wtc-table-wrap { width: 100%; }
+.wtc-table-wrap { width: 100%; max-width: 100%; overflow-x: auto; }
 
 @media (max-width: 640px) {
   .wtc-table-wrap table,
@@ -170,6 +173,7 @@ a { color: inherit; text-decoration: none; }
   .wtc-table-wrap td.wtc-td-action form { width: 100%; }
   .wtc-table-wrap td.wtc-td-action .wtc-input { font-size: 13px; }
   .wtc-table-wrap td.wtc-td-action .wtc-btn { width: 100%; justify-content: center; }
+  .wtc-table-wrap td[data-label="Warnings"] { flex-direction: column; align-items: stretch; }
 
   /* Touch targets + let any fixed-minWidth inline input shrink to fit a 375px viewport.
    * !important is required to beat inline style={{ minWidth }} on admin forms.
@@ -219,6 +223,6 @@ a { color: inherit; text-decoration: none; }
 .wtc-sidenav a { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; color: #b8c2d2; font-size: 14px; }
 .wtc-sidenav a:hover, .wtc-sidenav a.active { background: rgba(255, 255, 255, 0.045); color: #fff; }
 .wtc-topbar { height: 64px; border-bottom: 1px solid var(--stroke); display: flex; align-items: center; justify-content: space-between; padding: 0 22px; background: rgba(5, 10, 18, 0.7); position: sticky; top: 0; z-index: 20; backdrop-filter: blur(14px); }
-.wtc-main { padding: 26px 22px 60px; }
+.wtc-main { padding: 26px 22px 60px; min-width: 0; max-width: 100%; overflow-x: clip; }
 .wtc-brand { font-weight: 800; letter-spacing: 0.18em; font-size: 15px; }
 .wtc-brand span { color: var(--gold2); }

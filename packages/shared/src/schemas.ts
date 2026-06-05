@@ -33,6 +33,13 @@ export const exchangeKeyInputSchema = z.object({
 });
 export type ExchangeKeyInput = z.infer<typeof exchangeKeyInputSchema>;
 
+/** Safe metadata-only check request for a stored exchange key. Does not authorize live exchange pings. */
+export const exchangeKeyMetadataCheckSchema = z.object({
+  bot: z.string().min(1).max(80),
+  exchangeAccountId: z.string().uuid(),
+});
+export type ExchangeKeyMetadataCheckInput = z.infer<typeof exchangeKeyMetadataCheckSchema>;
+
 /** Generic, conservative bot config envelope. Bot-specific shapes refine this. */
 export const botConfigSchema = z.object({
   symbols: z.array(z.string().min(1)).min(1).max(50),

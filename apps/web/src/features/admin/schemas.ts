@@ -10,6 +10,29 @@ const nullableEpochMs = z.preprocess((value) => {
   if (typeof value === 'string' && value.trim() === '') return null;
   return Number(value);
 }, z.number().int().min(0).nullable());
+const booleanLike = z.preprocess((value) => {
+  if (value === true || value === 'true' || value === 'on' || value === '1') return true;
+  if (value === false || value === 'false' || value === 'off' || value === '0' || value === null || value === undefined || value === '') return false;
+  return value;
+}, z.boolean());
+const optionalVersion = z.preprocess((value) => {
+  if (value === null || value === undefined) return undefined;
+  if (typeof value === 'string' && value.trim() === '') return undefined;
+  return Number(value);
+}, z.number().int().min(0).optional());
+const optionalUuid = z.preprocess((value) => {
+  if (typeof value === 'string' && value.trim() === '') return undefined;
+  return value;
+}, z.string().uuid('Invalid ID').optional());
+
+const providerAccountId = z
+  .string()
+  .trim()
+  .min(3, 'Provider account ID must be at least 3 characters')
+  .max(160, 'Provider account ID is too long')
+  .regex(/^[A-Za-z0-9_.:@-]+$/, 'Provider account ID contains unsupported characters');
+
+const adminMutationReason = z.string().trim().min(10, 'Reason must be at least 10 characters').max(500);
 
 /** Schema for the support ticket status-update action. */
 export const ticketUpdateSchema = z.object({
@@ -79,3 +102,37 @@ export const retryLmsCleanupSchema = z.object({
   expectedCount: boundedCleanupCount,
   expectedLatestAcknowledgedAt: nullableEpochMs,
 });
+
+export const mapLegacyProviderAccountSchema = z.object({
+  userId: z.string().uuid('Invalid user ID'),
+  botInstanceId: optionalUuid,
+  providerAccountId,
+  label: z.preprocess((value) => {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }, z.string().max(80).nullable()),
+  reason: adminMutationReason,
+});
+
+export const disableLegacyProviderAccountSchema = z.object({
+  userId: z.string().uuid('Invalid user ID'),
+  mappingId: z.string().uuid('Invalid mapping ID'),
+  reason: adminMutationReason,
+});
+
+export const saveBotGlobalConfigSchema = z.object({
+  productCode: z.enum(['tortila_bot', 'legacy_bot']),
+  profileCode: z
+    .string()
+    .trim()
+    .min(1, 'Profile code is required')
+    .max(80, 'Profile code is too long')
+    .regex(/^[a-z0-9_-]+$/, 'Profile code may contain lowercase letters, numbers, underscores, and dashes only'),
+  label: z.string().trim().min(3, 'Profile name must be at least 3 characters').max(80, 'Profile name is too long'),
+  status: z.enum(['draft', 'published', 'archived']),
+  appliesToNewUsers: booleanLike,
+  allowUserOverride: booleanLike,
+  expectedVersion: optionalVersion,
+  reason: adminMutationReason,
+}).strict();

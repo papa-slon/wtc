@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
-    "tick": "tsx src/tick-once.ts"
+    "tick": "tsx src/tick-once.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@wtc/entitlements": "*",
@@ -14,6 +15,7 @@
     "@wtc/audit": "*",
     "@wtc/bot-adapters": "*",
     "@wtc/db": "*",
-    "@wtc/lms": "*"
+    "@wtc/lms": "*",
+    "postgres": "^3.4.5"
   }
 }

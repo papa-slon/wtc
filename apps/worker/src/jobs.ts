@@ -19,6 +19,21 @@ import type { AuditWriter } from '@wtc/audit';
 import type { BotAdapter } from '@wtc/bot-adapters';
 import { AdapterNotReadyError } from '@wtc/bot-adapters';
 
+export type BotSnapshotStatus = 'ok' | 'error' | 'skipped';
+
+export interface TortilaJournalSnapshotResult {
+  ok: boolean;
+  snapshotStatus: BotSnapshotStatus;
+  lastError: string | null;
+  healthStatus: string | null;
+  readState: string | null;
+  readStateDetail: string | null;
+  metricsAvailable: boolean;
+  positionsSnapshotted: number;
+  tradesSeen: number;
+  tradesImported: number;
+}
+
 function operationalMessage(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err);
   return msg
@@ -107,15 +122,16 @@ export async function snapshotTortilaJournal(
   adapter: BotAdapter,
   botInstanceId: string,
   now: number,
-): Promise<{ ok: boolean; lastError: string | null }> {
+): Promise<TortilaJournalSnapshotResult> {
   const { insertBotMetricSnapshot, insertBotPositionSnapshot, importBotTrade, recordHealthCheck } = await import('@wtc/db');
   const sourceAdapter = adapter.mode === 'real' ? 'tortila' : 'tortila-mock';
 
   try {
     // getHealth never throws — fail-closed to processAlive=false on any error.
     const health = await adapter.getHealth();
-    if (health.readState === 'not_configured') {
-      await recordHealthCheck(db, 'tortila-journal', 'not_configured', {
+    if (health.readState === 'not_configured' || health.readState === 'unreachable' || health.readState === 'malformed') {
+      const healthStatus = healthCheckStatusFor(health.readState, health.processAlive);
+      await recordHealthCheck(db, 'tortila-journal', healthStatus, {
         status: health.status,
         readState: health.readState,
         readStateDetail: health.readStateDetail ?? null,
@@ -127,7 +143,18 @@ export async function snapshotTortilaJournal(
         tradesSeen: 0,
         tradesImported: 0,
       });
-      return { ok: true, lastError: null };
+      return {
+        ok: health.readState === 'not_configured',
+        snapshotStatus: health.readState === 'not_configured' ? 'skipped' : 'error',
+        lastError: health.readState === 'not_configured' ? null : (health.readStateDetail ?? health.readState),
+        healthStatus,
+        readState: health.readState,
+        readStateDetail: health.readStateDetail ?? null,
+        metricsAvailable: false,
+        positionsSnapshotted: 0,
+        tradesSeen: 0,
+        tradesImported: 0,
+      };
     }
 
     // getMetrics may throw AdapterNotReadyError (not yet mapped) or network errors.
@@ -186,6 +213,8 @@ export async function snapshotTortilaJournal(
       },
     });
 
+    const shouldPersistTortilaMarkPlaceholders = adapter.mode !== 'real';
+
     await insertBotPositionSnapshot(db, {
       botInstanceId,
       snapshotAt: new Date(now),
@@ -195,8 +224,8 @@ export async function snapshotTortilaJournal(
         side: p.side,
         size: String(p.qty),
         entryPrice: String(p.entryPrice),
-        ...(Number.isFinite(p.markPrice) ? { markPrice: String(p.markPrice) } : {}),
-        ...(Number.isFinite(p.unrealizedPnl) ? { unrealizedPnlUsd: String(p.unrealizedPnl) } : {}),
+        ...(shouldPersistTortilaMarkPlaceholders && Number.isFinite(p.markPrice) ? { markPrice: String(p.markPrice) } : {}),
+        ...(shouldPersistTortilaMarkPlaceholders && Number.isFinite(p.unrealizedPnl) ? { unrealizedPnlUsd: String(p.unrealizedPnl) } : {}),
         ...(p.tpPrice != null ? { tpPrice: String(p.tpPrice) } : {}),
         ...(p.stopPrice != null ? { slPrice: String(p.stopPrice) } : {}),
         ...(p.openedAt ? { openedAt: new Date(p.openedAt) } : {}),
@@ -245,7 +274,18 @@ export async function snapshotTortilaJournal(
       tradesImported,
     });
 
-    return { ok: true, lastError: null };
+    return {
+      ok: true,
+      snapshotStatus: 'ok',
+      lastError: null,
+      healthStatus,
+      readState: health.readState ?? null,
+      readStateDetail: health.readStateDetail ?? null,
+      metricsAvailable: metrics !== null,
+      positionsSnapshotted: positions.length,
+      tradesSeen: closedTrades.length,
+      tradesImported,
+    };
   } catch (err) {
     // Catch-all: DB errors, unexpected adapter failures.
     const msg = operationalMessage(err);
@@ -255,6 +295,17 @@ export async function snapshotTortilaJournal(
     } catch {
       // If even the health check write fails, swallow so the tick continues.
     }
-    return { ok: false, lastError: msg };
+    return {
+      ok: false,
+      snapshotStatus: 'error',
+      lastError: msg,
+      healthStatus: 'error',
+      readState: null,
+      readStateDetail: null,
+      metricsAvailable: false,
+      positionsSnapshotted: 0,
+      tradesSeen: 0,
+      tradesImported: 0,
+    };
   }
 }

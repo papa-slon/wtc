@@ -482,7 +482,7 @@ Purpose: Periodic normalised metrics snapshot per bot instance. Written by worke
 | `total_funding_usd` | `NUMERIC(18,4)` | YES | — | |
 | `open_risk_usd` | `NUMERIC(18,4)` | YES | — | Estimated max loss on open positions |
 | `trade_count` | `INT` | YES | — | Closed trades in period |
-| `source_adapter` | `TEXT` | NO | — | `tortila` \| `legacy` |
+| `source_adapter` | `TEXT` | NO | — | e.g. `tortila` \| `legacy-db` |
 | `raw_json` | `JSONB` | YES | — | Original adapter response (for debugging) |
 | `created_at` | `TIMESTAMPTZ` | NO | `NOW()` | |
 
@@ -523,12 +523,15 @@ Purpose: Point-in-time snapshot of open positions for a bot instance.
 
 > **REAL-in-0002** — designed in handoff `20260530-0126-ecosystem-db-architect.md`.
 
-Purpose: Imported closed trade records. Immutable once written. Tortila and Legacy normalised to same schema.
+Purpose: Imported closed trade records. Immutable once written. Tortila and proven Legacy closed-trade sources normalise to
+the same destination schema. Phase 4.30 makes idempotency provider-aware; Phase 4.31 keeps Legacy source ingestion blocked
+until a durable closed-trade/fill source is proven.
 
 | Column | Type | Nullable | Default | Notes |
 |---|---|---|---|---|
 | `id` | `UUID` | NO | `gen_random_uuid()` | PK |
 | `bot_instance_id` | `UUID` | NO | — | FK → `bot_instances.id` |
+| `bot_provider_account_id` | `UUID` | YES | — | FK → `bot_provider_accounts.id`; provider-scoped imports use the WTC provider-account UUID, never raw `pub_id` |
 | `external_trade_id` | `TEXT` | NO | — | Original trade ID from source system |
 | `symbol` | `TEXT` | NO | — | |
 | `side` | `TEXT` | NO | — | `long` \| `short` |
@@ -541,14 +544,24 @@ Purpose: Imported closed trade records. Immutable once written. Tortila and Lega
 | `opened_at` | `TIMESTAMPTZ` | NO | — | |
 | `closed_at` | `TIMESTAMPTZ` | NO | — | |
 | `exit_reason` | `TEXT` | YES | — | `tp` \| `sl` \| `manual` \| `liquidation` \| `unknown` |
-| `source_adapter` | `TEXT` | NO | — | `tortila` \| `legacy` |
+| `source_adapter` | `TEXT` | NO | — | Source adapter key; current WTC sources include `tortila` and `legacy-db`. Not CHECK-constrained. |
 | `raw_json` | `JSONB` | YES | — | Original record |
 | `imported_at` | `TIMESTAMPTZ` | NO | `NOW()` | |
 
 **PK**: `id`
-**Unique**: `(bot_instance_id, external_trade_id, source_adapter)`
+**Unique**:
+- `bti_external_trade_unscoped_idx` on `(bot_instance_id, external_trade_id, source_adapter)` where
+  `bot_provider_account_id IS NULL`.
+- `bti_provider_external_trade_idx` on `(bot_instance_id, bot_provider_account_id, external_trade_id, source_adapter)` where
+  `bot_provider_account_id IS NOT NULL`.
 **FK**: `bot_instance_id → bot_instances.id`
-**Index**: `idx_bti_bot_instance_id_closed_at` on `(bot_instance_id, closed_at DESC)`, `idx_bti_external_trade_id` on `(source_adapter, external_trade_id)`
+**FK**: `bot_provider_account_id → bot_provider_accounts.id ON DELETE SET NULL`
+**Index**: `bti_instance_closed_idx` on `(bot_instance_id, closed_at)`, `bti_provider_closed_idx` on
+`(bot_provider_account_id, closed_at)`, `bti_external_id_idx` on `(source_adapter, external_trade_id)`
+
+**Legacy source note**: WTC can store provider-scoped closed-trade imports, but local Legacy source inspection has not proven
+a source table/API with stable trade id, realized PnL, fees, funding, opened/closed timestamps, and replay semantics. Do not
+derive Legacy performance analytics from inactive orders or slots.
 
 ### 4.7 `bot_safety_events`
 
@@ -1382,7 +1395,9 @@ GRANT ALL PRIVILEGES ON DATABASE wtc_db TO wtc_migrator_role;
 | `entitlements` | `idx_entitlements_user_product` | `(user_id, product_code)` | Unique B-tree |
 | `entitlements` | `idx_entitlements_expires_at` | `expires_at` | B-tree |
 | `bot_metric_snapshots` | `idx_bms_*` | `(bot_instance_id, snapshot_at DESC)` | B-tree |
-| `bot_trade_imports` | `idx_bti_external_trade_id` | `(source_adapter, external_trade_id)` | Unique B-tree |
+| `bot_trade_imports` | `bti_external_trade_unscoped_idx` | `(bot_instance_id, external_trade_id, source_adapter) WHERE bot_provider_account_id IS NULL` | Unique partial B-tree |
+| `bot_trade_imports` | `bti_provider_external_trade_idx` | `(bot_instance_id, bot_provider_account_id, external_trade_id, source_adapter) WHERE bot_provider_account_id IS NOT NULL` | Unique partial B-tree |
+| `bot_trade_imports` | `bti_external_id_idx` | `(source_adapter, external_trade_id)` | B-tree |
 | `audit_logs` | `idx_audit_logs_created_at` | `created_at DESC` | B-tree |
 | `audit_logs` | `idx_audit_logs_event_type` | `event_type` | B-tree |
 | `job_queue` | `idx_job_queue_status_scheduled_at` | `(status, scheduled_at)` WHERE `status='pending'` | Partial B-tree |

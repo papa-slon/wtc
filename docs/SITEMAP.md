@@ -294,7 +294,7 @@ Shows: bot status badge, adapter mode badge, risk warning banner (P0 items, non-
 
 **Tortila** fields: symbols (multi-select), timeframe, risk % per trade, max ATR multiplier, max open units, trailing TP toggle, trailing offset, winner filter toggle, per-symbol overrides. Recommended profile button ("use safe defaults") with confirmation dialog. The setup wizard (API key selection, exchange connection, symbol/risk/ATR config) is exposed as a multi-step form within this route; wizard step sub-routes (`/setup`, `/exchange-keys`, `/symbols`, `/risk`) are UI implementation detail — not separate product routes.
 
-**Legacy Bot** fields: exchange API key selection (from vault — shows key alias only, never the key), symbols, RSI period, CCI period, averaging levels (up to N stages), stage size % increment, take-profit %, leverage, balance %, max slots. Per-symbol overrides via accordion.
+**Legacy Bot** fields: existing provider `pub_id` runtime status (no WTC exchange-key entry), symbols, RSI period, CCI period, averaging levels (up to N stages), stage size % increment, take-profit %, leverage, balance %, max slots. Per-symbol overrides via accordion.
 
 Config saved to `bot_configs` / `bot_config_versions` in WTC DB. Adapter propagation to live bot is deferred; at MVP the config is stored and a "pending sync" badge is shown.
 

@@ -53,4 +53,13 @@ describe('LMS denial audit codes (PG7)', () => {
     const codes: AuditAction[] = ['education.rbac_denied', 'education.entitlement_denied'];
     for (const c of codes) expect(AUDIT_ACTIONS).toContain(c);
   });
+
+  it('registers provider-account mapping audit codes', () => {
+    const codes: AuditAction[] = [
+      'bot.provider_account.map',
+      'bot.provider_account.update',
+      'bot.provider_account.disable',
+    ];
+    for (const c of codes) expect(AUDIT_ACTIONS).toContain(c);
+  });
 });

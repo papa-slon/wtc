@@ -20,6 +20,8 @@ import {
   revokeProduct as rRevokeProduct,
   addExchangeKey as rAddExchangeKey,
   listExchangeKeys as rListExchangeKeys,
+  recordExchangeKeyMetadataCheck as rRecordExchangeKeyMetadataCheck,
+  type ExchangeKeyMetadataCheckResult,
   createDbAuditWriter,
   recentAuditEvents as rRecentAuditEvents,
   submitTvRequest as rSubmitTvRequest,
@@ -122,6 +124,9 @@ export async function addExchangeKey(
 }
 export async function listExchangeKeys(userId: string): Promise<ExchangeAccountView[]> {
   return rListExchangeKeys(db(), userId);
+}
+export async function recordExchangeKeyMetadataCheck(userId: string, exchangeAccountId: string): Promise<ExchangeKeyMetadataCheckResult> {
+  return rRecordExchangeKeyMetadataCheck(db(), { userId, exchangeAccountId });
 }
 export async function recentAuditRows() {
   return rRecentAuditEvents(db(), 200);

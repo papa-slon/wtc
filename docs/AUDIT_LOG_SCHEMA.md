@@ -164,6 +164,7 @@ from `grantProduct` / `submitTvRequest`).
 | Action code | Trigger | Retention class |
 |-------------|---------|-----------------|
 | `bot.config.save` | Bot config saved (new version created; replaces generic `bot.config_change` for new routes) | financial |
+| `bot.global_config.save` | Admin saved a system bot default/profile version; WTC DB only, no live apply | financial |
 | `bot.config.version_delete` | Config version deleted by admin | financial |
 | `bot.enable` | Bot enabled (mock only — no live action) | security |
 | `bot.disable` | Bot disabled (mock only — no live action) | security |
@@ -173,7 +174,8 @@ from `grantProduct` / `submitTvRequest`).
 | Action code | Trigger | Retention class |
 |-------------|---------|-----------------|
 | `exchange_key.rewrap` | KEK rotation — DEK re-wrapped under new KEK | financial |
-| `exchange_key.test` | Exchange connection test performed (key used transiently, not stored in output) | financial |
+| `exchange_key.metadata_check` | WTC vault metadata ownership check only; confirms account + sealed secret row metadata, never decrypts, never pings an exchange | financial |
+| `exchange_key.test` | Reserved legacy/future code for a separately audited read-only exchange ping; do not use for metadata-only readiness | financial |
 
 #### Authentication (extend existing)
 
@@ -320,7 +322,11 @@ Even if field names pass the blocklist, string values matching these patterns ar
   `failedLoginTotalCount`, `lastFailedLoginAt`, `accountLockedUntil`, `accountLockoutReviewRequiredAt`),
   plus `after.unlocked = true` and the validated admin `reason`. Never include email, password/password hash,
   session/token material, raw submitted identifiers, IP/user-agent, stack traces, or full user-row dumps.
-- For `bot.config.save`: `before = { version }`, `after = { version }`. No raw config JSON.
+- For `bot.config.save`: target is `bot_instance`; `before = { version }` with initial save using
+  `version: null`, and `after = { version }`. Version identity lives in before/after metadata. No raw config JSON.
+- For `exchange_key.metadata_check`: `before = null`, `after = { checkKind, livePing:false, outcome, reason, exchange, mode, keyMask, checkedAt }`. This proves WTC vault metadata only; it is not exchange connectivity and must never include sealed payloads, decrypted key material, provider URLs, headers, or response bodies.
+- For `bot.global_config.save`: `before` and `after` may include product/profile/status/version flags,
+  admin reason, and inheritance booleans only. No raw config JSON, provider ids, URLs, secrets, or live-runtime snapshots.
 - For `education.course_create`: `before = null`, `after = { title, published }`.
 - For `tradingview.submit`: `after = { status: 'pending', tradingViewUsername }` (TV username is a public handle, not a secret).
 - `failure_reason` is a category string (e.g. `'invalid_credentials'`, `'account_locked'`, `'signature_mismatch'`). No exception message, no stack trace.
@@ -414,8 +420,8 @@ Even if field names pass the blocklist, string values matching these patterns ar
   "actor_user_id": "u-abc123",
   "actor_role": "user",
   "action": "bot.config.save",
-  "target_type": "bot_config",
-  "target_id": "bc-version002",
+  "target_type": "bot_instance",
+  "target_id": "bi-legacy001",
   "before": { "version": 1 },
   "after": { "version": 2 },
   "result": "success"

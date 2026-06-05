@@ -67,8 +67,10 @@ WTC UI requirements when stop control is eventually enabled:
 4. Log the stop request and confirmation to the audit log with full position snapshot.
 5. Never infer that positions are closed after a stop event.
 
-Until stop control is enabled, the WTC UI shows a read-only "Stop Bot" button with a
-tooltip: "Bot control requires a completed security audit. See your roadmap for status."
+Until stop control is enabled, WTC admin and user bot evidence pages show no runtime
+control buttons. Any future disabled control affordance, including a read-only
+"Stop Bot" placeholder, must be scoped and audited separately before it appears in
+the UI.
 
 ---
 

@@ -10,7 +10,7 @@ import 'server-only';
  * adminUsersLoader strips passwordHash via mapToAdminUserView — never returned to any caller.
  */
 
-import { eq, and, like, ne, desc } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import { getServerDb } from '@/lib/backend';
 import { listUsersWithCreatedAt, listAllTv, recentAuditEvents, listManualReviewItems, summarizeLmsObjectCleanupOperations } from '@wtc/db';
 import { schema } from '@wtc/db';
@@ -18,9 +18,12 @@ import { botAdapterMode } from '@/lib/server-config';
 import { productAvailability } from '@/lib/product-status';
 import { ENTITLEMENT_STATUSES, PLANS, PRODUCT_CODES, PRODUCTS } from '@wtc/entitlements';
 import { projectHealthDetail } from './health-detail';
+import { emptyAdminBotHealth, loadAdminBotHealthFromDb } from './bot-health-loader';
+import { emptyAdminUserBotDetail, loadAdminUserBotDetailFromDb } from './user-bot-detail-loader';
 import type {
   AdminProductOverviewRow,
   AdminProductsResult,
+  AdminUserBotDetailResult,
   AdminUserView,
   SystemHealthSnapshot,
   HealthCheckView,
@@ -164,6 +167,14 @@ export async function loadAdminUsers(): Promise<AdminUsersResult> {
     }),
   );
   return { mode: 'postgres', users };
+}
+
+export async function loadAdminUserBotDetail(userId: string): Promise<AdminUserBotDetailResult> {
+  const db = getServerDb();
+  if (!db) {
+    return emptyAdminUserBotDetail('demo');
+  }
+  return loadAdminUserBotDetailFromDb(db, userId);
 }
 
 // ---- System health ----
@@ -335,120 +346,30 @@ export async function loadManualReviewItems(
 
 /**
  * Load cross-user bot health data for the /admin/bots page.
- * Reads integration_health_checks for bot.* targets + bot_metric_snapshots latest row.
+ * Reads integration_health_checks for bot targets + bot_metric_snapshots latest row.
  * Never exposes exchange keys, URLs (only boolean presence), stack traces.
- * liveControlDisabled and legacyAdapterBlocked are always hardcoded true (safety policy).
+ * liveControlDisabled is hardcoded true (safety policy). Legacy DB live-read is a separate read-only path.
  */
 export async function loadAdminBotHealth(): Promise<AdminBotHealthResult> {
   const adapterMode = botAdapterMode();
   const tortilaBaseUrlConfigured = !!(process.env.TORTILA_JOURNAL_URL || process.env.TORTILA_JOURNAL_BASE_URL);
+  const legacyDbLiveReadEnabled = process.env.LEGACY_LIVE_READS_ENABLED === 'true' || process.env.LEGACY_LIVE_READS_ENABLED === '1';
+  const legacyDatabaseConfigured = !!process.env.LEGACY_DATABASE_URL;
   const db = getServerDb();
 
   const base = {
     adapterMode,
     liveControlDisabled: true as const,
-    legacyAdapterBlocked: true as const,
+    legacyAdapterBlocked: true,
+    legacyDbLiveReadEnabled,
+    legacyDatabaseConfigured,
     tortilaBaseUrlConfigured,
   };
 
   if (!db) {
-    return {
-      ...base,
-      mode: 'demo',
-      tortilaLastOkAt: null,
-      tortilaLastError: null,
-      tortilaJournalStatus: null,
-      tortilaJournalReadState: null,
-      tortilaJournalReadStateDetail: null,
-      latestSnapshot: null,
-      botHealthChecks: [],
-    };
+    return emptyAdminBotHealth(base, 'demo');
   }
-
-  // Last successful health check for tortila-journal
-  const [lastOk] = await db
-    .select({ id: schema.integrationHealthChecks.id, checkedAt: schema.integrationHealthChecks.checkedAt })
-    .from(schema.integrationHealthChecks)
-    .where(and(eq(schema.integrationHealthChecks.target, 'tortila-journal'), eq(schema.integrationHealthChecks.status, 'ok')))
-    .orderBy(desc(schema.integrationHealthChecks.checkedAt))
-    .limit(1);
-
-  // Latest non-ok health row for tortila-journal. not_configured is a setup state, not an error.
-  const [lastErr] = await db
-    .select({ status: schema.integrationHealthChecks.status, detail: schema.integrationHealthChecks.detail, checkedAt: schema.integrationHealthChecks.checkedAt })
-    .from(schema.integrationHealthChecks)
-    .where(and(eq(schema.integrationHealthChecks.target, 'tortila-journal'), ne(schema.integrationHealthChecks.status, 'ok')))
-    .orderBy(desc(schema.integrationHealthChecks.checkedAt))
-    .limit(1);
-
-  const [latestJournal] = await db
-    .select({ status: schema.integrationHealthChecks.status, detail: schema.integrationHealthChecks.detail, checkedAt: schema.integrationHealthChecks.checkedAt })
-    .from(schema.integrationHealthChecks)
-    .where(eq(schema.integrationHealthChecks.target, 'tortila-journal'))
-    .orderBy(desc(schema.integrationHealthChecks.checkedAt))
-    .limit(1);
-
-  const latestJournalDetail = latestJournal?.detail as Record<string, unknown> | null | undefined;
-  const latestReadState =
-    typeof latestJournalDetail?.readState === 'string' ? latestJournalDetail.readState : null;
-  const latestReadStateDetail =
-    typeof latestJournalDetail?.readStateDetail === 'string'
-      ? latestJournalDetail.readStateDetail.slice(0, 200)
-      : null;
-
-  const tortilaLastError = lastErr
-    ? (() => {
-        if (lastErr.status === 'not_configured' || lastErr.status === 'stale') return null;
-        const d = lastErr.detail as Record<string, unknown> | null;
-        const msg = d?.error ?? d?.message ?? null;
-        return msg ? String(msg).slice(0, 200) : 'error (no detail)';
-      })()
-    : null;
-
-  // Latest bot metric snapshot
-  const [snap] = await db
-    .select({
-      snapshotAt: schema.botMetricSnapshots.snapshotAt,
-      walletEquityUsd: schema.botMetricSnapshots.walletEquityUsd,
-      sourceAdapter: schema.botMetricSnapshots.sourceAdapter,
-    })
-    .from(schema.botMetricSnapshots)
-    .orderBy(desc(schema.botMetricSnapshots.snapshotAt))
-    .limit(1);
-
-  // All bot.* health checks (last 20)
-  const botHealthCheckRows = await db
-    .select()
-    .from(schema.integrationHealthChecks)
-    .where(like(schema.integrationHealthChecks.target, 'bot.%'))
-    .orderBy(desc(schema.integrationHealthChecks.checkedAt))
-    .limit(20);
-
-  const botHealthChecks: HealthCheckView[] = botHealthCheckRows.map((r) => ({
-    id: r.id,
-    target: r.target,
-    status: r.status,
-    detail: r.detail as Record<string, unknown> | null,
-    checkedAt: r.checkedAt.getTime(),
-  }));
-
-  return {
-    ...base,
-    mode: 'postgres',
-    tortilaLastOkAt: lastOk ? lastOk.checkedAt.getTime() : null,
-    tortilaLastError,
-    tortilaJournalStatus: latestJournal?.status ?? null,
-    tortilaJournalReadState: latestReadState,
-    tortilaJournalReadStateDetail: latestReadStateDetail,
-    latestSnapshot: snap
-      ? {
-          snapshotAt: snap.snapshotAt.getTime(),
-          walletEquityUsd: snap.walletEquityUsd ?? null,
-          sourceAdapter: snap.sourceAdapter,
-        }
-      : null,
-    botHealthChecks,
-  };
+  return loadAdminBotHealthFromDb(db, base);
 }
 
 // ---- Admin products overview ----

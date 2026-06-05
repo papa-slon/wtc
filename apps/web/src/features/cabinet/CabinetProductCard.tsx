@@ -2,6 +2,20 @@ import Link from 'next/link';
 import { StatusPill, RiskWarningBanner, buttonClasses } from '@wtc/ui';
 import type { CabinetCardView } from '@wtc/cabinet';
 
+function readinessTone(status: CabinetCardView['readiness']['items'][number]['status']) {
+  if (status === 'ready') return 'ok';
+  if (status === 'attention') return 'warn';
+  if (status === 'blocked') return 'bad';
+  return 'neutral';
+}
+
+function readinessLabel(status: CabinetCardView['readiness']['items'][number]['status']) {
+  if (status === 'ready') return 'ready';
+  if (status === 'attention') return 'review';
+  if (status === 'blocked') return 'blocked';
+  return 'read-only';
+}
+
 /**
  * Presentational cabinet product card (RSC). Pure render of a @wtc/cabinet view-model — all decisions
  * (entitlement tone, setup state, next action, blockers) are made by the pure deriver, so this file
@@ -11,7 +25,7 @@ import type { CabinetCardView } from '@wtc/cabinet';
  * Five honest zones: entitlement pill · setup checklist · recent activity · blockers/warnings · next action.
  */
 export function CabinetProductCard({ card }: { card: CabinetCardView }) {
-  const { entitlement, setup, activity, nextAction, blockers, warnings } = card;
+  const { entitlement, setup, readiness, activity, nextAction, blockers, warnings } = card;
   const warnSeverity = warnings.maxSeverity === 'error' ? 'error' : 'warning';
   const blockerRef = blockers.find((b) => b.ref !== 'demo');
   const showRenew = card.reason === 'allowed' && entitlement.expiresInDays != null && entitlement.expiresInDays >= 0 && entitlement.expiresInDays <= 14;
@@ -46,6 +60,23 @@ export function CabinetProductCard({ card }: { card: CabinetCardView }) {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {readiness.items.length > 0 && (
+        <div className="wtc-stack" style={{ gap: 6 }}>
+          <div className="wtc-card-row">
+            <span className="k">Readiness</span>
+            <span className="v">{readiness.items.length} layers</span>
+          </div>
+          <div className="wtc-stack" style={{ gap: 6 }}>
+            {readiness.items.map((item) => (
+              <div key={item.label} className="wtc-spread" style={{ gap: 8, alignItems: 'flex-start' }}>
+                <span className="wtc-dim" style={{ fontSize: 12 }}>{item.label}: {item.value}</span>
+                <StatusPill tone={readinessTone(item.status)}>{readinessLabel(item.status)}</StatusPill>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

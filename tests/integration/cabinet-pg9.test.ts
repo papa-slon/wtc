@@ -21,6 +21,7 @@ const read = (rel: string) => readFileSync(join(WEB, rel), 'utf8');
 
 const LOADER = 'features/cabinet/loader.ts';
 const CARD = 'features/cabinet/CabinetProductCard.tsx';
+const CONFIG_ACTION_HANDLER = 'features/bots/config-action-handler.ts';
 const PAGE = 'app/(app)/app/page.tsx';
 const WIZARD = 'app/(app)/app/bots/[bot]/setup/page.tsx';
 const INDICATORS = 'app/(app)/app/indicators/page.tsx';
@@ -50,6 +51,24 @@ describe('PG9 — cabinet loader is fail-closed (gathers signals only when allow
   it('surfaces static B3/B4 blockers regardless of entitlement (honest product status)', () => {
     expect(src).toMatch(/liveAdapterBlocked\)\s*return 'B3'/);
     expect(src).toContain("return 'B4'");
+  });
+  it('separates exchange metadata from unavailable live ping in bot setup signals', () => {
+    expect(src).toContain('Exchange vault metadata confirmed - live ping not available yet');
+    expect(src).toContain('Add exchange key metadata - live ping not available yet');
+    expect(src).toContain('exchange metadata confirmed, live ping not run');
+    expect(src).toContain('Admin maps one active Legacy provider pub_id');
+  });
+  it('builds compact bot readiness rows only inside the allowed signal branch', () => {
+    expect(src).toContain('loadBotReadinessForUser');
+    expect(src).toContain('readinessItems');
+    expect(src).toMatch(/decision\.allowed\s*\?\s*await gatherSignals\(userId, code, decision\)\s*:\s*undefined/);
+  });
+  it('derives bot warning notices from the shared registry for both bot products', () => {
+    expect(src).toContain('knownWarningsForProduct');
+    expect(src).toContain('warningSummaryFromWarnings');
+    expect(src).toContain('signals.warnings = botWarningsSummary(code)');
+    expect(src).not.toContain('TORTILA_WARNINGS');
+    expect(src).not.toContain('tortilaWarningsSummary');
   });
   it('honestly reports demo vs postgres mode (never fabricates persistence)', () => {
     expect(src).toMatch(/backendMode === 'memory'/);
@@ -84,13 +103,18 @@ describe('PG9 — CabinetProductCard is presentational (no @wtc/ui → @wtc/cabi
 
 describe('PG9 — setup wizard server actions are CSRF-first and never render a secret', () => {
   const src = read(WIZARD);
+  const actionHandler = read(CONFIG_ACTION_HANDLER);
   it('every server action is CSRF-first (assertCsrf before requireUser)', () => {
     const serverActions = (src.match(/'use server'/g) ?? []).length;
     expect(serverActions).toBeGreaterThanOrEqual(2);
     // first awaited statement is assertCsrf, before any requireUser.
     expect(src.indexOf('await assertCsrf(formData)')).toBeLessThan(src.indexOf('await requireUser()'));
-    // each action re-checks entitlement (fail-closed) before acting.
+    // Direct exchange-key actions and delegated config actions both re-check entitlement before acting.
     expect((src.match(/if \(!access\.allowed\) return;/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    expect(src).toContain('handleSaveBotConfigAction(formData, setupActionRoutes(bot), botConfigActionDependencies');
+    expect(src).toContain('handleApplyBotPresetAction(formData, setupActionRoutes(bot), botConfigActionDependencies)');
+    expect(src).toContain('handleUseSystemDefaultBotConfigAction(formData, setupActionRoutes(bot), botConfigActionDependencies)');
+    expect(actionHandler).toMatch(/const access = await deps\.botAccessForUser\(user, meta\.code\);\s*if \(!access\.allowed\) return null;/);
   });
   it('exchange key + secret inputs are password type (no plaintext rendered)', () => {
     expect(src).toMatch(/name="apiKey"\s+type="password"/);
@@ -98,9 +122,10 @@ describe('PG9 — setup wizard server actions are CSRF-first and never render a 
     // never echo a submitted secret back as a defaultValue.
     expect(src).not.toMatch(/defaultValue=\{[^}]*apiSecret/);
   });
-  it('keeps live control disabled + honest B3 note', () => {
+  it('keeps live control disabled + legacy pub_id note', () => {
     expect(src).toContain('Live control stays disabled');
     expect(src).toContain('liveAdapterBlocked');
+    expect(src).toContain('Connected through existing Legacy pub_id');
   });
   it('uses the wizard stepper CSS (mobile-first, no page h-scroll)', () => {
     expect(src).toContain('wtc-wizard-steps');

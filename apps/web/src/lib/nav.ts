@@ -24,6 +24,7 @@ export const ADMIN_NAV: NavItem[] = [
   { href: '/admin/entitlements', label: 'Entitlements' },
   { href: '/admin/tradingview-access', label: 'TradingView Queue' },
   { href: '/admin/bots', label: 'Bots' },
+  { href: '/admin/bots/config', label: 'Bot Defaults' },
   { href: '/admin/terminal', label: 'Terminal' },
   { href: '/admin/education', label: 'Education' },
   { href: '/admin/support', label: 'Support' },

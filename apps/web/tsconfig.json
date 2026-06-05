@@ -27,6 +27,9 @@
     "incremental": true
   },
   "include": [
+    ".next-browser-verify/types/**/*.ts",
+    ".next-e2e-auth-db/types/**/*.ts",
+    ".next-e2e-auth-db/types/**/*.ts",
     ".next-e2e-auth/types/**/*.ts",
     ".next-e2e-db/types/**/*.ts",
     ".next-e2e/types/**/*.ts",
@@ -34,7 +37,7 @@
     "next-env.d.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
-    ".next-e2e-auth-db/types/**/*.ts"
+    ".next-e2e-admin-user-bots/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

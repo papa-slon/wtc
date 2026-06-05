@@ -1,5 +1,356 @@
 # STATUS
 
+_Latest update: 2026-06-05 - Phase 4.60 production-readiness hardening._
+The current WTC-side Legacy/Tortila bot workbench is substantially built locally: settings/setup quick paths, symbol/stage
+configuration, safe config export/review, metadata-only exchange-key readiness, launch-readiness maps, warning summaries,
+admin fleet views, selected-user read-only drilldowns, provider-scoped Legacy runtime evidence, Tortila statistics, Legacy
+operational statistics, worker-continuity gating surfaces, the `/app/bots` two-bot finish board, DB worker interval
+serialization, provider-aware trade-import idempotency, and safe Legacy source-proof visibility on user and selected-user
+admin surfaces. Phase 4.51 adds Tortila journal/source-confidence clarity and an explicit anti-loop verdict; Phase 4.52
+resolves the Tortila `/api/marks` contract contradiction; Phase 4.53 hardens Tortila Mark/uPnL unavailable display across
+user/admin surfaces; Phase 4.54 adds the opt-in managed DB browser lane for current-user Tortila route proof; Phase 4.55
+confirms no non-looping local implementation lane remains while managed/source/deploy env gates are absent; Phase 4.56
+confirms the strict blocked threshold is met with the same inputs still absent; Phase 4.57 uses an approved isolated local
+disposable Postgres lane to run the previously blocked managed DB gates; Phase 4.58 proves a WTC read-only Tortila journal
+source path through the worker with `/api/marks` blocked; Phase 4.59 adds a local Tortila journal read-token boundary and
+proves WTC can read through it without widening the endpoint allowlist; Phase 4.60 hardens production-like configuration,
+worker token-failure behavior, Tortila contract truth, CI env validation, and non-secret web liveness. This is still
+**not final production completion** and not a live-control release.
+
+Phase 4.60 closes the locally completable production-readiness gaps found by four read-only auditors. Production-like
+non-mock adapter mode now requires both `JOURNAL_READ_TOKEN` and an explicit `TORTILA_JOURNAL_URL`, so staging/production
+cannot silently rely on the loopback default. CI now validates a production-like `BOT_ADAPTER_MODE=read-only` env with
+ephemeral token and explicit journal URL. The worker has explicit wrong-token `401` fail-closed coverage proving no metric,
+position, or trade import and no token leakage. The Tortila contract now distinguishes local adjacent source token proof
+from still-unproven canonical-source landing and production firewall/deploy proof, and keeps `/api/overview` and
+`/api/marks` out of WTC ingestion. The web app now exposes `GET`/`HEAD /api/health` as a no-store, non-secret liveness
+route that returns only `{ ok: true, status: "ok", service: "wtc-web" }`; detailed DB/worker/bot evidence remains on
+authenticated admin and persisted health surfaces. Focused local proof is green: config env Vitest PASS, worker Tortila
+snapshot Vitest PASS, Tortila managed-runner static Vitest PASS, bot-adapter Vitest PASS, manual positive/negative
+production-like env probes PASS, web health route Vitest PASS, and focused Phase 4.60 pack PASS (`92` tests). Broader
+local release proof is now green: web/worker/root typecheck PASS, web production build PASS, lint PASS, secret scan PASS,
+governance PASS, `git diff --check` PASS, `npm run ci:local` completed through check/core, governance, lint, typecheck,
+secret scan, root Vitest (`133` files, `1134` passed, `10` skipped), and web build; `npm run accept:bots:local` PASS
+(`5` gates, `0` failing, rendered bot/admin E2E `65` passed, visual inventory `117` images); and
+`npm run accept:tortila:real-read:managed` PASS against a disposable local Postgres lane with `missingToken=401`,
+`wrongToken=401`, `bearerAllowedEndpoints=4`, `tokenHeader=ok`, `sourceAdapter=tortila`, `readState=ok`,
+`tradesImported=2`, `positionsSnapshotted=1`, and `marksRequests=0`. Production deploy, GitHub Actions for a committed
+exact tree, canonical Tortila repo landing, production firewall/authorized probes, Legacy closed-trade source,
+live-control audit, and monitoring/burn-in remain NOT RUN. Aggregate:
+[`docs/handoffs/20260605-1810-phase-460-production-readiness-hardening.md`](handoffs/20260605-1810-phase-460-production-readiness-hardening.md).
+
+Phase 4.59 hardens the local Tortila journal proof boundary. The adjacent non-git-backed `../bot_tortila` checkout now
+protects `/api/*` with `JOURNAL_READ_TOKEN` when configured, accepting `Authorization: Bearer ...` or
+`x-journal-read-token` and returning a normal 401 JSON response for missing/wrong tokens. The WTC managed runner now starts
+that journal with a proof token, verifies an explicit auth matrix (`missingToken=401`, `wrongToken=401`, bearer passes for
+`/api/health`, `/api/summary`, `/api/equity`, and `/api/trades/list`, token header passes for `/api/summary`), clears
+preflight request logs, then runs the worker proof and still verifies `sourceAdapter=tortila`, `readState=ok`,
+`tradesImported=2`, `positionsSnapshotted=1`, `marksRequests=0`, and no `/api/overview` request. Fresh proof is green:
+Tortila journal pytest PASS (`31` tests), runner static Vitest PASS, Tortila real-read managed PASS, focused safety Vitest
+PASS (`44` tests), worker/root typecheck PASS, lint PASS, secret scan PASS, governance PASS, and `git diff --check` PASS.
+Production auth/firewall rollout, authorized network probes, deploy/CI, monitoring, live-control audit, and Legacy source
+import remain separate NOT RUN gates. Aggregate:
+[`docs/handoffs/20260605-1730-phase-459-tortila-journal-auth-proof.md`](handoffs/20260605-1730-phase-459-tortila-journal-auth-proof.md).
+
+Phase 4.58 adds the next non-looping source proof after managed DB proof. The new opt-in
+`npm run accept:tortila:real-read:managed` runner creates a temporary Tortila SQLite journal fixture, starts the local
+Tortila journal behind an allowlist proxy, runs the WTC worker in `BOT_ADAPTER_MODE=read-only`, and verifies persisted WTC
+evidence: `sourceAdapter=tortila`, `readState=ok`, `tradesImported=2`, `positionsSnapshotted=1`, and `marksRequests=0`.
+Focused proof is green: runner static/preflight Vitest PASS, Tortila real-read managed PASS, focused safety Vitest PASS
+(`44` tests), worker/root typecheck PASS, lint PASS, secret scan PASS, governance PASS, and `git diff --check` PASS. The
+Legacy deep source auditor found no valid Legacy closed-trade source candidate, so Legacy import remains blocked by source
+proof, not local implementation. Aggregate:
+[`docs/handoffs/20260605-1600-phase-458-tortila-real-read-proof.md`](handoffs/20260605-1600-phase-458-tortila-real-read-proof.md).
+
+Phase 4.57 clears the local managed DB proof blocker. Three read-only agent handoffs were present before implementation
+continued. The operator-approved disposable local Postgres lane let the managed runners create/drop only `wtc_test_*`
+databases. Fresh proof is green: focused Vitest PASS (`18` tests across admin DB harness, worker continuity runner, and
+admin static coverage), `npm run e2e:admin-user-bots:db:managed:user-routes` PASS (`2` desktop/mobile tests),
+`npm run e2e:admin-user-bots:db:managed:matrix` PASS (`8` desktop/mobile tests across degraded-readable, fresh-green,
+stale, and missing scenarios), `npm run accept:worker:continuity:managed` PASS (`worker_status=ok`,
+`bot_continuity=ok`, `tortila=ok`, `legacy=ok`), root/web/worker typecheck PASS, lint PASS, web production build PASS,
+secret scan PASS, artifact marker scan PASS, governance PASS, and `git diff --check` PASS. The phase also fixed fresh
+verification defects: valid Tortila DB fixture config, stale static assertions, strict heading/form guards, mobile table
+overflow, admin recent-trade source visibility, and worker continuity SQL ordering on the real `created_at` column.
+Aggregate:
+[`docs/handoffs/20260605-1425-phase-4-57-managed-db-proof-unblocked.md`](handoffs/20260605-1425-phase-4-57-managed-db-proof-unblocked.md).
+
+Phase 4.56 is a read-only blocked-threshold confirmation. Three read-only agents were launched before docs edits and all
+converged on the same verdict: no safe, non-looping local Legacy/Tortila implementation lane remains without a managed DB,
+source, or deploy input. Fresh env presence check again showed `ADMIN_USER_BOTS_E2E_ADMIN_DATABASE_URL`,
+`WORKER_CONTINUITY_ADMIN_DATABASE_URL`, `TORTILA_JOURNAL_BASE_URL`, `TORTILA_JOURNAL_TOKEN`, `LEGACY_SOURCE_ARTIFACT`, and
+`DATABASE_URL` all `NOT_SET`. Fresh managed preflights again refused before DB work when the admin DB env vars were missing.
+Phase 4.56 therefore marks the active goal blocked by external inputs after the same managed/source/deploy blocker repeated
+for the third consecutive goal turn. Aggregate:
+[`docs/handoffs/20260605-1411-phase-4-56-blocked-threshold.md`](handoffs/20260605-1411-phase-4-56-blocked-threshold.md).
+
+Phase 4.55 is a verification-only/blocker audit. Three read-only agents inspected the current scripts, latest handoffs,
+security boundaries, and remaining gates; all agreed that local implementation should stop unless a managed env/source/deploy
+blocker is supplied or a fresh verification gate fails. Current shell env presence check showed `ADMIN_USER_BOTS_E2E_ADMIN_DATABASE_URL`,
+`WORKER_CONTINUITY_ADMIN_DATABASE_URL`, `TORTILA_JOURNAL_BASE_URL`, `TORTILA_JOURNAL_TOKEN`, `LEGACY_SOURCE_ARTIFACT`, and
+`DATABASE_URL` all `NOT_SET`. Local no-env regression proof passed: focused Vitest PASS (`60` tests across admin DB harness,
+bot read-safety, two-bot continuity, selected-user static, worker Tortila snapshot, and worker in-flight guard), web
+typecheck PASS, worker typecheck PASS, root typecheck PASS, `npm run accept:bots:continuity:contract` PASS, secret scan PASS,
+governance PASS, and `git diff --check` PASS. Managed runner preflights refused before DB as expected when the required env
+vars were missing. `npm run accept:bots:rendered` was attempted as an extra local browser regression but timed out at the
+operator-side 5-minute command limit; it is **NOT GREEN** and is not counted as proof. The stale local process chain from
+that timed-out run was closed and the fresh Playwright trace artifacts were removed. Aggregate:
+[`docs/handoffs/20260605-0630-phase-4-55-verification-blocker-audit.md`](handoffs/20260605-0630-phase-4-55-verification-blocker-audit.md).
+
+Phase 4.54 closes the local "no fixture lane" blocker for current-user Tortila Mark/uPnL DB proof without creating a second
+DB lifecycle. Three read-only auditors inspected the existing admin-user-bots managed DB harness, auth fixture, route
+rendering, and safety gates before edits; a fourth loop-regression auditor was launched after the operator asked whether the
+work was looping. The existing selected-user DB harness now supports `--user-routes`, keeps the same
+`ADMIN_USER_BOTS_E2E_ADMIN_DATABASE_URL` managed create/drop guard, switches only that opt-in lane to `BOT_ADAPTER_MODE=read-only`,
+and prepares a valid login-capable selected user plus hostile Tortila real-source Mark/uPnL values. The new
+`tests/e2e/user-bot-routes-db.spec.ts` logs in as that user, visits `/app/bots/tortila`,
+`/app/bots/tortila/positions`, and `/app/bots/statistics?bot=tortila`, intercepts requests to fail on `/api/marks`, and
+requires `N/A` plus neutral/no `wtc-up`/`wtc-down` styling while forbidding raw/secret/hostile values in visible text.
+Focused proof: Vitest PASS (`50` tests across admin DB harness, bot read-safety, two-bot continuity, and selected-user
+static coverage), web typecheck PASS, root typecheck PASS, runner help/unknown-arg/separate-lane preflights PASS, secret
+scan PASS, governance PASS, and `git diff --check` PASS. The actual managed DB browser run remains **NOT RUN** because
+`ADMIN_USER_BOTS_E2E_ADMIN_DATABASE_URL` is not supplied. Aggregate:
+[`docs/handoffs/20260605-0610-phase-4-54-user-route-db-proof-lane.md`](handoffs/20260605-0610-phase-4-54-user-route-db-proof-lane.md).
+
+Phase 4.53 closes the residual Tortila mark/uPnL placeholder risk without calling live sources. Three read-only auditors
+checked the user positions/dashboard/statistics paths, safety boundaries, and test coverage before edits. The user bot read
+model now carries `markUnavailable`, derived fail-closed from real Tortila position/metric/source adapters instead of
+page-level `adapterMode`; user dashboard, user positions, and user statistics render Tortila Mark/uPnL `N/A` with neutral
+styling and source-boundary copy. Selected-user admin metric-level Unrealized PnL now also renders `N/A` for Tortila, and
+the Tortila contract no longer lists marks timeout or marks integration tests as WTC gates. Focused proof: Vitest PASS (`56`
+tests across bot read-safety, two-bot continuity contract, admin selected-user static/DB harness, and worker Tortila
+snapshot), web typecheck PASS, root typecheck PASS, secret scan PASS, governance PASS, and `git diff --check` PASS.
+User-route managed DB browser proof remains NOT RUN because no throwaway DB/user-position env is supplied. Aggregate:
+[`docs/handoffs/20260605-0535-phase-4-53-tortila-mark-unavailable-user-admin.md`](handoffs/20260605-0535-phase-4-53-tortila-mark-unavailable-user-admin.md).
+
+Phase 4.52 makes `/api/marks` consistently excluded from WTC. Two read-only auditors confirmed the adapter/worker code
+already avoids calling `/api/marks`, but the Tortila contract still listed it as required/polled and selected-user admin
+could render Tortila mark/uPnL placeholders as real values. The contract now removes `/api/marks` from required endpoints
+and polling guidance while keeping it only as reference-only excluded documentation. Real Tortila worker snapshots no longer
+persist mark/uPnL placeholders when the adapter mode is `real`, and selected-user admin renders Tortila position Mark/uPnL
+as `N/A`. Focused proof: Vitest PASS (`32` tests across two-bot continuity contract, admin selected-user static/DB harness,
+statistics completion, and worker Tortila snapshot), web typecheck PASS, worker typecheck PASS, root typecheck PASS,
+secret scan PASS, governance PASS, and `git diff --check` PASS.
+Managed DB browser proof and real Tortila journal reads remain NOT RUN because env/auth gates are absent. Aggregate:
+[`docs/handoffs/20260605-0520-phase-4-52-tortila-marks-exclusion.md`](handoffs/20260605-0520-phase-4-52-tortila-marks-exclusion.md).
+
+Phase 4.51 stops further local Legacy source-proof churn and moves to a distinct Tortila gap. The independent loop audit
+verdict: Phase 4.40-4.46 reduced distinct local/no-env blockers, Phase 4.47-4.50 were one useful Legacy source-proof
+cluster, and another local Legacy source-proof/UI/test slice would be diminishing return unless it runs the managed DB gate,
+consumes real source evidence, or fixes a fresh failure. The Tortila slice added a user-facing `Tortila journal confidence`
+panel on `/app/bots/statistics?bot=tortila` and a Tortila-only selected-user admin `Journal import gate` row. Both state
+that Tortila analytics come from persisted WTC journal snapshots/user-instance rows, not live exchange probes or `/api/marks`.
+Focused proof: Vitest PASS (`33` tests across statistics completion, admin selected-user static/loader, DB e2e harness, and
+source-proof guard), web typecheck PASS, root typecheck PASS, and rendered Playwright PASS (`4` bot statistics tests across
+desktop/mobile on `E2E_PORT=3521`). Real Tortila journal/auth/worker continuity, managed DB matrix, and deploy/live-control
+remain separate NOT RUN gates. Aggregate:
+[`docs/handoffs/20260605-0510-phase-4-51-tortila-source-confidence-loop-check.md`](handoffs/20260605-0510-phase-4-51-tortila-source-confidence-loop-check.md).
+
+Phase 4.50 hardens the selected-user admin DB rendered acceptance for the Phase 4.49 source-proof row. Three read-only
+auditors checked UX placement, safety/leak gates, and test coverage. The guarded DB fixture now carries scoped and unscoped
+Legacy `closedTradeSourceProof` payloads with hostile raw/source/provider markers, and the DB Playwright spec now requires a
+Legacy-only `Source-proof gate` row inside the Legacy statistics coverage matrix with `mapper-ready proof`,
+`scoped worker metric`, the importer-replay caveat, and no buttons/links. The same spec forbids the unscoped proof marker,
+source-proof API-key/raw-payload/evidence/blocker markers, and raw provider/API-key markers from rendered text. The static
+DB e2e harness now pins the fixture, visible row-scoped assertions, and hidden-marker matrix. Focused proof: Vitest PASS
+(`32` tests across source-proof, admin selected-user static/loader, DB e2e harness, and statistics completion), web
+typecheck PASS, root typecheck PASS, secret scan PASS, governance PASS, and diff whitespace PASS. The managed DB browser
+matrix remains **NOT RUN** because `ADMIN_USER_BOTS_E2E_ADMIN_DATABASE_URL` is not supplied. Aggregate:
+[`docs/handoffs/20260605-0500-phase-4-50-admin-source-proof-rendered-acceptance.md`](handoffs/20260605-0500-phase-4-50-admin-source-proof-rendered-acceptance.md).
+
+Phase 4.49 closes the selected-user admin source-proof clarity gap without weakening raw payload boundaries. Three read-only
+auditors inspected UX placement, safety/provenance, and tests/gates before implementation. The Legacy closed-trade
+source-proof contract moved behind `@wtc/bot-adapters`, with a shared sanitizer that returns only `status`,
+`canImportClosedTrades`, sanitized `missingRequirements`, `blockerCount`, and provenance (`global_preflight` or
+`scoped_worker_metric`). The admin selected-user loader now prefers the latest provider-scoped Legacy metric
+`closedTradeSourceProof` summary when present, ignores newer unscoped rows, and falls back to the global preflight. The
+selected-user coverage matrix renders a Legacy-only `Source-proof gate` row and the existing closed-trade metric sublabel
+now explains source-proof blocking without adding edit controls. Focused proof: Vitest PASS (`26` tests across source-proof,
+admin selected-user static/loader, and statistics completion), web typecheck PASS, worker typecheck PASS, root typecheck
+PASS, secret scan PASS, governance PASS, and diff whitespace PASS. Final
+secret/governance/diff gates are recorded in:
+[`docs/handoffs/20260605-0490-phase-4-49-admin-selected-user-source-proof.md`](handoffs/20260605-0490-phase-4-49-admin-selected-user-source-proof.md).
+
+Phase 4.48 surfaces the Phase 4.47 Legacy closed-trade source-proof state on the user statistics path without exposing
+raw worker JSON, provider payloads, env names, secrets, or live-control affordances. Three read-only auditors checked the
+UX placement, safety boundary, and focused gate plan before edits. The user bot read model now projects only the safe
+`closedTradeSourceProof` summary (`status`, `canImportClosedTrades`, sanitized `missingRequirements`, and count), and
+`LegacyOperationsPanel` shows a `Source-proof gate` metric/pill plus blocked-source copy when the worker proves
+`blocked_no_source`. Legacy win rate, profit factor, realized PnL, fees, funding, and attribution remain pending until a
+real source artifact passes the proof contract. Focused proof: web typecheck PASS, Vitest PASS (`48` focused tests across
+statistics completion/read-safety/admin-user static/admin-health loader), and Playwright desktop PASS (`2` bot statistics
+tests on `E2E_PORT=3511`, with retained Tortila/Legacy screenshots). Final secret/governance/diff gates are recorded in:
+[`docs/handoffs/20260605-0410-phase-4-48-legacy-source-proof-visibility.md`](handoffs/20260605-0410-phase-4-48-legacy-source-proof-visibility.md).
+
+Phase 4.47 closes the next source-truth gap without faking Legacy performance history. Three read-only auditors re-checked
+the WTC destination, Legacy source candidates, and tests/gates; verdict: WTC can store provider-scoped closed trades, but no
+durable local Legacy source table/API proves stable closed-trade/fill identity, realized PnL, fees, funding, timestamps, or
+replay semantics. Added `apps/worker/src/legacy-closed-trade-source-proof.ts` as a fail-closed source-proof preflight and
+surface its safe `blocked_no_source` summary in Legacy worker metric raw JSON. Added
+`tests/integration/legacy-closed-trade-source-proof-static.test.ts` to prevent inactive orders, inactive slots,
+open-order reconciliation, position snapshots, Tortila/Turtle journal rows, or GTE journal rows from being treated as
+Legacy closed-trade proof. Focused proof: Vitest PASS (`47` tests across Legacy source-proof, Legacy live worker,
+provider worker, statistics completion, and bot read-safety tests), root typecheck PASS, worker typecheck PASS, web
+typecheck PASS. Final secret/governance/diff gates are recorded in the Phase 4.47 aggregate:
+[`docs/handoffs/20260605-0333-phase-4-47-legacy-source-proof-preflight.md`](handoffs/20260605-0333-phase-4-47-legacy-source-proof-preflight.md).
+
+Phase 4.46 closes the next no-env runtime-clarity gap in `apps/worker`: long-running DB worker intervals now go through a
+serialized in-flight guard so a slow DB tick cannot start a second overlapping DB tick. Overlap attempts return
+`skipped_in_flight` and log only constant/numeric telemetry; they do not write a fresh `target='worker'` health row, so
+continuity proof remains tied to completed worker ticks and existing stale-row safeguards. One-shot `dbTick()` /
+`tick-once.ts` acceptance remains direct. Focused proof: Vitest PASS (`14` tests across `worker-inflight-guard`,
+`worker-tortila-snapshot`, and `worker-continuity-acceptance-runner`), worker typecheck PASS, expanded worker safety Vitest
+PASS (`38` tests across `worker-inflight-guard`, `worker-health-mapping`, `two-bot-continuity-contract-static`,
+`child-output-redaction`, `legacy-live-worker-static`, and `worker-continuity-acceptance-runner`), root typecheck PASS,
+`npm run worker:smoke` PASS, `npm run accept:bots:continuity:contract` PASS (`2` gates), secret scan PASS, governance PASS
+(`0` errors; one known historical warning), and `git diff --check` PASS. Agents closed. Aggregate:
+[`docs/handoffs/20260605-0318-phase-4-46-worker-inflight-guard.md`](handoffs/20260605-0318-phase-4-46-worker-inflight-guard.md).
+
+Phase 4.45 closes the next no-env product-clarity gap on `/app/bots`: the first screen now has a **Two-bot finish board**
+for Tortila and Legacy with per-bot settings/setup/worker/statistics/live-control rows, direct CTAs into the existing
+settings, setup, dashboard, and statistics pages, and explicit no-live-control copy. The board is user-scoped through
+`loadBotReadinessForUser`, reuses the existing bot read model, includes operational worker rows only for the cabinet
+overview, and does not import admin loaders, call adapters, test exchange keys, print secrets, start/stop bots, or apply
+live config. Focused proof: Vitest PASS (`41` tests across `bot-read-safety-static`, `bot-readiness-builder`, and
+`bot-statistics-completion`), root typecheck PASS, focused rendered Playwright smoke PASS (`2` desktop/mobile tests on
+`E2E_PORT=3492`) after repairing a strict selector collision in the new setup-review assertion, in-app Browser DOM sanity
+PASS on `http://127.0.0.1:3493/app/bots`, secret scan PASS, governance PASS (`0` errors; one known historical warning),
+and `git diff --check` PASS. Aggregate:
+[`docs/handoffs/20260605-0305-phase-4-45-two-bot-finish-board.md`](handoffs/20260605-0305-phase-4-45-two-bot-finish-board.md).
+
+Phase 4.44 closed the next no-env runtime-safety gap on `/admin/bots`: the admin fleet page no longer treats an old
+`target='worker'` `ok` row as current continuity proof. `AdminBotHealthResult.workerBotContinuity` now includes freshness,
+row age, and the admin stale window; the loader computes stale/fresh with a deterministic `now` option; the admin worker
+pill, acceptance gate row, evidence ladder, and Worker bot continuity card all show age/freshness and keep stale rows in
+attention instead of green. Setup/settings remain intentionally free of operational worker rows. Focused proof: Vitest PASS
+(`45` tests across `admin-bot-health-loader`, `bot-read-safety-static`, and `bot-readiness-builder`), root typecheck PASS,
+secret scan PASS, governance PASS, and `git diff --check` PASS. Aggregate:
+[`docs/handoffs/20260605-0215-phase-4-44-admin-worker-continuity-freshness.md`](handoffs/20260605-0215-phase-4-44-admin-worker-continuity-freshness.md).
+
+Phase 4.43 closed the no-env admin read-only-label UX gap. `/admin/users` and `/admin/bots` entry points now use explicit
+read-only action copy (`Open read-only bot view`, `Open read-only Tortila view`, `Open read-only Legacy view`, `Open
+read-only user view`, and `Read-only bot view`), while unmapped Legacy rows remain `Open fleet diagnostics`. The selected-user
+Legacy mapping gap now points to a separate audited provider-mapping workflow, and `BOT_CONTROL_SAFETY_MODEL` now says current
+admin/user bot evidence pages show no runtime-control buttons until a separately audited affordance exists. Focused proof:
+static Vitest PASS (`80` tests), PG8 mobile admin PASS (`1` passed, `1` skipped on `E2E_PORT=3490`), smoke rendered PASS
+(`34` passed on `E2E_PORT=3490`), root typecheck PASS, secret scan PASS, and `git diff --check` PASS. Aggregate:
+[`docs/handoffs/20260605-0145-phase-4-43-admin-readonly-labels.md`](handoffs/20260605-0145-phase-4-43-admin-readonly-labels.md).
+
+Phase 4.42 adds a no-env two-bot continuity contract fixture and gate. `npm run accept:bots:continuity:contract` now runs a
+focused `worker-continuity-fixture` plus `worker-smoke` under the same scrubbed local mock/no-live env banner used by bot
+admin acceptance. The fixture proves the product contract that Tortila + Legacy are green only when both runtime outcomes
+are `ok`; setup-needed stays attention/not-configured; malformed/unreachable becomes error; warning truth persists; Legacy
+runtime snapshots do not unlock win rate, PF, realized PnL, fees, funding, or closed-trade attribution; and live-control /
+provider-probe boundaries stay disabled. Focused result: `worker-continuity-fixture` PASS (`7` tests) and `worker-smoke`
+PASS with `[worker:tick] memory demo tick OK`. The updated canonical `npm run accept:bots:local` runner also passed with
+5 gates: `ci:local`, `worker-smoke`, `worker-continuity-fixture`, `bot-admin-e2e` (`65 passed` on `E2E_PORT=3470`), and
+visual inventory (`107` image files). Aggregate:
+[`docs/handoffs/20260605-0110-phase-4-42-two-bot-continuity-contract.md`](handoffs/20260605-0110-phase-4-42-two-bot-continuity-contract.md).
+
+Phase 4.41 closed the next no-env local completion gap. `/admin/bots` now has a first-screen **Bot completion gate map** that
+shows the current acceptance lanes, blocked env/source/live gates, safe next commands, and env presence only
+(`SET`/`NOT_SET`, values hidden). The canonical `npm run accept:bots:local` runner now includes a `worker-smoke` child gate
+between `ci:local` and rendered bot/admin E2E, so local proof exercises the no-env worker memory tick path before browser
+acceptance. Fresh result: `ci:local` PASS, `worker-smoke` PASS with `[worker:tick] memory demo tick OK`, `bot-admin-e2e`
+PASS with `65 passed` on `E2E_PORT=3470`, and visual inventory PASS with `107` image files. Aggregate:
+[`docs/handoffs/20260605-0015-phase-4-41-admin-gate-map-worker-smoke.md`](handoffs/20260605-0015-phase-4-41-admin-gate-map-worker-smoke.md).
+
+Phase 4.40 closed the local bot/admin acceptance-runner safety gap found by the tests and security agents. The
+`bot-admin-local` and `bot-admin-e2e` modes now refuse managed/admin/real-Postgres env before any child gate starts, run
+every child gate under the same scrubbed local mock/no-live env, and redact HMAC-shaped secret assignments in retained child
+output. The canonical `npm run accept:bots:local` runner passed after hardening: `ci:local` PASS, `bot-admin-e2e` PASS with
+`65 passed` on `E2E_PORT=3470`, and visual inventory PASS with `107` image files. Aggregate:
+[`docs/handoffs/20260604-2335-phase-4-40-bot-admin-runner-safety-hardening.md`](handoffs/20260604-2335-phase-4-40-bot-admin-runner-safety-hardening.md).
+
+Phase 4.39 deepened the Legacy closed-trade source audit with three read-only agents. Verdict: WTC destination/repository
+layer is ready for provider-scoped Legacy closed trades if a real source is found, but no durable local Legacy
+closed-trade/fill source was proven. Legacy source code stores active order/slot/settings state and reacts to fills, but it
+does not persist stable closed-trade/fill identity, realized PnL, fees, funding, or trade-level opened/closed timestamps.
+Turtle/Tortila journal tables are a different product path and are not Legacy proof. Aggregate:
+[`docs/handoffs/20260604-2245-phase-4-39-legacy-closed-trade-source-proof.md`](handoffs/20260604-2245-phase-4-39-legacy-closed-trade-source-proof.md).
+
+Fresh local proof in this continuation: Phase 4.53 Tortila Mark/uPnL unavailable hardening passed focused Vitest (`56`
+tests across bot read-safety, two-bot continuity contract, admin selected-user static/DB harness, and worker Tortila
+snapshot coverage), web typecheck, root typecheck, secret scan, governance, and `git diff --check`. Phase 4.52 Tortila `/api/marks` exclusion passed focused Vitest (`32` tests), web
+typecheck, worker typecheck, root typecheck, secret scan, governance, and `git diff --check`. Phase 4.51 Tortila source-confidence passed focused Vitest (`33` tests),
+web typecheck, root typecheck, and bot-statistics Playwright (`4` desktop/mobile tests on `E2E_PORT=3521`). Phase 4.50 admin selected-user Legacy source-proof rendered acceptance hardening
+passed focused Vitest (`32` tests across source-proof/static/loader/DB harness/statistics coverage), web typecheck, root
+typecheck, secret scan, governance, and `git diff --check`. Phase 4.49 admin selected-user Legacy source-proof hydration
+passed focused Vitest (`26` tests across source-proof/static/loader/statistics coverage), web typecheck, worker typecheck,
+root typecheck, secret scan, governance, and `git diff --check`. Phase 4.48 Legacy source-proof visibility passed web typecheck, focused Vitest
+(`48` tests across user statistics/read-safety/admin-user/admin-health coverage), and dedicated bot-statistics Playwright
+desktop (`2` tests on `E2E_PORT=3511`) with retained screenshots. Phase 4.46 worker in-flight proof passed Vitest (`14` focused tests and `38`
+expanded worker safety tests), worker typecheck, root typecheck, `worker:smoke`, `accept:bots:continuity:contract`,
+secret scan, governance, and `git diff --check`.
+Phase 4.45 focused bot-list proof passed Vitest (`41` tests), root typecheck,
+focused rendered smoke (`2` desktop/mobile tests), in-app Browser DOM sanity, secret scan, governance, and
+`git diff --check`. `npm run accept:bots:local` passed after the Phase 4.42 fixture addition
+(`ci:local` PASS, `worker-smoke` PASS, `worker-continuity-fixture` PASS, `bot-admin-e2e` PASS with `65 passed`, and visual
+inventory PASS with `107` image files). `npm run accept:bots:continuity:contract` also passed after the Phase 4.42 fixture
+addition (`worker-continuity-fixture` PASS and `worker-smoke` PASS). Phase 4.44 focused worker freshness proof passed
+Vitest (`45` tests), root typecheck, secret scan, governance, and `git diff --check`. Phase 4.43 focused admin label proof passed static Vitest (`80`
+tests), PG8 mobile admin (`1` passed, `1` skipped), smoke rendered (`34` passed), root typecheck, secret scan, and
+`git diff --check`. The faster `npm run accept:bots:rendered` runner also
+passed earlier after the env scrub
+(`65 passed`; visual inventory `107` image files). Earlier focused bot rendered proof passed (`26 passed` desktop/mobile),
+the expanded no-live-DB rendered
+pack passed with dedicated bot statistics coverage, root `npm test` passed after isolated-PGlite timeout hardening (`126`
+files, `1090` passed, `10` skipped), and formal retained visual evidence passes with `107` reviewed screenshot artifacts:
+[`logs/retained-visual-artifacts/20260604-2055-bot-admin-local/visual-review.json`](../logs/retained-visual-artifacts/20260604-2055-bot-admin-local/visual-review.json).
+Recent local gates also passed for lint, root typecheck, worker/web typecheck, web build, `git diff --check`,
+`npm run secret:scan`, governance, and the consolidated `npm run ci:local` pipeline. Current local aggregates:
+[`docs/handoffs/20260604-2010-phase-4-35-bot-statistics-rendered-proof.md`](handoffs/20260604-2010-phase-4-35-bot-statistics-rendered-proof.md),
+[`docs/handoffs/20260604-2035-phase-4-36-root-vitest-timeout-hardening.md`](handoffs/20260604-2035-phase-4-36-root-vitest-timeout-hardening.md),
+[`docs/handoffs/20260604-2055-phase-4-37-managed-env-visual-evidence.md`](handoffs/20260604-2055-phase-4-37-managed-env-visual-evidence.md),
+[`docs/handoffs/20260604-2145-phase-4-38-local-bot-admin-acceptance-runner.md`](handoffs/20260604-2145-phase-4-38-local-bot-admin-acceptance-runner.md),
+[`docs/handoffs/20260604-2335-phase-4-40-bot-admin-runner-safety-hardening.md`](handoffs/20260604-2335-phase-4-40-bot-admin-runner-safety-hardening.md),
+[`docs/handoffs/20260605-0015-phase-4-41-admin-gate-map-worker-smoke.md`](handoffs/20260605-0015-phase-4-41-admin-gate-map-worker-smoke.md),
+[`docs/handoffs/20260605-0110-phase-4-42-two-bot-continuity-contract.md`](handoffs/20260605-0110-phase-4-42-two-bot-continuity-contract.md),
+[`docs/handoffs/20260605-0145-phase-4-43-admin-readonly-labels.md`](handoffs/20260605-0145-phase-4-43-admin-readonly-labels.md),
+[`docs/handoffs/20260605-0215-phase-4-44-admin-worker-continuity-freshness.md`](handoffs/20260605-0215-phase-4-44-admin-worker-continuity-freshness.md),
+[`docs/handoffs/20260605-0305-phase-4-45-two-bot-finish-board.md`](handoffs/20260605-0305-phase-4-45-two-bot-finish-board.md),
+[`docs/handoffs/20260605-0318-phase-4-46-worker-inflight-guard.md`](handoffs/20260605-0318-phase-4-46-worker-inflight-guard.md),
+[`docs/handoffs/20260605-0333-phase-4-47-legacy-source-proof-preflight.md`](handoffs/20260605-0333-phase-4-47-legacy-source-proof-preflight.md),
+[`docs/handoffs/20260605-0410-phase-4-48-legacy-source-proof-visibility.md`](handoffs/20260605-0410-phase-4-48-legacy-source-proof-visibility.md),
+[`docs/handoffs/20260605-0490-phase-4-49-admin-selected-user-source-proof.md`](handoffs/20260605-0490-phase-4-49-admin-selected-user-source-proof.md),
+[`docs/handoffs/20260605-0500-phase-4-50-admin-source-proof-rendered-acceptance.md`](handoffs/20260605-0500-phase-4-50-admin-source-proof-rendered-acceptance.md),
+[`docs/handoffs/20260605-0510-phase-4-51-tortila-source-confidence-loop-check.md`](handoffs/20260605-0510-phase-4-51-tortila-source-confidence-loop-check.md),
+and [`docs/handoffs/20260605-0520-phase-4-52-tortila-marks-exclusion.md`](handoffs/20260605-0520-phase-4-52-tortila-marks-exclusion.md).
+
+Still **NOT GREEN / NOT RUN**: managed worker continuity tuple proof (`WORKER_CONTINUITY_ADMIN_DATABASE_URL` not supplied),
+admin selected-user DB Playwright matrix (`ADMIN_USER_BOTS_E2E_ADMIN_DATABASE_URL` not supplied; Phase 4.50 has the fixture
+and assertions ready), real Tortila journal read-only proof (`TORTILA_JOURNAL_BASE_URL`/token not supplied and journal
+auth/firewall unresolved), live exchange ping, live bot start/stop/apply-config, live provider/exchange probes,
+deploy/production monitoring, and GitHub CI for the current dirty working tree. Legacy closed-trade performance history is
+**blocked by source evidence**: WTC can store provider-scoped
+imported trades, but the local Legacy source does not prove a durable closed-trade/fill table or API with stable trade id,
+realized PnL, fees, funding, and close timestamps. Legacy win rate, profit factor, realized PnL, and attribution must remain
+pending until that source is proven and imported through the provider-scoped contract.
+
+Anti-loop rule from Phase 4.51: do not spend another local phase on Legacy source-proof copy, static tests, or dashboard rows
+unless a managed DB run fails or a real source artifact is provided. Next progress should clear or honestly block one of the
+env/source/deploy buckets.
+
+_Latest update: 2026-06-03 - Phase 3.67 Bot analytics/settings canary deploy._
+The WTC HTTPS canary now runs the richer bot analytics/settings release `20260603-1246-8075523-bot-analytics`.
+This deploy touched only `wtc-ecosystem-canary`; it preserved the existing nginx route, kept `wtc-ecosystem-worker` and
+`wtc-ecosystem-preview` running, and did not mutate live bot code/config/services. Legacy settings are now a WTC-side
+reference/export matrix with a saved admin `v1` reference config; no live Legacy apply or authenticated Legacy API path is
+enabled. Tortila statistics now include the richer advanced analytics panels while Tortila real data remains DB-backed via
+the existing read-only worker path.
+
+Verified: local `npm run ci:local` passed; server web production build passed; temporary pre-switch smoke on
+`127.0.0.1:8311` passed; public canary `/products/tortila` and `/login` returned `200`; unauthenticated `/app/bots`
+redirected to `/login`; authenticated browser checks passed for Legacy settings, Legacy statistics, Tortila statistics, and
+Tortila dashboard; browser console errors were empty. Existing bot services and `wtc-bot-api-firewall.service` remained
+active, server-local bot ports stayed open, and external `8000/8080` probes stayed closed. Aggregate:
+[`docs/handoffs/20260603-1225-phase-3-67-bot-analytics-settings-canary-deploy.md`](handoffs/20260603-1225-phase-3-67-bot-analytics-settings-canary-deploy.md).
+
+This is **BOT ANALYTICS/SETTINGS CANARY DEPLOYED**, not final full production. Still **NOT GREEN**: Legacy live adapter,
+live bot controls, provider-side journal bearer-auth acceptance, Stripe live/test checkout acceptance, Axioma live bridge,
+live LMS object-store/scanner, branded-domain DNS/TLS, production burn-in/alerting, GitHub CI for this uncommitted working
+tree, and final monitoring acceptance.
+
 _Latest update: 2026-06-03 - Phase 3.65 Tortila DB-backed read-only canary._
 Tortila is now connected to the production canary with real read-only data through WTC Postgres snapshots, not mock data and
 not direct journal reads from user page renders. Current accepted shape: Tortila journal -> `wtc-ecosystem-worker` ->
