@@ -1,6 +1,6 @@
 # Credential Acceptance Blockers Current
 
-Last updated: 2026-06-06, Phase 4.69 source-gate verifier update.
+Last updated: 2026-06-06, Phase 4.70 Tortila canonical source landing.
 
 This packet is the current operator-facing blocker list after Phase 4.62. The LMS DB browser managed gate, active managed
 real-Postgres proof, local managed throwaway audit-role proof, local site-readiness proof, and local auth DB-backed
@@ -50,8 +50,10 @@ Observed in this session:
   #8 and post-merge `main` CI passed. DB migrate was checked green with no new migration beyond the prior `0021` state. It
   did not restart live bot services, nginx, PostgreSQL, or Docker, and did not run live bot control or exchange probes.
 - Phase 4.69 added `npm run verify:tortila:canonical-source` and strict `TORTILA_CANONICAL_SOURCE_REQUIRED=1` support for
-  `accept:tortila:real-read:managed`. The adjacent `../bot_tortila` source fails this verifier by design because it is not
-  git-backed; canonical Tortila source remains NOT RUN until a clean git-backed source repo/path is supplied.
+  `accept:tortila:real-read:managed`.
+- Phase 4.70 created a clean private canonical Tortila source repo (`papa-slon/tortila-canonical-source`, branch `main`,
+  commit `f53a774c3bc4c14653906bd2f778a515c565cf12`) and made bot pytest/ruff, export secret scan, and WTC canonical
+  verifier pass. Strict WTC managed real-read proof remains NOT RUN until a disposable Postgres admin URL is available.
 
 Previously checked env vars without printing values in Phase 3.58; remaining gates still require these names unless a later
 phase supplies them:
@@ -103,7 +105,7 @@ AXIOMA_BRIDGE_API_TOKEN=NOT_SET
 | Current WTC canary server smoke | Existing HTTPS canary smoke | Operator-approved SSH target, existing canary domain, rollback release, DB backup | **RUN/PASS in Phase 4.68** - public `/api/health` 200, home/login/products 200, protected bot/admin routes redirect to login, worker/Tortila/Legacy health ok | Cleared for WTC canary release `3aff273`; continue monitoring and rerun after future deploys |
 | GitHub CI for current WTC release | GitHub Actions workflow on PR and `main` push | Git-backed repo, PR/push to GitHub | **RUN/PASS in Phase 4.68** - PR #8 and post-merge `main` CI run `27038370453` both passed `gates` and `e2e` | Cleared for merge commit `3aff2738815562c18f5623e9686c4c2f4ba2ef3a`; rerun for every future release commit |
 | Current WTC canary deploy/server checks | Approved canary deploy checklist | Operator-approved SSH target, existing server secrets, rollback release, DB backup | **RUN/PASS in Phase 4.68** - new release mounted into `wtc-ecosystem-canary` and `wtc-ecosystem-worker`; bot services stayed active with unchanged PIDs | Cleared for existing WTC canary only; full branded production/live provider rollout remains separate |
-| Canonical Tortila source landing | Source-control proof plus bot-side tests | Canonical git repo/path/remote/branch or source bundle | **PARTIAL tooling in Phase 4.69; NOT RUN for a canonical source** - adjacent `bot_tortila` patch exists but directory is not git-backed and fails `verify:tortila:canonical-source` by design | `npm run verify:tortila:canonical-source` passes against canonical source; token middleware/tests verified there; bot pytest/ruff pass; WTC managed read proof rerun with `TORTILA_CANONICAL_SOURCE_REQUIRED=1` |
+| Canonical Tortila source landing | Source-control proof plus bot-side tests | Canonical git repo/path/remote/branch or source bundle | **RUN/PASS in Phase 4.70 for source-control/verifier** - private repo `papa-slon/tortila-canonical-source`, branch `main`, commit `f53a774c3bc4c14653906bd2f778a515c565cf12`; bot pytest/ruff PASS; export secret scan PASS; WTC verifier PASS | Rerun WTC managed read proof with `TORTILA_CANONICAL_SOURCE_REQUIRED=1` once a disposable Postgres admin URL is available; then handle runtime deploy/auth/firewall separately |
 | Legacy closed-trade source proof | Source artifact/API/table contract | Provider/pub_id scope, stable id, economics, timestamps, replay, raw allowlist | **NOT RUN** - no valid upstream Legacy source found | Source-proof preflight reports `ready_for_mapper`; fixture-backed mapper/import tests pass without secret/raw payload leakage |
 
 ## Safe Run Order When Credentials Arrive
@@ -122,5 +124,6 @@ browser acceptance; Phase 3.60 cleared local active managed real-PG proof; Phase
 append-only audit proof, not the production/preview intended-role proof; Phase 3.62 cleared local demo/mock site-readiness;
 Phase 3.63 cleared local production-readiness harness gaps and DB-backed auth browser acceptance; Phase 4.61 cleared
 GitHub CI for the merged WTC release commit; Phase 4.62 clarified the missing deploy/source packets; Phase 4.68 clears the
-existing WTC canary deploy for `3aff273`; Phase 4.69 adds a fail-closed Tortila canonical-source verifier. None of those
-clear full branded/live-provider production readiness.
+existing WTC canary deploy for `3aff273`; Phase 4.69 adds a fail-closed Tortila canonical-source verifier; Phase 4.70
+clears the Tortila canonical source-control/verifier gate. None of those clear full branded/live-provider production
+readiness.
