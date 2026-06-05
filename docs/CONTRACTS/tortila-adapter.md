@@ -8,7 +8,7 @@
   AND `TORTILA_JOURNAL_URL` is set; production-like environments also require `JOURNAL_READ_TOKEN`.
   Legacy direct HTTP/control adapter remains blocked; Legacy
   visibility now uses a separate worker DB snapshot path by provider `pub_id`.
-**Last updated:** 2026-06-03
+**Last updated:** 2026-06-06
 
 Related: [BOT_INTEGRATION_PLAN.md](../BOT_INTEGRATION_PLAN.md),
 [BOT_CONTROL_SAFETY_MODEL.md](../BOT_CONTROL_SAFETY_MODEL.md),
@@ -37,9 +37,13 @@ The journal itself is read-only (reads from the same SQLite DB the bot writes â€
 and has native pytest coverage. The WTC managed runner proves missing/wrong/correct-token behavior
 before worker ingestion.
 
+**Current canonical source proof (Phase 4.70):** WTC now has a clean private git-backed source packet at
+`C:\Users\maxib\GTE BOT\tortila_canonical_source`, remote `https://github.com/papa-slon/tortila-canonical-source`,
+branch `main`, commit `f53a774c3bc4c14653906bd2f778a515c565cf12`. It includes the journal token middleware/tests and
+passes bot `pytest`, bot `ruff`, WTC secret scan against the export, and
+`TORTILA_CANONICAL_SOURCE_ROOT=<canonical checkout> npm run verify:tortila:canonical-source`.
+
 **Required before production WTC deployment:**
-- Land or confirm the same API-token middleware in the canonical git-backed Tortila source.
-- Prove that source with `TORTILA_CANONICAL_SOURCE_ROOT=<canonical git checkout> npm run verify:tortila:canonical-source`.
 - Rerun WTC managed proof with `TORTILA_CANONICAL_SOURCE_REQUIRED=1` and
   `TORTILA_REAL_READ_SOURCE_ROOT=<canonical git checkout>` so the runner cannot silently fall back to adjacent
   `../bot_tortila`.
@@ -548,6 +552,6 @@ They are not blocking for Phase 0 (mock) but are required before read-only produ
 | Change | Priority | Description |
 |---|---|---|
 | `GET /api/config` JSON endpoint | P1 | Expose current bot config as JSON so WTC adapter doesn't need to parse HTML or read SQLite directly |
-| Canonical API token auth on journal | P0 (before prod) | Local adjacent source proof exists; land/confirm `Authorization: Bearer` token validation middleware in the canonical bot source |
+| Canonical API token auth on journal | P0 (before prod) | Phase 4.70 private canonical source packet passes bot pytest/ruff and WTC canonical verifier; runtime deploy/token/firewall proof still required |
 | `tp_reconcile_ok` state key | P0 (clears warning) | Journal exposes a state key when TP reconciliation is implemented, allowing WTC to clear the P0 warning |
 | Journal port firewall restriction | P0 (before prod) | Restrict `:8080` to WTC server IP only |

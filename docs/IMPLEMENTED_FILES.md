@@ -1,5 +1,18 @@
 # Implemented files (current code vs. target contracts)
 
+## 2026-06-06 Phase 4.70 Tortila canonical source landing
+- External private source packet `C:\Users\maxib\GTE BOT\tortila_canonical_source` / `papa-slon/tortila-canonical-source`
+  (**new**) - clean git-backed Tortila/Turtle source authority, branch `main`, commit
+  `f53a774c3bc4c14653906bd2f778a515c565cf12`, built from the adjacent patched source without runtime `.env`, sqlite
+  sidecars, logs, caches, old-source dumps, audit scratch files, local agent memory, market data, or result artifacts.
+- `docs/handoffs/20260606-0542-phase-470-tortila-canonical-source-landing.md` plus three read-only agent handoffs -
+  records the canonical source landing, Legacy no-source reconfirmation, gates run/not run, and next strict managed proof
+  requirement.
+- `docs/STATUS.md`, `docs/NEXT_ACTIONS.md`, `docs/CONTRACTS/tortila-adapter.md`,
+  `docs/PRODUCTION_BLOCKERS_CURRENT.md`, and `docs/CREDENTIAL_ACCEPTANCE_BLOCKERS_CURRENT.md` - current source truth now
+  says Tortila source-control/verifier is green while strict managed proof, runtime deploy/auth/firewall, Legacy realized
+  source/import, and live controls remain blocked.
+
 ## 2026-06-06 Phase 4.69 Tortila canonical source verifier
 - `scripts/tortila-canonical-source-verifier.mjs` (**new**) - fail-closed local/read-only verifier for a canonical
   Tortila/Turtle source packet. It requires a clean git root, full HEAD, named branch, remote name, required journal files,

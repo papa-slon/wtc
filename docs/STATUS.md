@@ -1,6 +1,21 @@
 # STATUS
 
-_Latest update: 2026-06-06 - Phase 4.69 Tortila canonical source verifier._
+_Latest update: 2026-06-06 - Phase 4.70 Tortila canonical source landing._
+Phase 4.70 creates a clean, private, git-backed Tortila/Turtle source packet from the adjacent patched working source
+without mutating live bot runtime. New source checkout: `C:\Users\maxib\GTE BOT\tortila_canonical_source`; private remote:
+`https://github.com/papa-slon/tortila-canonical-source`; branch `main`; commit
+`f53a774c3bc4c14653906bd2f778a515c565cf12`. The packet excludes runtime `.env`, sqlite DB/WAL/SHM files, logs, caches,
+old-source dumps, audit scratch files, local agent memory, market data downloads, and result artifacts. Verification is
+green: forbidden-artifact export scan PASS, WTC secretlint against the export PASS, bot `python -m pytest -q` PASS, bot
+`python -m ruff check src tests` PASS, and WTC
+`TORTILA_CANONICAL_SOURCE_ROOT=<canonical checkout> npm run verify:tortila:canonical-source` PASS. Three read-only agents
+were launched before edits and closed. Aggregate:
+[`docs/handoffs/20260606-0542-phase-470-tortila-canonical-source-landing.md`](handoffs/20260606-0542-phase-470-tortila-canonical-source-landing.md).
+This clears the canonical source-control/verifier gate for Tortila. It still does not deploy that source to the server
+runtime, provision production `JOURNAL_READ_TOKEN`, prove firewall/private-network posture, run strict WTC managed real-read
+proof, clear Legacy realized closed-trade source/import, enable live controls, or complete full branded production.
+
+_Previous update: 2026-06-06 - Phase 4.69 Tortila canonical source verifier._
 Phase 4.69 adds a strict WTC-side canonical Tortila source verifier after the canary deploy. The new
 `npm run verify:tortila:canonical-source` command refuses non-git adjacent/runtime source folders and requires a clean
 git repo root, full HEAD, named branch, at least one remote name, `pyproject.toml`, `src/turtle_bot/journal/app.py`,
