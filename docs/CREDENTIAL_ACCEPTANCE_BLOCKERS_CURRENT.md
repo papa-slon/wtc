@@ -1,6 +1,6 @@
 # Credential Acceptance Blockers Current
 
-Last updated: 2026-06-06, Phase 4.70 Tortila canonical source landing.
+Last updated: 2026-06-06, Phase 4.71 Tortila strict managed proof.
 
 This packet is the current operator-facing blocker list after Phase 4.62. The LMS DB browser managed gate, active managed
 real-Postgres proof, local managed throwaway audit-role proof, local site-readiness proof, and local auth DB-backed
@@ -53,7 +53,11 @@ Observed in this session:
   `accept:tortila:real-read:managed`.
 - Phase 4.70 created a clean private canonical Tortila source repo (`papa-slon/tortila-canonical-source`, branch `main`,
   commit `f53a774c3bc4c14653906bd2f778a515c565cf12`) and made bot pytest/ruff, export secret scan, and WTC canonical
-  verifier pass. Strict WTC managed real-read proof remains NOT RUN until a disposable Postgres admin URL is available.
+  verifier pass.
+- Phase 4.71 ran strict WTC managed real-read proof against that canonical source with a separate disposable local
+  PostgreSQL 17 cluster on loopback. The runner verified token matrix and WTC persisted proof (`sourceAdapter=tortila`,
+  `readState=ok`, `tradesImported=2`, `positionsSnapshotted=1`, `marksRequests=0`), dropped the throwaway DB, and external
+  cleanup verified leftover DB count `0`, temp cluster stopped, temp directory removed, and temp port closed.
 
 Previously checked env vars without printing values in Phase 3.58; remaining gates still require these names unless a later
 phase supplies them:
@@ -105,7 +109,8 @@ AXIOMA_BRIDGE_API_TOKEN=NOT_SET
 | Current WTC canary server smoke | Existing HTTPS canary smoke | Operator-approved SSH target, existing canary domain, rollback release, DB backup | **RUN/PASS in Phase 4.68** - public `/api/health` 200, home/login/products 200, protected bot/admin routes redirect to login, worker/Tortila/Legacy health ok | Cleared for WTC canary release `3aff273`; continue monitoring and rerun after future deploys |
 | GitHub CI for current WTC release | GitHub Actions workflow on PR and `main` push | Git-backed repo, PR/push to GitHub | **RUN/PASS in Phase 4.68** - PR #8 and post-merge `main` CI run `27038370453` both passed `gates` and `e2e` | Cleared for merge commit `3aff2738815562c18f5623e9686c4c2f4ba2ef3a`; rerun for every future release commit |
 | Current WTC canary deploy/server checks | Approved canary deploy checklist | Operator-approved SSH target, existing server secrets, rollback release, DB backup | **RUN/PASS in Phase 4.68** - new release mounted into `wtc-ecosystem-canary` and `wtc-ecosystem-worker`; bot services stayed active with unchanged PIDs | Cleared for existing WTC canary only; full branded production/live provider rollout remains separate |
-| Canonical Tortila source landing | Source-control proof plus bot-side tests | Canonical git repo/path/remote/branch or source bundle | **RUN/PASS in Phase 4.70 for source-control/verifier** - private repo `papa-slon/tortila-canonical-source`, branch `main`, commit `f53a774c3bc4c14653906bd2f778a515c565cf12`; bot pytest/ruff PASS; export secret scan PASS; WTC verifier PASS | Rerun WTC managed read proof with `TORTILA_CANONICAL_SOURCE_REQUIRED=1` once a disposable Postgres admin URL is available; then handle runtime deploy/auth/firewall separately |
+| Canonical Tortila source landing | Source-control proof plus bot-side tests | Canonical git repo/path/remote/branch or source bundle | **RUN/PASS in Phase 4.70 for source-control/verifier** - private repo `papa-slon/tortila-canonical-source`, branch `main`, commit `f53a774c3bc4c14653906bd2f778a515c565cf12`; bot pytest/ruff PASS; export secret scan PASS; WTC verifier PASS | Source authority cleared; runtime deploy/auth/firewall remains separate |
+| Strict Tortila managed real-read proof | `TORTILA_CANONICAL_SOURCE_REQUIRED=1 ... npm run accept:tortila:real-read:managed` | Disposable local/admin Postgres lane; canonical source checkout | **RUN/PASS in Phase 4.71** - separate local PG17 cluster, throwaway DB created/dropped, token matrix PASS, `sourceAdapter=tortila`, `readState=ok`, `tradesImported=2`, `positionsSnapshotted=1`, `marksRequests=0`, cleanup verified | Cleared for local pre-deploy managed proof; rerun after relevant adapter/worker/journal/auth/runner changes |
 | Legacy closed-trade source proof | Source artifact/API/table contract | Provider/pub_id scope, stable id, economics, timestamps, replay, raw allowlist | **NOT RUN** - no valid upstream Legacy source found | Source-proof preflight reports `ready_for_mapper`; fixture-backed mapper/import tests pass without secret/raw payload leakage |
 
 ## Safe Run Order When Credentials Arrive
@@ -125,5 +130,5 @@ append-only audit proof, not the production/preview intended-role proof; Phase 3
 Phase 3.63 cleared local production-readiness harness gaps and DB-backed auth browser acceptance; Phase 4.61 cleared
 GitHub CI for the merged WTC release commit; Phase 4.62 clarified the missing deploy/source packets; Phase 4.68 clears the
 existing WTC canary deploy for `3aff273`; Phase 4.69 adds a fail-closed Tortila canonical-source verifier; Phase 4.70
-clears the Tortila canonical source-control/verifier gate. None of those clear full branded/live-provider production
-readiness.
+clears the Tortila canonical source-control/verifier gate; Phase 4.71 clears strict local managed Tortila real-read proof.
+None of those clear full branded/live-provider production readiness.

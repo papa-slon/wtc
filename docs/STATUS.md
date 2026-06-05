@@ -1,6 +1,21 @@
 # STATUS
 
-_Latest update: 2026-06-06 - Phase 4.70 Tortila canonical source landing._
+_Latest update: 2026-06-06 - Phase 4.71 Tortila strict managed proof._
+Phase 4.71 clears the strict WTC managed real-read proof for the Phase 4.70 canonical Tortila source. The proof ran with
+`TORTILA_CANONICAL_SOURCE_REQUIRED=1` and `TORTILA_REAL_READ_SOURCE_ROOT=C:\Users\maxib\GTE BOT\tortila_canonical_source`
+against a separate disposable local PostgreSQL 17 cluster on loopback, not the Windows service DB, server DB, or WTC
+canary DB. The runner verified the journal token matrix (`missingToken=401`, `wrongToken=401`, `bearerAllowedEndpoints=4`,
+`tokenHeader=ok`), created a throwaway `wtc_test_tortila_real_read_*` database, ran the worker in read-only mode, and
+verified `sourceAdapter=tortila`, `readState=ok`, `tradesImported=2`, `positionsSnapshotted=1`, and `marksRequests=0`.
+Cleanup was externally verified: leftover throwaway DB count `0`, temp cluster stopped, temp PGDATA removed, temp port
+closed, and no `TORTILA_*` env vars left in the shell. The managed runner now also rejects non-local admin DB URLs before
+DB work. Aggregate:
+[`docs/handoffs/20260606-0641-phase-471-strict-managed-proof.md`](handoffs/20260606-0641-phase-471-strict-managed-proof.md).
+This clears the local strict managed proof gate only. Runtime deploy of canonical source, production `JOURNAL_READ_TOKEN`
+provisioning, firewall/private-network probes, server burn-in, Legacy realized closed-trade source/import, live controls,
+and full branded production remain NOT RUN.
+
+_Previous update: 2026-06-06 - Phase 4.70 Tortila canonical source landing._
 Phase 4.70 creates a clean, private, git-backed Tortila/Turtle source packet from the adjacent patched working source
 without mutating live bot runtime. New source checkout: `C:\Users\maxib\GTE BOT\tortila_canonical_source`; private remote:
 `https://github.com/papa-slon/tortila-canonical-source`; branch `main`; commit

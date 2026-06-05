@@ -1,5 +1,18 @@
 # Implemented files (current code vs. target contracts)
 
+## 2026-06-06 Phase 4.71 Tortila strict managed proof
+- `scripts/run-tortila-real-read-managed.mjs` - strict managed runner now rejects non-local admin DB URLs before DB work,
+  keeping future `TORTILA_REAL_READ_ADMIN_DATABASE_URL` inputs constrained to localhost/loopback disposable lanes.
+- `tests/integration/tortila-real-read-managed-runner.test.ts` - adds refusal coverage for non-local admin URLs and verifies
+  the raw host/password are not echoed and `CREATE DATABASE` is not reached.
+- `docs/handoffs/20260606-0641-phase-471-strict-managed-proof.md` plus three read-only agent handoffs - records strict
+  canonical managed proof PASS, disposable PG cleanup proof, runner hardening, and the next runtime deploy/auth/firewall
+  phase boundary.
+- `docs/STATUS.md`, `docs/NEXT_ACTIONS.md`, `docs/CONTRACTS/tortila-adapter.md`,
+  `docs/PRODUCTION_BLOCKERS_CURRENT.md`, and `docs/CREDENTIAL_ACCEPTANCE_BLOCKERS_CURRENT.md` - current gate truth now
+  says Tortila canonical source and strict managed proof are green while server runtime deploy/auth/firewall, Legacy
+  realized source/import, live controls, and full branded production remain blocked.
+
 ## 2026-06-06 Phase 4.70 Tortila canonical source landing
 - External private source packet `C:\Users\maxib\GTE BOT\tortila_canonical_source` / `papa-slon/tortila-canonical-source`
   (**new**) - clean git-backed Tortila/Turtle source authority, branch `main`, commit

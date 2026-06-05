@@ -13,6 +13,7 @@ const allowedArgs = new Set(['--help', '-h']);
 const unknownArg = args.find((arg) => !allowedArgs.has(arg));
 const adminUrl = process.env.TORTILA_REAL_READ_ADMIN_DATABASE_URL;
 const PROOF_JOURNAL_READ_TOKEN = 'phase-458-dummy-read-token';
+const LOCAL_ADMIN_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
 function usage() {
   console.log(
@@ -52,6 +53,9 @@ function parseAdminUrl(raw) {
   }
   if (!/^postgres(?:ql)?:$/.test(parsed.protocol)) {
     throw new Error('Tortila real-read managed runner refused: admin URL must use postgres:// or postgresql://.');
+  }
+  if (!LOCAL_ADMIN_HOSTS.has(parsed.hostname.toLowerCase())) {
+    throw new Error('Tortila real-read managed runner refused: admin URL must point at localhost/loopback.');
   }
   const adminDb = parsed.pathname.replace(/^\//, '').toLowerCase();
   if (!adminDb || /^wtc_test(?:_|$)/.test(adminDb)) {
