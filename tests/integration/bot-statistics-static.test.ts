@@ -7,6 +7,8 @@ const read = (rel: string): string => readFileSync(resolve(ROOT, rel), 'utf8');
 
 const statsPage = read('apps/web/src/app/(app)/app/bots/statistics/page.tsx');
 const statsPanels = read('apps/web/src/features/bots/statistics-panels.tsx');
+const statsCommandCenter = read('apps/web/src/features/bots/BotStatisticsCommandCenter.tsx');
+const runtimeEvidence = read('apps/web/src/features/bots/BotRuntimeEvidencePanel.tsx');
 const journalPage = read('apps/web/src/app/(app)/app/bots/[bot]/journal/page.tsx');
 const journalFeature = read('apps/web/src/features/bots/journal.ts');
 const subnav = read('apps/web/src/components/BotSubNav.tsx');
@@ -18,7 +20,16 @@ describe('bot statistics surface', () => {
     expect(statsPage).toMatch(/BOT_LIST\.map/);
     expect(statsPage).toMatch(/Different strategies are not blended into one fake win rate/);
     expect(statsPage).toMatch(/Portfolio snapshot/);
+    expect(statsPage).toMatch(/bots with metrics/);
+    expect(statsPage).toMatch(/partialMoney/);
     expect(statsPage).toMatch(/BotJournalPanels/);
+    expect(statsPage).toMatch(/BotOperationMapPanel/);
+    expect(statsPage).toMatch(/Statistics operation map/);
+    expect(statsPage).toMatch(/BotRuntimeEvidencePanel/);
+    expect(statsPage).toMatch(/Statistics evidence ladder/);
+    expect(statsPage).toMatch(/BotStatisticsCommandCenter/);
+    expect(statsCommandCenter).toMatch(/Statistics command center/);
+    expect(statsPage).toMatch(/operationReview\.metrics/);
   });
 
   it('uses safe read models and never direct adapter calls', () => {
@@ -27,6 +38,17 @@ describe('bot statistics surface', () => {
     expect(statsPage).toMatch(/No bot metrics available/);
     expect(statsPage).toMatch(/legacyLiveConfig/);
     expect(statsPage).toMatch(/LegacyOperationsPanel/);
+    expect(statsPage).toMatch(/loadBotConfig/);
+    expect(statsPage).toMatch(/buildBotConfigReview/);
+  });
+
+  it('uses the shared warning summary state instead of raw empty warning claims', () => {
+    expect(statsPage).toMatch(/WarningSummaryPanel/);
+    expect(statsPage).toMatch(/Risk and status notes/);
+    expect(statsPage).toMatch(/\['metrics', 'positions', 'trades', 'equityCurve', 'config', 'warnings'\]/);
+    expect(statsPage).toMatch(/Warning state unavailable/);
+    expect(statsPage).toMatch(/Bot room links and limitations/);
+    expect(statsPage).not.toMatch(/No adapter warnings/);
   });
 
   it('renders responsive tables with data labels and an honest no-equity state', () => {
@@ -66,7 +88,37 @@ describe('bot statistics surface', () => {
     expect(statsPanels).toMatch(/Provider accounts/);
     expect(statsPanels).toMatch(/Active slots/);
     expect(statsPanels).toMatch(/Active order coverage/);
+    expect(statsPanels).toMatch(/Provider runtime snapshot unavailable/);
+    expect(statsPanels).toMatch(/DB snapshot evidence/);
+    expect(statsPanels).not.toMatch(/DB live-read/);
     expect(statsPanels).not.toMatch(/live reads blocked/);
+  });
+
+  it('renders a runtime evidence ladder for statistics source clarity', () => {
+    expect(runtimeEvidence).toMatch(/Runtime evidence ladder/);
+    expect(runtimeEvidence).toMatch(/Journal health/);
+    expect(runtimeEvidence).toMatch(/WTC worker check/);
+    expect(runtimeEvidence).toMatch(/WTC DB snapshot/);
+    expect(runtimeEvidence).toMatch(/Scoped page data/);
+    expect(runtimeEvidence).toMatch(/equitySamples/);
+    expect(runtimeEvidence).toMatch(/provider secrets, and raw provider payloads are not rendered/);
+    expect(runtimeEvidence).not.toMatch(/getBotAdapter|fetch\(|vault\.open|startBot|stopBot|applyConfig|retest|apiKey|apiSecret|sealed|Connection verified/);
+  });
+
+  it('renders a statistics command center that links performance, settings, admin mirror, and live boundary', () => {
+    expect(statsCommandCenter).toMatch(/export function BotStatisticsCommandCenter/);
+    expect(statsCommandCenter).toMatch(/Statistics command center/);
+    expect(statsCommandCenter).toMatch(/1\. Data scope/);
+    expect(statsCommandCenter).toMatch(/2\. Performance/);
+    expect(statsCommandCenter).toMatch(/3\. Risk/);
+    expect(statsCommandCenter).toMatch(/4\. Settings link/);
+    expect(statsCommandCenter).toMatch(/5\. Admin mirror/);
+    expect(statsCommandCenter).toMatch(/6\. Live boundary/);
+    expect(statsCommandCenter).toMatch(/Admins can inspect this user-scoped settings and statistics model/);
+    expect(statsCommandCenter).toMatch(/does not run exchange pings, provider probes, live config apply, position actions, or runtime start\/stop/);
+    expect(statsCommandCenter).toMatch(/\/app\/bots\/\$\{props\.bot\}\/settings/);
+    expect(statsCommandCenter).toMatch(/\/app\/bots\/\$\{props\.bot\}\/safety/);
+    expect(statsCommandCenter).not.toMatch(/getBotAdapter|fetch\(|vault\.open|startBot|stopBot|applyConfig|retest|apiKey|apiSecret|sealed|Connection verified|type="submit"/);
   });
 
   it('adds a DB-first trade journal review surface without mutating imported trades', () => {

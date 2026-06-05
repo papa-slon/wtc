@@ -1,9 +1,9 @@
 import type { AdvancedAnalytics, CanonicalMetrics, CanonicalPosition, CanonicalTrade, EquityPoint } from '@wtc/analytics';
 import { computeAdvancedAnalytics, filterZeroEquity } from '@wtc/analytics';
-import { Card, EmptyState, MetricCard, MetricValue, StatusPill } from '@wtc/ui';
+import { Card, EmptyState, MetricCard, MetricValue, RiskWarningBanner, StatusPill } from '@wtc/ui';
 import { fmtDateTime, fmtMoney, fmtNum, fmtPf, fmtPct } from '@/lib/format';
 import type { BotMeta } from './meta';
-import type { LegacyStageConfig, LegacySymbolConfig } from './config';
+import type { LegacyRuntimeSymbolConfig, LegacyStageConfig, LegacySymbolConfig } from './config';
 
 function netTrade(t: CanonicalTrade): number {
   return t.realizedPnl - t.fee + t.funding;
@@ -70,6 +70,38 @@ function exitRows(trades: CanonicalTrade[]): ExitRow[] {
     rows.set(reason, row);
   }
   return [...rows.values()].sort((a, b) => b.count - a.count || b.net - a.net);
+}
+
+function TortilaJournalConfidencePanel({
+  positions,
+  trades,
+  equity,
+  markUnavailable,
+}: {
+  positions: CanonicalPosition[];
+  trades: CanonicalTrade[];
+  equity: EquityPoint[];
+  markUnavailable: boolean;
+}) {
+  const closed = closedTrades(trades).length;
+  const hasJournalEvidence = closed > 0 || equity.length > 0 || positions.length > 0;
+  return (
+    <Card title="Tortila journal confidence">
+      <div className="wtc-grid wtc-grid-4">
+        <MetricCard label="Journal trades" value={fmtNum(closed)} sub="persisted closed-trade rows" tone={closed > 0 ? 'up' : undefined} />
+        <MetricCard label="Equity samples" value={fmtNum(equity.length)} sub="persisted curve points" tone={equity.length > 0 ? 'up' : undefined} />
+        <MetricCard label="Open positions" value={fmtNum(positions.length)} sub={markUnavailable ? 'mark price gated in real adapter' : 'journal exposure snapshot'} />
+        <MetricCard label="Live source calls" value="disabled" sub="no exchange or /api/marks probe" />
+      </div>
+      <RiskWarningBanner
+        severity={hasJournalEvidence ? 'info' : 'warning'}
+        title={hasJournalEvidence ? 'Persisted journal source' : 'Journal evidence pending'}
+        detail={hasJournalEvidence
+          ? 'Tortila PF, win rate, drawdown, equity, and trade quality are computed only from persisted WTC journal snapshots for this user. This statistics page does not call /api/marks, a live exchange, start/stop, or apply config.'
+          : 'Tortila analytics stay incomplete until a read-only worker snapshot writes user-scoped journal trades, positions, or equity rows. Health alone is not treated as performance proof.'}
+      />
+    </Card>
+  );
 }
 
 interface DrawdownPoint {
@@ -448,14 +480,112 @@ function stringValue(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
 
+function percentOrUnavailable(value: number | null): string {
+  return value === null ? 'N/A' : fmtPct(value);
+}
+
+function slotStage(value: Record<string, unknown>): number | null {
+  const stage = numberValue(value.stage);
+  return stage > 0 ? stage : null;
+}
+
+function slotSignal(value: Record<string, unknown>): 'RSI' | 'CCI' | 'UNKNOWN' {
+  const signal = stringValue(value.signal).toUpperCase();
+  if (signal.includes('RSI')) return 'RSI';
+  if (signal.includes('CCI')) return 'CCI';
+  return 'UNKNOWN';
+}
+
+function normalizedSymbol(value: Record<string, unknown>): string {
+  return stringValue(value.symbol).trim().toUpperCase();
+}
+
+interface LegacyStageUtilization {
+  stage: number;
+  rsiSlots: number;
+  cciSlots: number;
+  capacity: number;
+  activeSlots: number;
+  activeRsi: number;
+  activeCci: number;
+  utilizationPct: number | null;
+}
+
+interface LegacyClosedTradeSourceProofView {
+  status: 'blocked_no_source' | 'ready_for_mapper' | 'unknown';
+  canImportClosedTrades: boolean;
+  missingRequirements: string[];
+  blockerCount: number;
+}
+
+function sourceProofStatusLabel(sourceProof: LegacyClosedTradeSourceProofView | null | undefined): string {
+  if (!sourceProof) return 'not evaluated';
+  if (sourceProof.status === 'ready_for_mapper' && sourceProof.canImportClosedTrades) return 'mapper ready';
+  if (sourceProof.status === 'blocked_no_source') return 'source blocked';
+  return 'not evaluated';
+}
+
+function sourceProofStatusTone(sourceProof: LegacyClosedTradeSourceProofView | null | undefined): 'ok' | 'warn' | 'neutral' {
+  if (sourceProof?.status === 'ready_for_mapper' && sourceProof.canImportClosedTrades) return 'ok';
+  if (sourceProof?.status === 'blocked_no_source') return 'warn';
+  return 'neutral';
+}
+
+function sourceProofMissingSummary(sourceProof: LegacyClosedTradeSourceProofView | null | undefined): string {
+  if (!sourceProof) return 'worker proof summary pending';
+  if (sourceProof.status === 'ready_for_mapper' && sourceProof.canImportClosedTrades) return 'source proof accepted; mapper tests still required';
+  if (sourceProof.missingRequirements.length === 0) return 'source artifact missing';
+  const preview = sourceProof.missingRequirements.slice(0, 3).join(', ');
+  const rest = sourceProof.missingRequirements.length > 3 ? ` +${sourceProof.missingRequirements.length - 3}` : '';
+  return `${preview}${rest}`;
+}
+
+function legacyStageUtilizationRows(
+  stages: readonly LegacyStageConfig[],
+  activeSlots: readonly Record<string, unknown>[],
+): LegacyStageUtilization[] {
+  const stageNumbers = new Set<number>();
+  for (const stage of stages) stageNumbers.add(stage.stage);
+  for (const slot of activeSlots) {
+    const stage = slotStage(slot);
+    if (stage !== null) stageNumbers.add(stage);
+  }
+
+  return [...stageNumbers]
+    .sort((a, b) => a - b)
+    .map((stageNumber) => {
+      const stageConfig = stages.find((row) => row.stage === stageNumber);
+      const stageSlots = activeSlots.filter((slot) => slotStage(slot) === stageNumber);
+      const rsiSlots = stageConfig?.rsiSlots ?? 0;
+      const cciSlots = stageConfig?.cciSlots ?? 0;
+      const capacity = rsiSlots + cciSlots;
+      const activeRsi = stageSlots.filter((slot) => slotSignal(slot) === 'RSI').length;
+      const activeCci = stageSlots.filter((slot) => slotSignal(slot) === 'CCI').length;
+      return {
+        stage: stageNumber,
+        rsiSlots,
+        cciSlots,
+        capacity,
+        activeSlots: stageSlots.length,
+        activeRsi,
+        activeCci,
+        utilizationPct: capacity > 0 ? Math.round((stageSlots.length / capacity) * 10_000) / 100 : null,
+      };
+    });
+}
+
 export function LegacyOperationsPanel({
   rows,
   stages,
   liveConfig,
+  closedTradeCount = 0,
+  closedTradeSourceProof,
 }: {
-  rows: readonly LegacySymbolConfig[];
+  rows: readonly LegacyRuntimeSymbolConfig[];
   stages: readonly LegacyStageConfig[];
   liveConfig?: Record<string, unknown> | null;
+  closedTradeCount?: number;
+  closedTradeSourceProof?: LegacyClosedTradeSourceProofView | null;
 }) {
   const active = rows.filter((row) => row.active);
   const rsi = rows.filter((row) => row.useRsi && !row.useCci);
@@ -466,8 +596,26 @@ export function LegacyOperationsPanel({
   const providerAccounts = asObjectArray(liveConfig?.providerAccounts);
   const activeSlots = asObjectArray(liveConfig?.activeSlots);
   const activeOrders = asObjectArray(liveConfig?.activeOrderSummary);
+  const hasProviderSnapshot = !!liveConfig && (providerAccounts.length > 0 || rows.length > 0 || activeSlots.length > 0 || activeOrders.length > 0);
   const tpOrders = activeOrders.filter((row) => stringValue(row.note).toUpperCase() === 'TAKE_PROFIT').length;
   const averagingOrders = activeOrders.filter((row) => stringValue(row.note).toUpperCase() === 'AVERAGING').length;
+  const entryOrders = activeOrders.filter((row) => {
+    const note = stringValue(row.note).toUpperCase();
+    return note === 'BUY' || note.includes('ENTRY');
+  }).length;
+  const stopOrders = activeOrders.filter((row) => {
+    const note = stringValue(row.note).toUpperCase();
+    return note === 'SL' || note.includes('STOP');
+  }).length;
+  const activeSlotRsi = activeSlots.filter((slot) => slotSignal(slot) === 'RSI').length;
+  const activeSlotCci = activeSlots.filter((slot) => slotSignal(slot) === 'CCI').length;
+  const activeSlotUnknown = activeSlots.filter((slot) => slotSignal(slot) === 'UNKNOWN').length;
+  const stageUtilization = legacyStageUtilizationRows(stages, activeSlots);
+  const stageUtilizationPct = stageCapacity > 0 ? Math.round((activeSlots.length / stageCapacity) * 10_000) / 100 : null;
+  const slotSymbols = new Set(activeSlots.map(normalizedSymbol).filter(Boolean));
+  const orderSymbols = new Set(activeOrders.map(normalizedSymbol).filter(Boolean));
+  const coveredSlotSymbols = [...slotSymbols].filter((symbol) => orderSymbols.has(symbol)).length;
+  const orderSymbolCoverage = slotSymbols.size > 0 ? `${coveredSlotSymbols}/${slotSymbols.size}` : activeOrders.length > 0 ? `${activeOrders.length} orders` : 'N/A';
   return (
     <div className="wtc-stack">
       <div>
@@ -475,12 +623,66 @@ export function LegacyOperationsPanel({
         <h3 style={{ margin: '4px 0 12px', fontSize: 20 }}>Averaging bot configuration coverage</h3>
       </div>
       <div className="wtc-grid wtc-grid-4">
-        <MetricCard label="Active symbols" value={active.length} sub={`${rows.length} configured`} />
-        <MetricCard label="Provider pub_id" value={providerAccounts.length || providerCount || '-'} sub="safe account identity" />
+        <MetricCard label="Active symbols" value={active.length} sub={hasProviderSnapshot ? `${rows.length} provider snapshot rows` : 'provider snapshot unavailable'} />
+        <MetricCard label="Provider pub_id" value={providerAccounts.length || providerCount} sub={hasProviderSnapshot ? 'safe account identity' : 'mapping/snapshot pending'} />
         <MetricCard label="Signal split" value={`${rsi.length} RSI / ${cci.length} CCI`} />
         <MetricCard label="Stage capacity" value={stageCapacity} sub="RSI + CCI slots" />
         <MetricCard label="Active slots" value={activeSlots.length || '-'} sub={`${tpOrders} TP / ${averagingOrders} averaging orders`} />
       </div>
+      <Card title="Legacy statistics cockpit">
+        <div className="wtc-grid wtc-grid-4">
+          <MetricCard
+            label="Stage utilization"
+            value={percentOrUnavailable(stageUtilizationPct)}
+            sub={`${activeSlots.length} active slots / ${stageCapacity} configured`}
+          />
+          <MetricCard
+            label="Active triggers"
+            value={`${activeSlotRsi} RSI / ${activeSlotCci} CCI`}
+            sub={activeSlotUnknown > 0 ? `${activeSlotUnknown} provider slots without signal label` : 'provider slot signals'}
+          />
+          <MetricCard
+            label="Order-symbol coverage"
+            value={orderSymbolCoverage}
+            sub={`${entryOrders} entry / ${averagingOrders} averaging / ${tpOrders} TP / ${stopOrders} stop`}
+          />
+          <MetricCard
+            label="Closed-trade history"
+            value={closedTradeCount > 0 ? closedTradeCount : 'pending import'}
+            sub={closedTradeCount > 0 ? 'closed imports available' : 'PF, win rate, realized PnL pending'}
+          />
+          <MetricCard
+            label="Source-proof gate"
+            value={sourceProofStatusLabel(closedTradeSourceProof)}
+            sub={sourceProofMissingSummary(closedTradeSourceProof)}
+            tone={closedTradeSourceProof?.status === 'ready_for_mapper' && closedTradeSourceProof.canImportClosedTrades ? 'up' : closedTradeSourceProof?.status === 'blocked_no_source' ? 'down' : undefined}
+          />
+        </div>
+        <div className="wtc-row" style={{ gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+          <StatusPill tone={hasProviderSnapshot ? 'neutral' : 'warn'}>{hasProviderSnapshot ? 'runtime snapshot scoped' : 'snapshot pending'}</StatusPill>
+          <StatusPill tone={stageCapacity > 0 ? 'neutral' : 'warn'}>{stageCapacity > 0 ? 'stage map loaded' : 'stage map pending'}</StatusPill>
+          <StatusPill tone={closedTradeCount > 0 ? 'ok' : 'warn'}>{closedTradeCount > 0 ? 'closed trades loaded' : 'closed trades pending'}</StatusPill>
+          <StatusPill tone={sourceProofStatusTone(closedTradeSourceProof)}>{sourceProofStatusLabel(closedTradeSourceProof)}</StatusPill>
+        </div>
+      </Card>
+      {!hasProviderSnapshot && (
+        <RiskWarningBanner
+          severity="warning"
+          title="Provider runtime snapshot unavailable"
+          detail="Legacy operational statistics require a mapped provider pub_id and a worker snapshot. Built-in defaults and saved WTC reference drafts are not shown as runtime evidence here."
+        />
+      )}
+      {closedTradeCount === 0 && (
+        <RiskWarningBanner
+          severity="warning"
+          title={closedTradeSourceProof?.status === 'blocked_no_source' ? 'Legacy source proof blocked' : 'Legacy closed-trade history pending'}
+          detail={
+            closedTradeSourceProof?.status === 'blocked_no_source'
+              ? `Win rate, profit factor, realized PnL, and attribution stay hidden because no durable Legacy closed-trade source is proven. Missing proof: ${sourceProofMissingSummary(closedTradeSourceProof)}. Open slots, stage utilization, and active order coverage remain visible as runtime evidence.`
+              : 'Win rate, profit factor, realized PnL, and attribution stay hidden until WTC imports closed trades for the mapped provider pub_id. Open slots, stage utilization, and active order coverage remain visible as runtime evidence.'
+          }
+        />
+      )}
       {providerAccounts.length > 0 && (
         <Card title="Provider accounts">
           <div className="wtc-table-wrap">
@@ -556,8 +758,8 @@ export function LegacyOperationsPanel({
       <Card title="Coverage matrix">
         <div className="wtc-row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
           <StatusPill tone="neutral">TF {timeframes || '-'}</StatusPill>
-          <StatusPill tone="ok">DB live-read</StatusPill>
-          <StatusPill tone="neutral">pub_id grouped</StatusPill>
+          <StatusPill tone={hasProviderSnapshot ? 'neutral' : 'warn'}>{hasProviderSnapshot ? 'DB snapshot evidence' : 'provider snapshot pending'}</StatusPill>
+          <StatusPill tone="neutral">{providerAccounts.length || providerCount} pub_id grouped</StatusPill>
         </div>
         <div className="wtc-table-wrap">
           <table className="wtc-table">
@@ -580,6 +782,29 @@ export function LegacyOperationsPanel({
             </tbody>
           </table>
         </div>
+      </Card>
+      <Card title="Stage utilization by trigger">
+        {stageUtilization.length === 0 ? (
+          <EmptyState title="No stage utilization data" hint="Stage capacity and active slot rows appear after a provider pub_id snapshot is mapped and persisted by the worker." />
+        ) : (
+          <div className="wtc-table-wrap">
+            <table className="wtc-table">
+              <thead><tr><th>Stage</th><th>Capacity</th><th>Active slots</th><th>RSI active</th><th>CCI active</th><th>Utilization</th></tr></thead>
+              <tbody>
+                {stageUtilization.map((row) => (
+                  <tr key={row.stage}>
+                    <td data-label="Stage">{row.stage}</td>
+                    <td data-label="Capacity">{row.capacity} ({row.rsiSlots} RSI / {row.cciSlots} CCI)</td>
+                    <td data-label="Active slots">{row.activeSlots}</td>
+                    <td data-label="RSI active">{row.activeRsi}</td>
+                    <td data-label="CCI active">{row.activeCci}</td>
+                    <td data-label="Utilization">{percentOrUnavailable(row.utilizationPct)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Card>
       <Card title="Stage slots">
         <div className="wtc-table-wrap">
@@ -624,6 +849,7 @@ export function BotJournalPanels({
         <div className="wtc-kicker">{meta.name} journal analytics</div>
         <h3 style={{ margin: '4px 0 12px', fontSize: 20 }}>Performance diagnostics</h3>
       </div>
+      <TortilaJournalConfidencePanel positions={positions} trades={trades} equity={equity} markUnavailable={markUnavailable} />
       <div className="wtc-grid wtc-grid-2">
         <ReturnsMatrixPanel advanced={advanced} />
         <RiskDiagnosticsPanel advanced={advanced} />

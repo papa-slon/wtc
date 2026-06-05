@@ -19,8 +19,17 @@ export {
   TORTILA_PERSISTENT_WARNINGS,
   TORTILA_SIGNAL_WARNINGS,
   LEGACY_WARNINGS,
+  LEGACY_RUNTIME_WARNINGS,
+  knownWarningsForProduct,
+  runtimeWarningsForProduct,
+  warningCodesFromDetail,
+  warningCodesFromValue,
+  warningSummaryFromCodes,
+  warningSummaryFromWarnings,
+  warningsFromCodes,
+  warningsFromDetail,
 } from './warnings.ts';
-export type { WarningCode } from './warnings.ts';
+export type { WarningCode, WarningNormalizeOptions, WarningSummary } from './warnings.ts';
 export { createMockTortilaAdapter } from './mock-tortila.ts';
 export { createMockLegacyAdapter } from './mock-legacy.ts';
 // createHttpLegacyAdapter intentionally NOT exported — the real legacy HTTP adapter was deleted (B3).
@@ -32,5 +41,23 @@ export {
   isLegacySecretField,
   LEGACY_SECRET_FIELD_NAMES,
 } from './legacy/legacy-plaintext-exclusion.ts';
+export {
+  CURRENT_LEGACY_CLOSED_TRADE_SOURCE_PROOF,
+  CURRENT_LEGACY_CLOSED_TRADE_SOURCE_PROOF_CANDIDATE,
+  LEGACY_CLOSED_TRADE_FORBIDDEN_SUBSTITUTES,
+  LEGACY_CLOSED_TRADE_SOURCE_PROOF_REQUIREMENTS,
+  evaluateLegacyClosedTradeSourceProof,
+  legacyClosedTradeSourceProofSummaryFromRaw,
+  summarizeLegacyClosedTradeSourceProof,
+} from './legacy/closed-trade-source-proof.ts';
+export type {
+  LegacyClosedTradeForbiddenSubstitute,
+  LegacyClosedTradeSourceProofCandidate,
+  LegacyClosedTradeSourceProofEvidence,
+  LegacyClosedTradeSourceProofRequirement,
+  LegacyClosedTradeSourceProofResult,
+  LegacyClosedTradeSourceProofSafeSummary,
+  LegacyClosedTradeSourceProofSummarySource,
+} from './legacy/closed-trade-source-proof.ts';
 export { getBotAdapter } from './factory.ts';
 export type { AdapterOptions, BotAdapterMode } from './factory.ts';

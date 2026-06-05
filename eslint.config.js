@@ -14,6 +14,7 @@ export default tseslint.config(
       '**/.next-e2e/**',
       '**/.next-e2e-auth/**',
       '**/.next-e2e-auth-db/**',
+      '**/.next-e2e-admin-user-bots/**',
       '**/.next-e2e-db/**',
       '**/out/**',
       '**/build/**',

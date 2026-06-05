@@ -143,6 +143,37 @@ export const botInstances = pgTable('bot_instances', {
   createdAt: createdAt(),
 });
 
+export const botProviderAccounts = pgTable(
+  'bot_provider_accounts',
+  {
+    id: id(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    botInstanceId: uuid('bot_instance_id').notNull().references(() => botInstances.id, { onDelete: 'cascade' }),
+    productCode: text('product_code').notNull(), // legacy_bot today; future bots can reuse the primitive.
+    provider: text('provider').notNull(), // legacy-db | tortila-journal | other audited providers
+    providerAccountId: text('provider_account_id').notNull(), // Legacy Api_Key.pub_id
+    label: text('label'),
+    status: text('status').notNull().default('active'), // active | disabled | needs_review
+    createdBy: uuid('created_by').references(() => users.id),
+    disabledAt: timestamp('disabled_at', { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    userProductIdx: index('bpa_user_product_idx').on(t.userId, t.productCode),
+    instanceProviderIdx: index('bpa_instance_provider_idx').on(t.botInstanceId, t.provider),
+    uniqInstanceProviderAccount: uniqueIndex('bpa_instance_provider_account_idx').on(t.botInstanceId, t.provider, t.providerAccountId),
+    uniqActiveInstanceProvider: uniqueIndex('bpa_active_instance_provider_idx')
+      .on(t.botInstanceId, t.provider)
+      .where(sql`"status" = 'active'`),
+    uniqActiveProviderAccount: uniqueIndex('bpa_active_provider_account_idx')
+      .on(t.productCode, t.provider, t.providerAccountId)
+      .where(sql`"status" = 'active'`),
+    statusCheck: check('bot_provider_accounts_status_check', sql`${t.status} IN ('active', 'disabled', 'needs_review')`),
+    providerAccountIdCheck: check('bot_provider_accounts_provider_account_id_check', sql`length(trim(${t.providerAccountId})) > 0`),
+  }),
+);
+
 export const botConfigs = pgTable('bot_configs', {
   id: id(),
   botInstanceId: uuid('bot_instance_id').notNull().references(() => botInstances.id, { onDelete: 'cascade' }),
@@ -150,6 +181,35 @@ export const botConfigs = pgTable('bot_configs', {
   config: jsonb('config').$type<Record<string, unknown>>().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const botGlobalConfigs = pgTable(
+  'bot_global_configs',
+  {
+    id: id(),
+    productCode: text('product_code').notNull(),
+    profileCode: text('profile_code').notNull().default('system_default'),
+    label: text('label').notNull(),
+    status: text('status').notNull().default('draft'), // draft | published | archived
+    appliesToNewUsers: boolean('applies_to_new_users').default(true).notNull(),
+    allowUserOverride: boolean('allow_user_override').default(true).notNull(),
+    version: integer('version').notNull().default(1),
+    config: jsonb('config').$type<Record<string, unknown>>().notNull(),
+    updatedBy: uuid('updated_by').references(() => users.id), // nullable = system seed/import; no cascade
+    createdAt: createdAt(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    uniqProductProfile: uniqueIndex('bgc_product_profile_idx').on(t.productCode, t.profileCode),
+    productStatusIdx: index('bgc_product_status_idx').on(t.productCode, t.status),
+    activeDefaultIdx: uniqueIndex('bgc_active_default_idx')
+      .on(t.productCode)
+      .where(sql`"status" = 'published' AND "applies_to_new_users" = true`),
+    productCheck: check('bot_global_configs_product_check', sql`${t.productCode} IN ('tortila_bot', 'legacy_bot')`),
+    statusCheck: check('bot_global_configs_status_check', sql`${t.status} IN ('draft', 'published', 'archived')`),
+    profileCodeCheck: check('bot_global_configs_profile_code_check', sql`length(trim(${t.profileCode})) > 0`),
+    labelCheck: check('bot_global_configs_label_check', sql`length(trim(${t.label})) > 0`),
+  }),
+);
 
 // --- Axioma ---
 export const axiomaAccountLinks = pgTable(
@@ -417,12 +477,40 @@ export const botConfigVersions = pgTable(
   }),
 );
 
+export const botGlobalConfigVersions = pgTable(
+  'bot_global_config_versions',
+  {
+    id: id(),
+    globalConfigId: uuid('global_config_id').notNull().references(() => botGlobalConfigs.id),
+    productCode: text('product_code').notNull(),
+    profileCode: text('profile_code').notNull(),
+    version: integer('version').notNull(),
+    label: text('label').notNull(),
+    status: text('status').notNull(),
+    appliesToNewUsers: boolean('applies_to_new_users').default(true).notNull(),
+    allowUserOverride: boolean('allow_user_override').default(true).notNull(),
+    configJson: jsonb('config_json').$type<Record<string, unknown>>().notNull(),
+    changedBy: uuid('changed_by').references(() => users.id), // nullable = system seed/import; no cascade
+    reason: text('reason'),
+    createdAt: createdAt(),
+  },
+  (t) => ({
+    uniqGlobalConfigVersion: uniqueIndex('bgcv_global_config_version_idx').on(t.globalConfigId, t.version),
+    productProfileVersionIdx: index('bgcv_product_profile_version_idx').on(t.productCode, t.profileCode, t.version),
+    productCheck: check('bot_global_config_versions_product_check', sql`${t.productCode} IN ('tortila_bot', 'legacy_bot')`),
+    statusCheck: check('bot_global_config_versions_status_check', sql`${t.status} IN ('draft', 'published', 'archived')`),
+    profileCodeCheck: check('bot_global_config_versions_profile_code_check', sql`length(trim(${t.profileCode})) > 0`),
+    labelCheck: check('bot_global_config_versions_label_check', sql`length(trim(${t.label})) > 0`),
+  }),
+);
+
 // Periodic normalised metrics snapshot per bot instance. Worker writes; never updated.
 export const botMetricSnapshots = pgTable(
   'bot_metric_snapshots',
   {
     id: id(),
     botInstanceId: uuid('bot_instance_id').notNull().references(() => botInstances.id, { onDelete: 'cascade' }),
+    botProviderAccountId: uuid('bot_provider_account_id').references(() => botProviderAccounts.id, { onDelete: 'set null' }),
     snapshotAt: timestamp('snapshot_at', { withTimezone: true }).notNull(),
     walletEquityUsd: numeric('wallet_equity_usd', { precision: 18, scale: 4 }),
     closedPnlUsd: numeric('closed_pnl_usd', { precision: 18, scale: 4 }),
@@ -439,7 +527,10 @@ export const botMetricSnapshots = pgTable(
     rawJson: jsonb('raw_json'),
     createdAt: createdAt(),
   },
-  (t) => ({ instanceSnapshotIdx: index('bms_instance_snapshot_idx').on(t.botInstanceId, t.snapshotAt) }),
+  (t) => ({
+    instanceSnapshotIdx: index('bms_instance_snapshot_idx').on(t.botInstanceId, t.snapshotAt),
+    providerSnapshotIdx: index('bms_provider_snapshot_idx').on(t.botProviderAccountId, t.snapshotAt),
+  }),
 );
 
 // Point-in-time open position snapshot. Worker writes; never updated.
@@ -448,6 +539,7 @@ export const botPositionSnapshots = pgTable(
   {
     id: id(),
     botInstanceId: uuid('bot_instance_id').notNull().references(() => botInstances.id, { onDelete: 'cascade' }),
+    botProviderAccountId: uuid('bot_provider_account_id').references(() => botProviderAccounts.id, { onDelete: 'set null' }),
     snapshotAt: timestamp('snapshot_at', { withTimezone: true }).notNull(),
     symbol: text('symbol').notNull(),
     side: text('side').notNull(), // long | short
@@ -463,7 +555,10 @@ export const botPositionSnapshots = pgTable(
     sourceAdapter: text('source_adapter').notNull(),
     createdAt: createdAt(),
   },
-  (t) => ({ instanceSnapshotIdx: index('bps_instance_snapshot_idx').on(t.botInstanceId, t.snapshotAt) }),
+  (t) => ({
+    instanceSnapshotIdx: index('bps_instance_snapshot_idx').on(t.botInstanceId, t.snapshotAt),
+    providerSnapshotIdx: index('bps_provider_snapshot_idx').on(t.botProviderAccountId, t.snapshotAt),
+  }),
 );
 
 // Imported closed trades. Immutable. Unique set prevents duplicate imports (idempotency).
@@ -472,6 +567,7 @@ export const botTradeImports = pgTable(
   {
     id: id(),
     botInstanceId: uuid('bot_instance_id').notNull().references(() => botInstances.id, { onDelete: 'cascade' }),
+    botProviderAccountId: uuid('bot_provider_account_id').references(() => botProviderAccounts.id, { onDelete: 'set null' }),
     externalTradeId: text('external_trade_id').notNull(),
     symbol: text('symbol').notNull(),
     side: text('side').notNull(),
@@ -489,8 +585,14 @@ export const botTradeImports = pgTable(
     importedAt: timestamp('imported_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => ({
-    uniqExternalTrade: uniqueIndex('bti_external_trade_idx').on(t.botInstanceId, t.externalTradeId, t.sourceAdapter),
+    uniqExternalTradeUnscoped: uniqueIndex('bti_external_trade_unscoped_idx')
+      .on(t.botInstanceId, t.externalTradeId, t.sourceAdapter)
+      .where(sql`"bot_provider_account_id" IS NULL`),
+    uniqExternalTradeProvider: uniqueIndex('bti_provider_external_trade_idx')
+      .on(t.botInstanceId, t.botProviderAccountId, t.externalTradeId, t.sourceAdapter)
+      .where(sql`"bot_provider_account_id" IS NOT NULL`),
     instanceClosedIdx: index('bti_instance_closed_idx').on(t.botInstanceId, t.closedAt),
+    providerClosedIdx: index('bti_provider_closed_idx').on(t.botProviderAccountId, t.closedAt),
     externalIdIdx: index('bti_external_id_idx').on(t.sourceAdapter, t.externalTradeId),
   }),
 );
@@ -530,6 +632,7 @@ export const botSafetyEvents = pgTable(
   {
     id: id(),
     botInstanceId: uuid('bot_instance_id').notNull().references(() => botInstances.id, { onDelete: 'cascade' }),
+    botProviderAccountId: uuid('bot_provider_account_id').references(() => botProviderAccounts.id, { onDelete: 'set null' }),
     eventCode: text('event_code').notNull(),
     severity: text('severity').notNull(), // info | warning | critical
     symbol: text('symbol'),
@@ -542,6 +645,7 @@ export const botSafetyEvents = pgTable(
   },
   (t) => ({
     instanceObservedIdx: index('bse_instance_observed_idx').on(t.botInstanceId, t.observedAt),
+    providerObservedIdx: index('bse_provider_observed_idx').on(t.botProviderAccountId, t.observedAt),
     severityIdx: index('bse_severity_idx').on(t.severity),
   }),
 );

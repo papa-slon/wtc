@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "bpa_active_instance_provider_idx" ON "bot_provider_accounts" USING btree ("bot_instance_id","provider") WHERE "status" = 'active';

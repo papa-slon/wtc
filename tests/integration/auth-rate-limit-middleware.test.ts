@@ -13,6 +13,10 @@ function authPost(path: '/login' | '/register', ip?: string): NextRequest {
   return new NextRequest(`https://wtc.local${path}`, { method: 'POST', headers });
 }
 
+function getRequest(path: string): NextRequest {
+  return new NextRequest(`https://wtc.local${path}`, { method: 'GET' });
+}
+
 async function exhaustAuthPath(path: '/login' | '/register', ip: string) {
   for (let attempt = 0; attempt < 10; attempt += 1) {
     const allowed = middleware(authPost(path, ip));
@@ -28,6 +32,16 @@ describe('auth rate-limit middleware', () => {
     expect(unstable_doesMiddlewareMatch({ config, url: 'https://wtc.local/api/billing/webhook' })).toBe(false);
     expect(unstable_doesMiddlewareMatch({ config, url: 'https://wtc.local/.well-known/axioma-jwks.json' })).toBe(false);
     expect(unstable_doesMiddlewareMatch({ config, url: 'https://wtc.local/favicon.ico' })).toBe(false);
+  });
+
+  it('stamps document GETs but does not overwrite API route response headers', () => {
+    const documentResponse = middleware(getRequest('/'));
+    expect(documentResponse.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin');
+    expect(documentResponse.headers.get('X-Frame-Options')).toBe('DENY');
+
+    const apiResponse = middleware(getRequest('/api/bots/tortila/config-export'));
+    expect(apiResponse.headers.get('Referrer-Policy')).toBeNull();
+    expect(apiResponse.headers.get('X-Frame-Options')).toBeNull();
   });
 
   it('returns 429, retry headers, and generic JSON on the 11th login POST per client IP', async () => {

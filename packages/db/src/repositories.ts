@@ -407,6 +407,159 @@ export async function listExchangeKeys(db: Db, userId: string): Promise<Exchange
   return rows.map((a) => ({ id: a.id, userId: a.userId, exchange: a.exchange, label: a.label, mode: a.mode as 'demo' | 'live', keyMask: a.keyMask }));
 }
 
+export interface ExchangeKeyMetadataSummary {
+  accountCount: number;
+  vaultMetadataCount: number;
+}
+
+/** Metadata-only readiness summary. Selects account ids + secret-row ids, never ciphertext payloads. */
+export async function summarizeExchangeKeyMetadata(db: Db, userId: string): Promise<ExchangeKeyMetadataSummary> {
+  const accountRows = await db
+    .select({ id: s.exchangeAccounts.id })
+    .from(s.exchangeAccounts)
+    .where(eq(s.exchangeAccounts.userId, userId));
+  if (accountRows.length === 0) return { accountCount: 0, vaultMetadataCount: 0 };
+
+  const accountIds = accountRows.map((row) => row.id);
+  const metadataRows = await db
+    .select({ exchangeAccountId: s.exchangeApiKeySecrets.exchangeAccountId })
+    .from(s.exchangeApiKeySecrets)
+    .where(inArray(s.exchangeApiKeySecrets.exchangeAccountId, accountIds));
+
+  return {
+    accountCount: accountRows.length,
+    vaultMetadataCount: new Set(metadataRows.map((row) => row.exchangeAccountId)).size,
+  };
+}
+
+export type ExchangeKeyMetadataCheckOutcome = 'vault_present' | 'missing';
+
+export interface ExchangeKeyMetadataCheckResult {
+  exchangeAccountId: string;
+  exchange: string | null;
+  mode: 'demo' | 'live' | null;
+  keyMask: string | null;
+  checkKind: 'sealed_metadata_only';
+  livePing: false;
+  outcome: ExchangeKeyMetadataCheckOutcome;
+  reason: 'vault_metadata_present_live_ping_not_run' | 'owned_key_not_found_or_incomplete';
+  checkedAt: number;
+}
+
+export async function recordExchangeKeyMetadataCheck(
+  db: Db,
+  input: { userId: string; exchangeAccountId: string; now?: number },
+): Promise<ExchangeKeyMetadataCheckResult> {
+  const checkedAt = input.now ?? Date.now();
+  return db.transaction(async (tx) => {
+    const [account] = await tx
+      .select({
+        id: s.exchangeAccounts.id,
+        exchange: s.exchangeAccounts.exchange,
+        mode: s.exchangeAccounts.mode,
+        keyMask: s.exchangeAccounts.keyMask,
+      })
+      .from(s.exchangeAccounts)
+      .where(and(eq(s.exchangeAccounts.id, input.exchangeAccountId), eq(s.exchangeAccounts.userId, input.userId)))
+      .limit(1);
+    const [secretRow] = account
+      ? await tx
+        .select({ id: s.exchangeApiKeySecrets.id })
+        .from(s.exchangeApiKeySecrets)
+        .where(eq(s.exchangeApiKeySecrets.exchangeAccountId, account.id))
+        .limit(1)
+      : [];
+    const found = !!account && !!secretRow;
+    const result: ExchangeKeyMetadataCheckResult = {
+      exchangeAccountId: found ? account.id : input.exchangeAccountId,
+      exchange: found ? account.exchange : null,
+      mode: found ? account.mode as 'demo' | 'live' : null,
+      keyMask: found ? account.keyMask : null,
+      checkKind: 'sealed_metadata_only',
+      livePing: false,
+      outcome: found ? 'vault_present' : 'missing',
+      reason: found ? 'vault_metadata_present_live_ping_not_run' : 'owned_key_not_found_or_incomplete',
+      checkedAt,
+    };
+    await tx.insert(s.auditLogs).values(auditRowValues({
+      actorUserId: input.userId,
+      actorRole: 'user',
+      action: 'exchange_key.metadata_check',
+      targetType: 'exchange_account',
+      targetId: found ? account.id : null,
+      after: {
+        checkKind: result.checkKind,
+        livePing: result.livePing,
+        outcome: result.outcome,
+        reason: result.reason,
+        exchange: result.exchange,
+        mode: result.mode,
+        keyMask: result.keyMask,
+        checkedAt: result.checkedAt,
+      },
+      result: found ? 'success' : 'failure',
+    }, checkedAt));
+    return result;
+  });
+}
+
+const FORBIDDEN_BOT_CONFIG_KEYS = new Set([
+  'apikey',
+  'apisecret',
+  'secret',
+  'password',
+  'passwordhash',
+  'token',
+  'authorization',
+  'cookie',
+  'sealed',
+  'keyid',
+  'wrappeddek',
+  'vaultrecord',
+  'credentials',
+  'providerpubid',
+  'provideraccountid',
+  'pubid',
+  'provideraccounts',
+  'liveconfig',
+  'rawjson',
+  'activeslots',
+  'activeordersummary',
+  'legacydatabaseurl',
+  'tortilajournalbaseurl',
+  'tortilajournalurl',
+  'headers',
+  'applyconfig',
+  'startbot',
+  'stopbot',
+  'start',
+  'stop',
+  'restart',
+  'retest',
+  'testexchange',
+  'exchangeapply',
+  'exchangeorder',
+  'livecontrol',
+]);
+
+function normalizedBotConfigKey(key: string): string {
+  return key.replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+}
+
+function assertNoForbiddenBotConfigKeys(value: unknown, path = 'config'): void {
+  if (!value || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => assertNoForbiddenBotConfigKeys(item, `${path}[${index}]`));
+    return;
+  }
+  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+    if (FORBIDDEN_BOT_CONFIG_KEYS.has(normalizedBotConfigKey(key))) {
+      throw new Error(`bot_config_forbidden_key:${path}.${key}`);
+    }
+    assertNoForbiddenBotConfigKeys(nested, `${path}.${key}`);
+  }
+}
+
 // ---------------- Audit (DB writer) ----------------
 /** Map an audit input to an audit_logs row (redacts before/after via buildEvent). Shared by the
  *  standalone writer and by the in-transaction audit inserts in grant/revoke. */
@@ -1652,6 +1805,11 @@ export type BotPositionSnapshotRow = typeof s.botPositionSnapshots.$inferSelect;
 export type BotTradeImportRow = typeof s.botTradeImports.$inferSelect;
 export type BotTradeReviewRow = typeof s.botTradeReviews.$inferSelect;
 export type BotSafetyEventRow = typeof s.botSafetyEvents.$inferSelect;
+export type BotProviderAccountRow = typeof s.botProviderAccounts.$inferSelect;
+export type BotGlobalConfigRow = typeof s.botGlobalConfigs.$inferSelect;
+export type BotGlobalConfigVersionRow = typeof s.botGlobalConfigVersions.$inferSelect;
+export type BotProviderAccountStatus = 'active' | 'disabled' | 'needs_review';
+export type BotGlobalConfigStatus = 'draft' | 'published' | 'archived';
 
 export async function getBotInstance(db: Db, id: string): Promise<BotInstanceRow | null> {
   const [row] = await db.select().from(s.botInstances).where(eq(s.botInstances.id, id)).limit(1);
@@ -1670,13 +1828,357 @@ export async function ensureBotInstance(db: Db, input: { userId: string; product
   return row;
 }
 
+export async function listBotProviderAccountsForUser(db: Db, userId: string, opts?: { productCode?: string }): Promise<BotProviderAccountRow[]> {
+  const where = opts?.productCode
+    ? and(eq(s.botProviderAccounts.userId, userId), eq(s.botProviderAccounts.productCode, opts.productCode))
+    : eq(s.botProviderAccounts.userId, userId);
+  return db.select().from(s.botProviderAccounts).where(where).orderBy(desc(s.botProviderAccounts.updatedAt));
+}
+
+export async function listBotProviderAccountsForBotInstance(db: Db, botInstanceId: string): Promise<BotProviderAccountRow[]> {
+  return db.select().from(s.botProviderAccounts).where(eq(s.botProviderAccounts.botInstanceId, botInstanceId)).orderBy(desc(s.botProviderAccounts.updatedAt));
+}
+
+export interface BotProviderMappingSummary {
+  botInstanceId: string | null;
+  activeCount: number;
+  latestUpdatedAt: Date | null;
+  status: 'missing_instance' | 'missing_mapping' | 'active_mapping' | 'ambiguous_mapping';
+}
+
+/** User-scoped readiness summary for provider identity. Returns counts only, never provider payloads. */
+export async function summarizeUserBotProviderMapping(
+  db: Db,
+  input: { userId: string; productCode: string; provider: string },
+): Promise<BotProviderMappingSummary> {
+  const [instance] = await db
+    .select({ id: s.botInstances.id })
+    .from(s.botInstances)
+    .where(and(eq(s.botInstances.userId, input.userId), eq(s.botInstances.productCode, input.productCode)))
+    .limit(1);
+  if (!instance) {
+    return { botInstanceId: null, activeCount: 0, latestUpdatedAt: null, status: 'missing_instance' };
+  }
+
+  const rows = await db
+    .select({ updatedAt: s.botProviderAccounts.updatedAt })
+    .from(s.botProviderAccounts)
+    .where(and(
+      eq(s.botProviderAccounts.userId, input.userId),
+      eq(s.botProviderAccounts.botInstanceId, instance.id),
+      eq(s.botProviderAccounts.productCode, input.productCode),
+      eq(s.botProviderAccounts.provider, input.provider),
+      eq(s.botProviderAccounts.status, 'active'),
+    ))
+    .orderBy(desc(s.botProviderAccounts.updatedAt));
+
+  const latestUpdatedAt = rows[0]?.updatedAt ?? null;
+  return {
+    botInstanceId: instance.id,
+    activeCount: rows.length,
+    latestUpdatedAt,
+    status: rows.length === 0 ? 'missing_mapping' : rows.length === 1 ? 'active_mapping' : 'ambiguous_mapping',
+  };
+}
+
+export async function listActiveBotProviderAccounts(
+  db: Db,
+  opts: { productCode: string; provider?: string; limit?: number },
+): Promise<BotProviderAccountRow[]> {
+  const where = opts.provider
+    ? and(
+        eq(s.botProviderAccounts.productCode, opts.productCode),
+        eq(s.botProviderAccounts.provider, opts.provider),
+        eq(s.botProviderAccounts.status, 'active'),
+      )
+    : and(eq(s.botProviderAccounts.productCode, opts.productCode), eq(s.botProviderAccounts.status, 'active'));
+  return db
+    .select()
+    .from(s.botProviderAccounts)
+    .where(where)
+    .orderBy(desc(s.botProviderAccounts.updatedAt))
+    .limit(opts.limit ?? 100);
+}
+
+function maskProviderAccountId(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= 10) return trimmed;
+  return `${trimmed.slice(0, 6)}...${trimmed.slice(-4)}`;
+}
+
+export async function upsertBotProviderAccountMapping(
+  db: Db,
+  input: {
+    userId: string;
+    botInstanceId: string;
+    productCode: string;
+    provider: string;
+    providerAccountId: string;
+    label?: string | null;
+    status?: BotProviderAccountStatus;
+    actorUserId: string;
+    reason?: string | null;
+  },
+  now = Date.now(),
+): Promise<BotProviderAccountRow> {
+  const provider = input.provider.trim();
+  const providerAccountId = input.providerAccountId.trim();
+  if (!provider) throw new Error('provider_required');
+  if (!providerAccountId) throw new Error('provider_account_id_required');
+  const status = input.status ?? 'active';
+
+  try {
+    return await db.transaction(async (tx) => {
+      const [instance] = await tx
+        .select({ id: s.botInstances.id })
+        .from(s.botInstances)
+        .where(and(
+          eq(s.botInstances.id, input.botInstanceId),
+          eq(s.botInstances.userId, input.userId),
+          eq(s.botInstances.productCode, input.productCode),
+        ))
+        .limit(1);
+      if (!instance) throw new Error('bot_instance_not_owned_by_user');
+
+      const [prior] = await tx
+        .select()
+        .from(s.botProviderAccounts)
+        .where(and(
+          eq(s.botProviderAccounts.botInstanceId, input.botInstanceId),
+          eq(s.botProviderAccounts.provider, provider),
+          eq(s.botProviderAccounts.providerAccountId, providerAccountId),
+        ))
+        .limit(1);
+
+      const values = {
+        userId: input.userId,
+        botInstanceId: input.botInstanceId,
+        productCode: input.productCode,
+        provider,
+        providerAccountId,
+        label: input.label ?? null,
+        status,
+        createdBy: prior?.createdBy ?? input.actorUserId,
+        disabledAt: status === 'disabled' ? new Date(now) : null,
+        updatedAt: new Date(now),
+      };
+      const [row] = prior
+        ? await tx
+            .update(s.botProviderAccounts)
+            .set(values)
+            .where(eq(s.botProviderAccounts.id, prior.id))
+            .returning()
+        : await tx
+            .insert(s.botProviderAccounts)
+            .values(values)
+            .returning();
+      if (!row) throw new Error('failed_to_upsert_bot_provider_account');
+
+      await tx.insert(s.auditLogs).values(auditRowValues({
+        actorUserId: input.actorUserId,
+        actorRole: 'admin',
+        action: prior ? 'bot.provider_account.update' : 'bot.provider_account.map',
+        targetType: 'bot_provider_account',
+        targetId: row.id,
+        before: prior ? { status: prior.status, label: prior.label } : null,
+        after: {
+          userId: input.userId,
+          botInstanceId: input.botInstanceId,
+          productCode: input.productCode,
+          provider,
+          providerAccountIdMasked: maskProviderAccountId(providerAccountId),
+          status,
+          hasLabel: !!input.label,
+          reason: input.reason ?? null,
+        },
+      }, now));
+      return row;
+    });
+  } catch (err) {
+    if (isUniqueViolation(err)) throw new Error('provider_account_already_mapped');
+    throw err;
+  }
+}
+
+export async function disableBotProviderAccountMapping(
+  db: Db,
+  input: { id: string; actorUserId: string; userId?: string; productCode?: string; provider?: string; reason?: string },
+  now = Date.now(),
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [prior] = await tx.select().from(s.botProviderAccounts).where(eq(s.botProviderAccounts.id, input.id)).limit(1);
+    if (!prior) throw new Error('provider_account_mapping_not_found');
+    if (input.userId && prior.userId !== input.userId) throw new Error('provider_account_mapping_not_owned_by_user');
+    if (input.productCode && prior.productCode !== input.productCode) throw new Error('provider_account_mapping_wrong_product');
+    if (input.provider && prior.provider !== input.provider) throw new Error('provider_account_mapping_wrong_provider');
+    await tx
+      .update(s.botProviderAccounts)
+      .set({ status: 'disabled', disabledAt: new Date(now), updatedAt: new Date(now) })
+      .where(eq(s.botProviderAccounts.id, input.id));
+    await tx.insert(s.auditLogs).values(auditRowValues({
+      actorUserId: input.actorUserId,
+      actorRole: 'admin',
+      action: 'bot.provider_account.disable',
+      targetType: 'bot_provider_account',
+      targetId: prior.id,
+      before: { status: prior.status, label: prior.label },
+      after: { status: 'disabled', reason: input.reason ?? null },
+    }, now));
+  });
+}
+
 export async function getCurrentBotConfig(db: Db, botInstanceId: string): Promise<typeof s.botConfigs.$inferSelect | null> {
   const [row] = await db.select().from(s.botConfigs).where(eq(s.botConfigs.botInstanceId, botInstanceId)).limit(1);
   return row ?? null;
 }
+
+export async function getBotGlobalConfig(
+  db: Db,
+  productCode: string,
+  profileCode = 'system_default',
+): Promise<BotGlobalConfigRow | null> {
+  const [row] = await db
+    .select()
+    .from(s.botGlobalConfigs)
+    .where(and(eq(s.botGlobalConfigs.productCode, productCode), eq(s.botGlobalConfigs.profileCode, profileCode)))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function getPublishedBotGlobalConfig(
+  db: Db,
+  productCode: string,
+  profileCode = 'system_default',
+): Promise<BotGlobalConfigRow | null> {
+  const row = await getBotGlobalConfig(db, productCode, profileCode);
+  if (!row || row.status !== 'published' || !row.appliesToNewUsers) return null;
+  return row;
+}
+
+export async function listBotGlobalConfigs(db: Db, opts?: { productCode?: string }): Promise<BotGlobalConfigRow[]> {
+  const query = db.select().from(s.botGlobalConfigs);
+  if (opts?.productCode) {
+    return query.where(eq(s.botGlobalConfigs.productCode, opts.productCode)).orderBy(desc(s.botGlobalConfigs.updatedAt));
+  }
+  return query.orderBy(desc(s.botGlobalConfigs.updatedAt));
+}
+
+export async function listBotGlobalConfigVersions(db: Db, globalConfigId: string, limit = 20): Promise<BotGlobalConfigVersionRow[]> {
+  return db
+    .select()
+    .from(s.botGlobalConfigVersions)
+    .where(eq(s.botGlobalConfigVersions.globalConfigId, globalConfigId))
+    .orderBy(desc(s.botGlobalConfigVersions.version))
+    .limit(limit);
+}
+
+export async function saveBotGlobalConfig(
+  db: Db,
+  input: {
+    productCode: string;
+    profileCode?: string;
+    label: string;
+    status: BotGlobalConfigStatus;
+    appliesToNewUsers?: boolean;
+    allowUserOverride?: boolean;
+    config: Record<string, unknown>;
+    changedBy: string;
+    reason: string;
+    expectedVersion?: number;
+  },
+  now = Date.now(),
+): Promise<{ id: string; version: number }> {
+  const profileCode = input.profileCode ?? 'system_default';
+  assertNoForbiddenBotConfigKeys(input.config);
+  try {
+    return await db.transaction(async (tx) => {
+      const [cur] = await tx
+        .select()
+        .from(s.botGlobalConfigs)
+        .where(and(eq(s.botGlobalConfigs.productCode, input.productCode), eq(s.botGlobalConfigs.profileCode, profileCode)))
+        .limit(1);
+      if (input.expectedVersion !== undefined && cur && cur.version !== input.expectedVersion) {
+        throw new Error('bot_global_config_stale_version');
+      }
+      if (input.expectedVersion !== undefined && !cur && input.expectedVersion !== 0) {
+        throw new Error('bot_global_config_stale_version');
+      }
+
+      const version = (cur?.version ?? 0) + 1;
+      const appliesToNewUsers = input.appliesToNewUsers ?? true;
+      const allowUserOverride = input.allowUserOverride ?? true;
+      let id = cur?.id;
+
+      if (cur) {
+        const [updated] = await tx
+          .update(s.botGlobalConfigs)
+          .set({
+            label: input.label,
+            status: input.status,
+            appliesToNewUsers,
+            allowUserOverride,
+            version,
+            config: input.config,
+            updatedBy: input.changedBy,
+            updatedAt: new Date(now),
+          })
+          .where(eq(s.botGlobalConfigs.id, cur.id))
+          .returning({ id: s.botGlobalConfigs.id });
+        id = updated?.id ?? cur.id;
+      } else {
+        const [inserted] = await tx
+          .insert(s.botGlobalConfigs)
+          .values({
+            productCode: input.productCode,
+            profileCode,
+            label: input.label,
+            status: input.status,
+            appliesToNewUsers,
+            allowUserOverride,
+            version,
+            config: input.config,
+            updatedBy: input.changedBy,
+            updatedAt: new Date(now),
+          })
+          .returning({ id: s.botGlobalConfigs.id });
+        if (!inserted) throw new Error('failed to insert bot global config');
+        id = inserted.id;
+      }
+
+      await tx.insert(s.botGlobalConfigVersions).values({
+        globalConfigId: id,
+        productCode: input.productCode,
+        profileCode,
+        version,
+        label: input.label,
+        status: input.status,
+        appliesToNewUsers,
+        allowUserOverride,
+        configJson: input.config,
+        changedBy: input.changedBy,
+        reason: input.reason,
+      });
+      await tx.insert(s.auditLogs).values(auditRowValues({
+        actorUserId: input.changedBy,
+        actorRole: 'admin',
+        action: 'bot.global_config.save',
+        targetType: 'bot_global_config',
+        targetId: id,
+        before: cur ? { version: cur.version, status: cur.status, appliesToNewUsers: cur.appliesToNewUsers } : null,
+        after: { productCode: input.productCode, profileCode, version, status: input.status, appliesToNewUsers, allowUserOverride, reason: input.reason },
+      }, now));
+
+      return { id, version };
+    });
+  } catch (err) {
+    if (isUniqueViolation(err)) throw new Error('bot_global_config_unique_conflict');
+    throw err;
+  }
+}
 /** Save a bot config: bump version, update current bot_configs, append an immutable bot_config_versions
  *  row, and audit — all in one transaction. WTC DB only; NEVER forwarded to the live bot. */
 export async function saveBotConfig(db: Db, input: { botInstanceId: string; config: Record<string, unknown>; changedBy: string; note?: string }, now = Date.now()): Promise<{ version: number }> {
+  assertNoForbiddenBotConfigKeys(input.config);
   return db.transaction(async (tx) => {
     const [cur] = await tx.select().from(s.botConfigs).where(eq(s.botConfigs.botInstanceId, input.botInstanceId)).limit(1);
     const version = (cur?.version ?? 0) + 1;
@@ -1686,12 +2188,13 @@ export async function saveBotConfig(db: Db, input: { botInstanceId: string; conf
       await tx.insert(s.botConfigs).values({ botInstanceId: input.botInstanceId, version, config: input.config, updatedAt: new Date(now) });
     }
     await tx.insert(s.botConfigVersions).values({ botInstanceId: input.botInstanceId, version, configJson: input.config, changedBy: input.changedBy, note: input.note ?? null });
-    await tx.insert(s.auditLogs).values(auditRowValues({ actorUserId: input.changedBy, actorRole: 'user', action: 'bot.config.save', targetType: 'bot_instance', targetId: input.botInstanceId, after: { version } }, now));
+    await tx.insert(s.auditLogs).values(auditRowValues({ actorUserId: input.changedBy, actorRole: 'user', action: 'bot.config.save', targetType: 'bot_instance', targetId: input.botInstanceId, before: { version: cur?.version ?? null }, after: { version } }, now));
     return { version };
   });
 }
 /** Low-level append (explicit version). Throws 23505 on a duplicate (botInstanceId, version). */
 export async function insertBotConfigVersion(db: Db, input: { botInstanceId: string; version: number; configJson: Record<string, unknown>; changedBy?: string; note?: string }): Promise<void> {
+  assertNoForbiddenBotConfigKeys(input.configJson);
   await db.insert(s.botConfigVersions).values({ botInstanceId: input.botInstanceId, version: input.version, configJson: input.configJson, changedBy: input.changedBy ?? null, note: input.note ?? null });
 }
 export async function listBotConfigVersions(db: Db, botInstanceId: string, limit = 50): Promise<BotConfigVersionRow[]> {
@@ -1699,13 +2202,13 @@ export async function listBotConfigVersions(db: Db, botInstanceId: string, limit
 }
 
 export interface BotMetricSnapshotInput {
-  botInstanceId: string; snapshotAt: Date; sourceAdapter: string;
+  botInstanceId: string; botProviderAccountId?: string | null; snapshotAt: Date; sourceAdapter: string;
   walletEquityUsd?: string; closedPnlUsd?: string; unrealizedPnlUsd?: string; winRate?: string;
   profitFactor?: string; maxDrawdownPct?: string; currentDrawdownPct?: string; totalFeesUsd?: string;
   totalFundingUsd?: string; openRiskUsd?: string; tradeCount?: number; rawJson?: Record<string, unknown>;
 }
 export async function insertBotMetricSnapshot(db: Db, input: BotMetricSnapshotInput): Promise<void> {
-  await db.insert(s.botMetricSnapshots).values({ ...input, rawJson: input.rawJson ?? null });
+  await db.insert(s.botMetricSnapshots).values({ ...input, botProviderAccountId: input.botProviderAccountId ?? null, rawJson: input.rawJson ?? null });
 }
 export async function listBotMetricSnapshots(db: Db, botInstanceId: string, limit = 50): Promise<BotMetricSnapshotRow[]> {
   return db.select().from(s.botMetricSnapshots).where(eq(s.botMetricSnapshots.botInstanceId, botInstanceId)).orderBy(desc(s.botMetricSnapshots.snapshotAt)).limit(limit);
@@ -1717,10 +2220,10 @@ export interface BotPositionInput {
   liquidationPrice?: string; openedAt?: Date;
 }
 /** Batch insert one position-snapshot epoch. Worker only; never updated. */
-export async function insertBotPositionSnapshot(db: Db, input: { botInstanceId: string; snapshotAt: Date; sourceAdapter: string; positions: BotPositionInput[] }): Promise<void> {
+export async function insertBotPositionSnapshot(db: Db, input: { botInstanceId: string; botProviderAccountId?: string | null; snapshotAt: Date; sourceAdapter: string; positions: BotPositionInput[] }): Promise<void> {
   if (input.positions.length === 0) return;
   await db.insert(s.botPositionSnapshots).values(
-    input.positions.map((p) => ({ botInstanceId: input.botInstanceId, snapshotAt: input.snapshotAt, sourceAdapter: input.sourceAdapter, ...p, markPrice: p.markPrice ?? null, openedAt: p.openedAt ?? null })),
+    input.positions.map((p) => ({ botInstanceId: input.botInstanceId, botProviderAccountId: input.botProviderAccountId ?? null, snapshotAt: input.snapshotAt, sourceAdapter: input.sourceAdapter, ...p, markPrice: p.markPrice ?? null, openedAt: p.openedAt ?? null })),
   );
 }
 export async function listBotPositionSnapshots(db: Db, botInstanceId: string, limit = 50): Promise<BotPositionSnapshotRow[]> {
@@ -1728,21 +2231,39 @@ export async function listBotPositionSnapshots(db: Db, botInstanceId: string, li
 }
 
 export interface BotTradeImportInput {
-  botInstanceId: string; externalTradeId: string; symbol: string; side: string;
+  botInstanceId: string; botProviderAccountId?: string | null; externalTradeId: string; symbol: string; side: string;
   entryPrice: string; exitPrice: string; size: string; realizedPnlUsd: string;
   feesUsd?: string; fundingPaidUsd?: string; openedAt: Date; closedAt: Date;
   exitReason?: string; sourceAdapter: string; rawJson?: Record<string, unknown>;
 }
-/** Idempotent import: ON CONFLICT (botInstanceId, externalTradeId, sourceAdapter) DO NOTHING.
+/** Idempotent import across both unscoped and provider-scoped unique indexes.
  *  Returns {inserted:false} for a duplicate. Audits only on a real insert. */
 export async function importBotTrade(db: Db, input: BotTradeImportInput): Promise<{ inserted: boolean }> {
   return db.transaction(async (tx) => {
-    const [row] = await tx
+    const providerAccountId = input.botProviderAccountId ?? null;
+    const insert = tx
       .insert(s.botTradeImports)
-      .values({ ...input, feesUsd: input.feesUsd ?? '0', fundingPaidUsd: input.fundingPaidUsd ?? '0', exitReason: input.exitReason ?? null, rawJson: input.rawJson ?? null })
-      .onConflictDoNothing()
+      .values({ ...input, botProviderAccountId: providerAccountId, feesUsd: input.feesUsd ?? '0', fundingPaidUsd: input.fundingPaidUsd ?? '0', exitReason: input.exitReason ?? null, rawJson: input.rawJson ?? null });
+    const [row] = await (providerAccountId
+      ? insert.onConflictDoNothing({
+          target: [
+            s.botTradeImports.botInstanceId,
+            s.botTradeImports.botProviderAccountId,
+            s.botTradeImports.externalTradeId,
+            s.botTradeImports.sourceAdapter,
+          ],
+          where: sql`${s.botTradeImports.botProviderAccountId} IS NOT NULL`,
+        })
+      : insert.onConflictDoNothing({
+          target: [
+            s.botTradeImports.botInstanceId,
+            s.botTradeImports.externalTradeId,
+            s.botTradeImports.sourceAdapter,
+          ],
+          where: sql`${s.botTradeImports.botProviderAccountId} IS NULL`,
+        }))
       .returning({ id: s.botTradeImports.id });
-    if (row) await tx.insert(s.auditLogs).values(auditRowValues({ actorRole: 'system', action: 'bot.trade_imported', targetType: 'bot_instance', targetId: input.botInstanceId, after: { externalTradeId: input.externalTradeId, sourceAdapter: input.sourceAdapter } }));
+    if (row) await tx.insert(s.auditLogs).values(auditRowValues({ actorRole: 'system', action: 'bot.trade_imported', targetType: 'bot_instance', targetId: input.botInstanceId, after: { externalTradeId: input.externalTradeId, sourceAdapter: input.sourceAdapter, botProviderAccountId: providerAccountId } }));
     return { inserted: !!row };
   });
 }
@@ -1822,14 +2343,14 @@ export async function upsertBotTradeReview(db: Db, input: BotTradeReviewInput, n
 }
 
 export interface BotSafetyEventInput {
-  botInstanceId: string; eventCode: string; severity: 'info' | 'warning' | 'critical';
+  botInstanceId: string; botProviderAccountId?: string | null; eventCode: string; severity: 'info' | 'warning' | 'critical';
   symbol?: string; description: string; metadata?: Record<string, unknown>; observedAt?: Date;
 }
 /** Insert a risk-signal event. `critical` severity writes an in-txn audit row (it is an operational
  *  signal that must be traceable); info/warning are surfaced in the UI but not audited per-event. */
 export async function insertBotSafetyEvent(db: Db, input: BotSafetyEventInput, now = Date.now()): Promise<void> {
   await db.transaction(async (tx) => {
-    await tx.insert(s.botSafetyEvents).values({ botInstanceId: input.botInstanceId, eventCode: input.eventCode, severity: input.severity, symbol: input.symbol ?? null, description: input.description, metadata: input.metadata ?? null, observedAt: input.observedAt ?? new Date(now) });
+    await tx.insert(s.botSafetyEvents).values({ botInstanceId: input.botInstanceId, botProviderAccountId: input.botProviderAccountId ?? null, eventCode: input.eventCode, severity: input.severity, symbol: input.symbol ?? null, description: input.description, metadata: input.metadata ?? null, observedAt: input.observedAt ?? new Date(now) });
     if (input.severity === 'critical') {
       await tx.insert(s.auditLogs).values(auditRowValues({ actorRole: 'system', action: 'bot.safety_event', targetType: 'bot_instance', targetId: input.botInstanceId, after: { eventCode: input.eventCode, severity: input.severity } }, now));
     }

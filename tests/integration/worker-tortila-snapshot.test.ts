@@ -94,9 +94,10 @@ describe('worker Tortila journal snapshot', () => {
       SYSTEM_BOT_OWNER_ID: ownerId,
     });
 
-    expect(result.workerHealthStatus).toBe('ok');
+    expect(result.workerHealthStatus).toBe('not_configured');
     expect(result.tortilaSnapshot).toBe('ok');
     expect(result.tortilaLastError).toBeNull();
+    expect(result.legacySnapshot).toBe('skipped');
     expect(result.lmsMaterialsPurged).toBe(1);
 
     const metrics = await listBotMetricSnapshots(db, botInstanceId, 20);
@@ -109,8 +110,9 @@ describe('worker Tortila journal snapshot', () => {
     expect(trades.length).toBe(5);
 
     const health = await db.select().from(schema.integrationHealthChecks);
-    const workerHealth = health.find((h) => h.target === 'worker' && h.status === 'ok');
+    const workerHealth = health.reverse().find((h) => h.target === 'worker');
     expect(workerHealth).toBeTruthy();
+    expect(workerHealth!.status).toBe('not_configured');
     expect(workerHealth!.detail).toMatchObject({
       lmsMaterialsPurged: 1,
       lmsObjectMaterialsScanned: 0,
@@ -122,6 +124,10 @@ describe('worker Tortila journal snapshot', () => {
       adapterMode: 'mock',
       liveControlDisabled: true,
       tvAutomationDisabled: true,
+      botContinuityStatus: 'attention',
+      tortilaSnapshot: 'ok',
+      legacySnapshot: 'skipped',
+      legacyReadState: 'not_configured',
     });
     expect(health.some((h) => h.target === 'tortila-journal' && h.status === 'ok')).toBe(true);
   });
@@ -139,14 +145,102 @@ describe('worker Tortila journal snapshot', () => {
         TORTILA_JOURNAL_BASE_URL: 'http://journal.local',
       });
 
-      expect(result.tortilaSnapshot).toBe('ok');
+      expect(result.workerHealthStatus).toBe('not_configured');
+      expect(result.tortilaSnapshot).toBe('skipped');
+      expect(result.legacySnapshot).toBe('skipped');
       expect(fetchSpy).not.toHaveBeenCalled();
       expect((await listBotMetricSnapshots(db, botInstanceId, 100)).length).toBe(metricsBefore);
       expect((await listBotPositionSnapshots(db, botInstanceId, 100)).length).toBe(positionsBefore);
       expect((await listBotTradeImports(db, botInstanceId, { limit: 100 })).length).toBe(tradesBefore);
 
       const health = await db.select().from(schema.integrationHealthChecks);
-    expect(health.some((h) => h.target === 'tortila-journal' && h.status === 'not_configured')).toBe(true);
+      expect(health.some((h) => h.target === 'tortila-journal' && h.status === 'not_configured')).toBe(true);
+      const workerHealth = health.reverse().find((h) => h.target === 'worker');
+      expect(workerHealth?.status).toBe('not_configured');
+      expect(workerHealth?.detail).toMatchObject({
+        botContinuityStatus: 'attention',
+        tortilaSnapshot: 'skipped',
+        tortilaReadState: 'not_configured',
+        legacySnapshot: 'skipped',
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('read-only Tortila health failure makes final worker continuity an error without leaking tokens', async () => {
+    const fetchSpy = vi.fn(async () => new Response(JSON.stringify({ error: 'down' }), { status: 503 }));
+    vi.stubGlobal('fetch', fetchSpy);
+    try {
+      const result = await runDbWorkerTick(db, 1_900_000_240_000, {
+        BOT_ADAPTER_MODE: 'read-only',
+        SYSTEM_BOT_OWNER_ID: ownerId,
+        TORTILA_JOURNAL_BASE_URL: 'http://journal.local',
+        JOURNAL_READ_TOKEN: 'token-should-never-leak',
+      });
+
+      expect(result.workerHealthStatus).toBe('error');
+      expect(result.tortilaSnapshot).toBe('error');
+      expect(result.tortilaLastError).toContain('journal /api/health unreachable');
+      expect(result.tortilaLastError).not.toContain('token-should-never-leak');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+      const health = await db.select().from(schema.integrationHealthChecks);
+      const tortilaHealth = health.reverse().find((h) => h.target === 'tortila-journal');
+      expect(tortilaHealth?.status).toBe('down');
+      expect(JSON.stringify(tortilaHealth?.detail)).not.toContain('token-should-never-leak');
+      const workerHealth = health.find((h) => h.target === 'worker');
+      expect(workerHealth?.status).toBe('error');
+      expect(workerHealth?.detail).toMatchObject({
+        botContinuityStatus: 'error',
+        tortilaSnapshot: 'error',
+        tortilaReadState: 'unreachable',
+        legacySnapshot: 'skipped',
+      });
+      expect(JSON.stringify(workerHealth?.detail)).not.toContain('token-should-never-leak');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('read-only Tortila wrong token fails closed before imports and never leaks tokens', async () => {
+    const metricsBefore = (await listBotMetricSnapshots(db, botInstanceId, 100)).length;
+    const positionsBefore = (await listBotPositionSnapshots(db, botInstanceId, 100)).length;
+    const tradesBefore = (await listBotTradeImports(db, botInstanceId, { limit: 100 })).length;
+    const fetchSpy = vi.fn(async () => new Response(JSON.stringify({ detail: 'journal read token required' }), { status: 401 }));
+    vi.stubGlobal('fetch', fetchSpy);
+    try {
+      const result = await runDbWorkerTick(db, 1_900_000_300_000, {
+        BOT_ADAPTER_MODE: 'read-only',
+        SYSTEM_BOT_OWNER_ID: ownerId,
+        TORTILA_JOURNAL_BASE_URL: 'http://journal.local',
+        JOURNAL_READ_TOKEN: 'wrong-token-fixture',
+      });
+
+      expect(result.workerHealthStatus).toBe('error');
+      expect(result.tortilaSnapshot).toBe('error');
+      expect(result.tortilaLastError).toContain('journal /api/health unreachable');
+      expect(result.tortilaLastError).toContain('401');
+      expect(result.tortilaLastError).not.toContain('wrong-token-fixture');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect((await listBotMetricSnapshots(db, botInstanceId, 100)).length).toBe(metricsBefore);
+      expect((await listBotPositionSnapshots(db, botInstanceId, 100)).length).toBe(positionsBefore);
+      expect((await listBotTradeImports(db, botInstanceId, { limit: 100 })).length).toBe(tradesBefore);
+
+      const health = await db.select().from(schema.integrationHealthChecks);
+      const tortilaHealth = health.reverse().find((h) => h.target === 'tortila-journal');
+      expect(tortilaHealth?.status).toBe('down');
+      expect(JSON.stringify(tortilaHealth?.detail)).toContain('401');
+      expect(JSON.stringify(tortilaHealth?.detail)).not.toContain('wrong-token-fixture');
+      const workerHealth = health.find((h) => h.target === 'worker');
+      expect(workerHealth?.status).toBe('error');
+      expect(workerHealth?.detail).toMatchObject({
+        botContinuityStatus: 'error',
+        tortilaSnapshot: 'error',
+        tortilaReadState: 'unreachable',
+        legacySnapshot: 'skipped',
+      });
+      expect(JSON.stringify(workerHealth?.detail)).not.toContain('wrong-token-fixture');
     } finally {
       vi.unstubAllGlobals();
     }

@@ -46,6 +46,8 @@ describe('db seed deploy-readiness hardening', () => {
     const rootPkg = readFileSync(join(process.cwd(), 'package.json'), 'utf8');
     expect(rootPkg).toContain('"preview:safe": "node scripts/safe-preview.mjs"');
     expect(rootPkg).toContain('"worker:smoke": "node scripts/safe-worker-tick.mjs"');
+    expect(rootPkg).toContain('"accept:worker:continuity": "node scripts/safe-worker-tick.mjs --require-db --expect-continuity=full"');
+    expect(rootPkg).toContain('"accept:worker:continuity:managed": "node scripts/run-worker-continuity-managed.mjs"');
 
     const script = readFileSync(join(process.cwd(), 'scripts', 'safe-preview.mjs'), 'utf8');
     expect(script).toContain("APP_ENV: 'development'");
@@ -71,8 +73,18 @@ describe('db seed deploy-readiness hardening', () => {
     expect(script).toContain("const tsxCli = join(root, 'node_modules', 'tsx', 'dist', 'cli.mjs')");
     expect(script).toContain("const tickScript = join(root, 'apps', 'worker', 'src', 'tick-once.ts')");
     expect(script).toContain("args.push('--memory-demo')");
+    expect(script).toContain('--expect-continuity=full|setup-needed');
+    expect(script).toContain("acceptanceProfiles");
+    expect(script).toContain("botContinuity: 'ok'");
+    expect(script).toContain("botContinuity: 'attention'");
     expect(script).toContain("import { runRedactedChildProcess } from './redacted-child-process.mjs'");
     expect(script).toContain('runRedactedChildProcess(process.execPath, args');
     expect(script).not.toContain("stdio: 'inherit'");
+
+    const tick = readFileSync(join(process.cwd(), 'apps', 'worker', 'src', 'tick-once.ts'), 'utf8');
+    expect(tick.match(/\[worker:tick\] DB tick OK/g)).toHaveLength(1);
+    expect(tick).toContain('bot_continuity=${result.botContinuityStatus}');
+    expect(tick).toContain('tortila=${result.tortilaSnapshot}');
+    expect(tick).toContain('legacy=${result.legacySnapshot}');
   });
 });

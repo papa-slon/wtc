@@ -1,16 +1,16 @@
 import { Card, SectionHeader, StatusPill, MetricCard, MetricValue, RiskWarningBanner, EmptyState, type Tone } from '@wtc/ui';
 import { fmtMoney, fmtNum, fmtPf, fmtDate } from '@/lib/format';
-import { loadBot, BotAccessRequired, loadBotReadModel } from '@/features/bots/data';
+import { loadBot, BotAccessRequired, loadBotReadModelForUser } from '@/features/bots/data';
 import { BotSubNav } from '@/components/BotSubNav';
 import { BOT_CAPS } from '@/features/bots/meta';
 
 export default async function Page({ params }: { params: Promise<{ bot: string }> }) {
   const { bot } = await params;
-  const { meta, access } = await loadBot(bot);
+  const { meta, access, user } = await loadBot(bot);
   if (!access.allowed) return <BotAccessRequired meta={meta} section="Trades" />;
 
   const caps = BOT_CAPS[meta.code];
-  const read = await loadBotReadModel(meta.code, ['trades', 'metrics']);
+  const read = await loadBotReadModelForUser(user.id, meta.code, ['trades', 'metrics']);
   const trades = read.trades.data ?? [];
   const metrics = read.metrics.data;
   const closed = trades.filter((t) => t.closedAt !== null);

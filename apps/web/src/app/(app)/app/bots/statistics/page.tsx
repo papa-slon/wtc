@@ -5,9 +5,25 @@ import { botAccessForUser, reasonLabel } from '@/lib/access';
 import { requireUser } from '@/lib/session';
 import { fmtDateTime, fmtMoney, fmtNum, fmtPf, fmtPct } from '@/lib/format';
 import { BOT_CAPS, BOT_LIST, botHealthPill, type BotMeta } from '@/features/bots/meta';
-import { loadBotReadModel, type BotReadIssue, type BotReadModel } from '@/features/bots/data';
+import { loadBotReadModelForUser, type BotReadIssue, type BotReadModel } from '@/features/bots/data';
+import { BotOperationMapPanel } from '@/features/bots/BotOperationMapPanel';
+import { BotContinuityPanel } from '@/features/bots/BotContinuityPanel';
+import { BotRuntimeEvidencePanel } from '@/features/bots/BotRuntimeEvidencePanel';
+import { WarningSummaryPanel } from '@/features/bots/WarningSummaryPanel';
 import { BotJournalPanels, LegacyOperationsPanel } from '@/features/bots/statistics-panels';
-import { legacyStageConfigsFromConfig, legacySymbolConfigsFromConfig, loadBotConfig } from '@/features/bots/config';
+import { BotStatisticsCommandCenter } from '@/features/bots/BotStatisticsCommandCenter';
+import { loadBotReadinessForUser } from '@/features/bots/readiness-loader';
+import type { BotRuntimeReadinessInput } from '@/features/bots/readiness';
+import {
+  legacySymbolConfigsFromConfig,
+  loadBotConfig,
+  legacyRuntimeStageSourceExists,
+  legacyRuntimeSymbolSourceExists,
+  legacyStageConfigsFromConfig,
+  legacyRuntimeSymbolConfigsFromConfig,
+  tortilaSymbolConfigsFromConfig,
+} from '@/features/bots/config';
+import { buildBotConfigReview } from '@/features/bots/config-review';
 
 type BotStatsRow = BotMeta & {
   accessReason: string;
@@ -40,8 +56,58 @@ function objectArray(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? value.filter((row): row is Record<string, unknown> => !!row && typeof row === 'object') : [];
 }
 
+function providerPubIdSummary(count: number): string {
+  return count === 1 ? '1 provider pub_id mapped' : `${count} provider pub_ids mapped`;
+}
+
+function partialMoney(value: number, contributors: number): string {
+  return contributors > 0 ? fmtMoney(value) : 'N/A';
+}
+
 function compactDate(ms: number): string {
   return new Date(ms).toISOString().slice(5, 16).replace('T', ' ');
+}
+
+function freshnessText(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined) return 'age unknown';
+  if (seconds < 60) return `${seconds}s old`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m old`;
+  return `${Math.round(minutes / 60)}h old`;
+}
+
+function workerHeartbeatStatus(runtime: BotRuntimeReadinessInput | null): { label: string; tone: Tone; detail: string } {
+  if (!runtime || !runtime.workerCheckedAt) {
+    return {
+      label: 'No aggregate worker row',
+      tone: 'warn',
+      detail: "No aggregate target='worker' heartbeat is available for this render; the page stays read-only and cannot prove bot continuity.",
+    };
+  }
+
+  const blocked =
+    runtime.workerStatus === 'error' ||
+    runtime.workerBotContinuityStatus === 'error' ||
+    runtime.workerProductSnapshot === 'error' ||
+    runtime.workerProductReadState === 'unreachable' ||
+    runtime.workerProductReadState === 'malformed';
+  const stale = (runtime.workerAgeSeconds ?? 0) > (runtime.workerStaleAfterSeconds ?? 3 * 60);
+  const ready =
+    !blocked &&
+    !stale &&
+    runtime.workerStatus === 'ok' &&
+    runtime.workerBotContinuityStatus === 'ok' &&
+    runtime.workerProductSnapshot === 'ok' &&
+    runtime.workerProductReadState === 'ok';
+
+  return {
+    label: ready
+      ? `Fresh aggregate - ${freshnessText(runtime.workerAgeSeconds)}`
+      : `Aggregate needs review - ${freshnessText(runtime.workerAgeSeconds)}`,
+    tone: blocked ? 'bad' : ready ? 'ok' : 'warn',
+    detail: runtime.workerDetail
+      ?? `Worker=${runtime.workerStatus ?? 'unknown'}, botContinuity=${runtime.workerBotContinuityStatus ?? 'unknown'}, productSnapshot=${runtime.workerProductSnapshot ?? 'unknown'}, productReadState=${runtime.workerProductReadState ?? 'unknown'}.`,
+  };
 }
 
 function equityPath(points: EquityPoint[], width = 720, height = 210): string {
@@ -134,7 +200,7 @@ function PositionsTable({ positions, markUnavailable }: { positions: CanonicalPo
                   <td data-label="Qty">{fmtNum(p.qty)}</td>
                   <td data-label="Entry">{fmtNum(p.entryPrice)}</td>
                   <td data-label="Mark">{markUnavailable ? 'N/A' : fmtNum(p.markPrice)}</td>
-                  <td data-label="uPnL" className={!markUnavailable && p.unrealizedPnl < 0 ? 'wtc-down' : 'wtc-up'}>
+                  <td data-label="uPnL" className={markUnavailable ? undefined : p.unrealizedPnl < 0 ? 'wtc-down' : 'wtc-up'}>
                     {markUnavailable ? 'N/A' : fmtMoney(p.unrealizedPnl)}
                   </td>
                   <td data-label="Margin">{p.marginUsed != null ? fmtMoney(p.marginUsed) : '-'}</td>
@@ -207,35 +273,56 @@ export default async function BotStatisticsPage({
     BOT_LIST.map(async (bot) => {
       const access = await botAccessForUser(user, bot.code);
       const read = access.allowed
-        ? await loadBotReadModel(bot.code, ['metrics', 'positions', 'trades', 'equityCurve', 'config', 'warnings'])
+        ? await loadBotReadModelForUser(user.id, bot.code, ['metrics', 'positions', 'trades', 'equityCurve', 'config', 'warnings'])
         : null;
       return { ...bot, accessAllowed: access.allowed, accessReason: reasonLabel(access.reason), read };
     }),
   );
   const active = rows.find((r) => r.slug === selected) ?? rows[0]!;
   const activeRead = active.read;
+  const activeConfig = active.accessAllowed ? await loadBotConfig(user.id, active.code) : null;
+  const activeReadiness = active.accessAllowed && activeRead
+    ? await loadBotReadinessForUser(user, active.code, 'dashboard', { read: activeRead })
+    : null;
+  const workerHeartbeat = workerHeartbeatStatus(activeReadiness?.runtime ?? null);
   const healthPill = activeRead ? botHealthPill(activeRead.health) : { tone: 'bad' as Tone, label: 'locked' };
   const metrics = activeRead?.metrics.data ?? null;
   const positions = activeRead?.positions.data ?? [];
   const trades = activeRead?.trades.data ?? [];
   const equity = activeRead?.equityCurve.data ?? [];
+  const scopedDataRows = (metrics ? 1 : 0) + positions.length + trades.length + equity.length + (activeRead?.config.data ? 1 : 0) + (activeRead?.warningSummary.count ?? 0);
   const caps = BOT_CAPS[active.code];
-  const markUnavailable = active.code === 'tortila_bot' && activeRead?.adapterMode === 'real';
+  const markUnavailable = activeRead?.markUnavailable ?? false;
   const advanced = computeAdvancedAnalytics({ trades, positions, equityCurve: equity });
-  const configState = active.accessAllowed ? await loadBotConfig(user.id, active.code) : null;
   const legacyLiveConfig =
     active.code === 'legacy_bot' && activeRead?.config.data?.raw && typeof activeRead.config.data.raw === 'object'
       ? activeRead.config.data.raw as Record<string, unknown>
       : null;
-  const legacyConfig = legacyLiveConfig ?? configState?.current ?? null;
-  const legacyRows = active.code === 'legacy_bot' ? legacySymbolConfigsFromConfig(legacyConfig) : [];
-  const legacyStages = active.code === 'legacy_bot' ? legacyStageConfigsFromConfig(legacyConfig) : [];
+  const legacyClosedTradeSourceProof =
+    active.code === 'legacy_bot' ? activeRead?.closedTradeSourceProof ?? null : null;
+  const hasLegacyRuntimeRows = active.code === 'legacy_bot' && legacyRuntimeSymbolSourceExists(legacyLiveConfig);
+  const hasLegacyRuntimeStages = active.code === 'legacy_bot' && legacyRuntimeStageSourceExists(legacyLiveConfig);
+  const legacyRows = hasLegacyRuntimeRows ? legacyRuntimeSymbolConfigsFromConfig(legacyLiveConfig) : [];
+  const legacyStages = hasLegacyRuntimeStages ? legacyStageConfigsFromConfig(legacyLiveConfig) : [];
   const legacyAccounts = objectArray(legacyLiveConfig?.providerAccounts);
   const legacySlots = objectArray(legacyLiveConfig?.activeSlots);
   const legacyOrders = objectArray(legacyLiveConfig?.activeOrderSummary);
   const legacyRsiRows = legacyRows.filter((row) => row.useRsi && !row.useCci).length;
   const legacyCciRows = legacyRows.filter((row) => row.useCci && !row.useRsi).length;
   const legacyStageCapacity = legacyStages.reduce((sum, row) => sum + row.rsiSlots + row.cciSlots, 0);
+  const operationReview = activeConfig
+    ? buildBotConfigReview({
+      productCode: active.code,
+      sourceLabel: activeConfig.sourceLabel,
+      config: activeConfig.current,
+      tortilaRows: active.code === 'tortila_bot' ? tortilaSymbolConfigsFromConfig(activeConfig.current) : [],
+      legacyRows: active.code === 'legacy_bot' ? legacySymbolConfigsFromConfig(activeConfig.current) : [],
+      legacyStages: active.code === 'legacy_bot' ? legacyStageConfigsFromConfig(activeConfig.current) : [],
+      providerAccountCount: legacyAccounts.length,
+    })
+    : null;
+  const walletContributors = rows.filter((row) => row.accessAllowed && row.read?.metrics.data).length;
+  const entitledBots = rows.filter((r) => r.accessAllowed).length;
   const totalWalletEquity = rows.reduce((sum, row) => sum + (row.read?.metrics.data?.walletEquity ?? 0), 0);
   const totalOpenPositions = rows.reduce((sum, row) => sum + (row.read?.positions.data?.length ?? 0), 0);
 
@@ -265,8 +352,8 @@ export default async function BotStatisticsPage({
 
       <Card title="Portfolio snapshot">
         <div className="wtc-grid wtc-grid-4">
-          <MetricCard label="Entitled bots" value={fmtNum(rows.filter((r) => r.accessAllowed).length)} sub={`of ${rows.length}`} />
-          <MetricCard label="Total wallet equity" value={fmtMoney(totalWalletEquity)} />
+          <MetricCard label="Entitled bots" value={fmtNum(entitledBots)} sub={`of ${rows.length}`} />
+          <MetricCard label="Total wallet equity" value={partialMoney(totalWalletEquity, walletContributors)} sub={`${walletContributors}/${entitledBots} bots with metrics`} />
           <MetricCard label="Open positions" value={fmtNum(totalOpenPositions)} />
           <MetricCard label="Selected bot" value={active.name} sub={active.accessReason} />
         </div>
@@ -313,11 +400,84 @@ export default async function BotStatisticsPage({
 
           {issueBanner(activeRead?.metrics.issue ?? activeRead?.positions.issue ?? activeRead?.trades.issue ?? activeRead?.equityCurve.issue ?? null)}
 
+          {activeRead && (
+            <BotContinuityPanel
+              productCode={active.code}
+              adapterMode={activeRead.adapterMode}
+              health={activeRead.health}
+              activeWarningCount={activeRead.warningSummary.activeCount}
+              dataRows={scopedDataRows}
+              dataRowsLabel="statistics evidence rows"
+              dataRowsDetail="Metrics, positions, trades, equity samples, config, and warning rows count only after entitlement and bot ownership scope pass."
+              configSourceLabel={activeConfig?.sourceLabel}
+              connectionLabel={active.code === 'legacy_bot' ? providerPubIdSummary(legacyAccounts.length) : activeRead.adapterMode === 'mock' ? 'mock adapter preview' : 'exchange metadata not shown here'}
+              title="Statistics continuity monitor"
+            />
+          )}
+
+          {operationReview && activeConfig && (
+            <BotOperationMapPanel
+              productCode={active.code}
+              sourceLabel={activeConfig.sourceLabel}
+              configMetrics={operationReview.metrics}
+              runtimeSummary={active.code === 'legacy_bot' ? providerPubIdSummary(legacyAccounts.length) : `${trades.length} trades / ${positions.length} open positions`}
+              statisticsSummary={active.code === 'legacy_bot' ? `${legacySlots.length || positions.length} active slots / ${legacyOrders.length || 0} active orders` : 'equity curve, drawdown, PF, win rate, positions, trades, and journal diagnostics'}
+              settingsHref={`/app/bots/${active.slug}/settings`}
+              dashboardHref={`/app/bots/${active.slug}`}
+              title="Statistics operation map"
+            />
+          )}
+
+          {activeRead && (
+            <BotRuntimeEvidencePanel
+              productCode={active.code}
+              adapterMode={activeRead.adapterMode}
+              health={activeRead.health}
+              metricsAvailable={!!metrics}
+              positionsCount={positions.length}
+              tradesCount={trades.length}
+              equitySamples={equity.length}
+              configSnapshotAvailable={!!activeRead.config.data}
+              warningStatus={activeRead.warningSummary.status}
+              warningCount={activeRead.warningSummary.count}
+              title="Statistics evidence ladder"
+            />
+          )}
+
+          {activeRead && (
+            <BotStatisticsCommandCenter
+              productCode={active.code}
+              bot={active.slug}
+              botName={active.name}
+              adapterMode={activeRead.adapterMode}
+              healthLabel={healthPill.label}
+              healthTone={healthPill.tone}
+              workerHeartbeatLabel={workerHeartbeat.label}
+              workerHeartbeatTone={workerHeartbeat.tone}
+              workerHeartbeatDetail={workerHeartbeat.detail}
+              configSourceLabel={activeConfig?.sourceLabel ?? 'No WTC config source'}
+              walletLabel={metrics ? fmtMoney(metrics.walletEquity) : 'N/A'}
+              pnlLabel={active.code === 'legacy_bot' ? 'closed trade imports pending' : metrics ? fmtMoney(metrics.netPnlWithFees) : 'N/A'}
+              pnlTone={active.code === 'legacy_bot' ? undefined : pnlTone(metrics?.netPnlWithFees)}
+              winRateLabel={metrics ? fmtPct(metrics.winRatePct) : 'N/A'}
+              profitFactorLabel={metrics ? fmtPf(metrics.profitFactor) : 'N/A'}
+              drawdownLabel={active.code === 'legacy_bot' ? `${legacyStageCapacity} stage slots` : metrics ? fmtPct(metrics.maxDrawdownPct) : 'N/A'}
+              openPositionsCount={positions.length}
+              tradesCount={trades.length}
+              equitySamples={equity.length}
+              scopedDataRows={scopedDataRows}
+              warningCount={activeRead.warningSummary.count}
+              runtimeSummary={active.code === 'legacy_bot' ? providerPubIdSummary(legacyAccounts.length) : `${positions.length} positions / ${trades.length} trades from journal snapshots`}
+              statisticsSummary={active.code === 'legacy_bot' ? `${legacySlots.length || positions.length} active slots / ${legacyOrders.length || 0} active orders` : `${equity.length} equity samples and ${trades.length} closed-trade rows`}
+              settingsSummary={operationReview?.summary ?? 'Open settings to review the resolved WTC strategy profile.'}
+            />
+          )}
+
           {metrics ? (
             <>
               {active.code === 'legacy_bot' ? (
                 <div className="wtc-grid wtc-grid-4">
-                  <MetricCard label="Wallet balance snapshot" value={fmtMoney(metrics.walletEquity)} sub={`${legacyAccounts.length || 1} provider pub_id`} />
+                  <MetricCard label="Wallet balance snapshot" value={fmtMoney(metrics.walletEquity)} sub={providerPubIdSummary(legacyAccounts.length)} />
                   <MetricCard label="Configured symbols" value={legacyRows.length} sub={`${legacyRsiRows} RSI / ${legacyCciRows} CCI`} />
                   <MetricCard label="Active slots" value={legacySlots.length || positions.length} sub={`${legacyStageCapacity} stage capacity`} />
                   <MetricCard label="Active orders" value={legacyOrders.length || '-'} sub="BUY / averaging / TP coverage" />
@@ -372,19 +532,27 @@ export default async function BotStatisticsPage({
           )}
 
           {active.code === 'legacy_bot' && (
-            <LegacyOperationsPanel rows={legacyRows} stages={legacyStages} liveConfig={legacyLiveConfig} />
+            <LegacyOperationsPanel
+              rows={legacyRows}
+              stages={legacyStages}
+              liveConfig={legacyLiveConfig}
+              closedTradeCount={trades.filter((trade) => trade.closedAt !== null).length}
+              closedTradeSourceProof={legacyClosedTradeSourceProof}
+            />
           )}
 
-          <Card title="Risk and status notes">
-            {activeRead?.warnings.data && activeRead.warnings.data.length > 0 ? (
-              activeRead.warnings.data.map((w) => (
-                <RiskWarningBanner key={w.code} severity={w.severity} title={w.title} detail={w.detail} />
-              ))
-            ) : (
-              <EmptyState title="No adapter warnings" />
-            )}
+          {activeRead ? (
+            <WarningSummaryPanel summary={activeRead.warningSummary} title="Risk and status notes" />
+          ) : (
+            <Card title="Risk and status notes">
+              <EmptyState title="Warning state unavailable" hint="Activate bot access to evaluate warning state." />
+            </Card>
+          )}
+
+          {(caps.notes.length > 0 || activeRead) && (
+            <Card title="Bot room links and limitations">
             {caps.notes.length > 0 && (
-              <ul className="wtc-dim" style={{ margin: '12px 0 0', paddingLeft: 18, fontSize: 13, lineHeight: 1.7 }}>
+              <ul className="wtc-dim" style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.7 }}>
                 {caps.notes.map((note) => <li key={note}>{note}</li>)}
               </ul>
             )}
@@ -393,7 +561,8 @@ export default async function BotStatisticsPage({
               <Link href={`/app/bots/${active.slug}/settings`} className={buttonClasses('ghost')}>Configure</Link>
               {caps.hasBacktester && <Link href={`/app/bots/${active.slug}/backtester`} className={buttonClasses('ghost')}>Download backtester</Link>}
             </div>
-          </Card>
+            </Card>
+          )}
         </>
       )}
     </div>

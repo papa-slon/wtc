@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { BotProductCode } from '@wtc/bot-adapters';
 import type { CanonicalTrade } from '@wtc/analytics';
 import { getServerDb } from '@/lib/backend';
-import { loadBotReadModel } from './data';
+import { loadBotReadModelForUser } from './data';
 import {
   ensureBotInstance,
   listBotTradeImports,
@@ -148,7 +148,7 @@ export async function loadBotJournal(productCode: BotProductCode, userId: string
   const db = getServerDb();
 
   if (!db) {
-    const read = await loadBotReadModel(productCode, ['trades']);
+    const read = await loadBotReadModelForUser(userId, productCode, ['trades']);
     const sourceAdapter = adapterSource(productCode, read.adapterMode);
     return {
       mode: 'demo',

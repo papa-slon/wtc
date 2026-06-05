@@ -120,6 +120,41 @@
       "when": 1780366515305,
       "tag": "0016_colorful_lyja",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1780483483224,
+      "tag": "0017_funny_gambit",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1780484158058,
+      "tag": "0018_provider_snapshot_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1780485639713,
+      "tag": "0019_freezing_beyonder",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1780492989170,
+      "tag": "0020_moaning_robin_chapel",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1780574261018,
+      "tag": "0021_complete_pepper_potts",
+      "breakpoints": true
     }
   ]
 }

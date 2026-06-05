@@ -29,14 +29,19 @@ export const AUDIT_ACTIONS = [
   // Bots
   'bot.config.save',
   'bot.config_version_created',
+  'bot.global_config.save',
   'bot.enable',
   'bot.disable',
   'bot.trade_imported',
   'bot.trade_review.save',
+  'bot.provider_account.map',
+  'bot.provider_account.update',
+  'bot.provider_account.disable',
   'bot.safety_event',
   'bot.safety_event_ack',
   // Exchange keys
   'exchange_key.rewrap',
+  'exchange_key.metadata_check',
   'exchange_key.test',
   // Auth (hardening — codes reserved; routes land later)
   'auth.logout_all',

@@ -1,6 +1,6 @@
 import postgres from 'postgres';
-import { isLegacySecretField } from '@wtc/bot-adapters';
-import type { Db } from '@wtc/db';
+import { CURRENT_LEGACY_CLOSED_TRADE_SOURCE_PROOF, isLegacySecretField } from '@wtc/bot-adapters';
+import type { BotProviderAccountRow, Db } from '@wtc/db';
 
 type WorkerEnv = Record<string, string | undefined>;
 type LegacySql = ReturnType<typeof postgres>;
@@ -8,9 +8,25 @@ type LegacySql = ReturnType<typeof postgres>;
 export interface LegacyLiveSnapshotResult {
   status: 'ok' | 'error' | 'skipped';
   lastError: string | null;
+  healthStatus: 'ok' | 'error' | 'not_configured';
+  readState: 'ok' | 'not_configured' | null;
   accountsSeen: number;
   settingsSeen: number;
   positionsSeen: number;
+  providerAccountsScoped: number;
+}
+
+export interface LegacyLiveRowsSnapshotResult {
+  healthStatus: 'ok' | 'error' | 'not_configured';
+  readState: 'ok' | 'not_configured';
+  accountsSeen: number;
+  settingsSeen: number;
+  stageConfigsSeen: number;
+  positionsSeen: number;
+  slotsSeen: number;
+  runningCount: number;
+  quarantinedCount: number;
+  warningCodes: string[];
 }
 
 interface LegacyApiAccountRow {
@@ -374,8 +390,110 @@ async function readLegacyRows(databaseUrl: string, apiId?: string): Promise<Lega
   }
 }
 
+export async function snapshotLegacyRowsToWtc(
+  db: Db,
+  input: {
+    botInstanceId: string;
+    botProviderAccountId?: string | null;
+    rows: LegacyLiveRows;
+    now: number;
+    adapterMode: string;
+  },
+): Promise<LegacyLiveRowsSnapshotResult> {
+  const { insertBotMetricSnapshot, insertBotPositionSnapshot } = await import('@wtc/db');
+  const rows = input.rows;
+  const config = buildLegacyLiveConfig(rows);
+  const positions = buildLegacyLivePositions(rows);
+  const warningCodes = buildLegacyLiveWarnings(rows);
+  const walletEquity = rows.accounts.reduce((sum, row) => sum + n(row.balance), 0);
+  const runningCount = rows.accounts.filter((row) => row.running).length;
+  const quarantinedCount = rows.accounts.filter((row) => row.quarantined === true).length;
+  const healthStatus = rows.accounts.length === 0 ? 'not_configured' : quarantinedCount > 0 ? 'error' : 'ok';
+  const readState = rows.accounts.length === 0 ? 'not_configured' : 'ok';
+  const snapshotAt = new Date(input.now);
+  const providerAccountScoped = !!input.botProviderAccountId;
+
+  await insertBotMetricSnapshot(db, {
+    botInstanceId: input.botInstanceId,
+    botProviderAccountId: input.botProviderAccountId ?? null,
+    snapshotAt,
+    sourceAdapter: 'legacy-db',
+    walletEquityUsd: String(walletEquity),
+    closedPnlUsd: undefined,
+    unrealizedPnlUsd: undefined,
+    winRate: undefined,
+    profitFactor: undefined,
+    maxDrawdownPct: undefined,
+    currentDrawdownPct: undefined,
+    totalFeesUsd: undefined,
+    totalFundingUsd: undefined,
+    openRiskUsd: undefined,
+    tradeCount: 0,
+    rawJson: {
+      adapterMode: input.adapterMode,
+      sourceAdapter: 'legacy-db',
+      providerAccountScoped,
+      healthStatus: healthStatus === 'ok' ? 'healthy' : healthStatus === 'error' ? 'degraded' : 'down',
+      readState,
+      processAlive: rows.accounts.length > 0 && runningCount > 0,
+      accountCount: rows.accounts.length,
+      runningCount,
+      quarantinedCount,
+      settingsSeen: rows.settings.length,
+      stageConfigsSeen: rows.stages.length,
+      slotsSeen: rows.slots.length,
+      warningCodes,
+      closedTradeSourceProof: {
+        status: CURRENT_LEGACY_CLOSED_TRADE_SOURCE_PROOF.status,
+        canImportClosedTrades: CURRENT_LEGACY_CLOSED_TRADE_SOURCE_PROOF.canImportClosedTrades,
+        missingRequirements: CURRENT_LEGACY_CLOSED_TRADE_SOURCE_PROOF.missingRequirements,
+      },
+      liveConfig: config,
+    },
+  });
+
+  await insertBotPositionSnapshot(db, {
+    botInstanceId: input.botInstanceId,
+    botProviderAccountId: input.botProviderAccountId ?? null,
+    snapshotAt,
+    sourceAdapter: 'legacy-db',
+    positions: positions.map((p) => ({
+      symbol: p.symbol,
+      side: p.side,
+      size: String(p.qty),
+      entryPrice: String(p.entryPrice),
+      markPrice: String(p.markPrice),
+      unrealizedPnlUsd: '0',
+      ...(p.tpPrice != null ? { tpPrice: String(p.tpPrice) } : {}),
+      ...(p.stopPrice != null ? { slPrice: String(p.stopPrice) } : {}),
+      ...(p.openedAt ? { openedAt: new Date(p.openedAt) } : {}),
+    })),
+  });
+
+  return {
+    healthStatus,
+    readState,
+    accountsSeen: rows.accounts.length,
+    settingsSeen: rows.settings.length,
+    stageConfigsSeen: rows.stages.length,
+    positionsSeen: positions.length,
+    slotsSeen: rows.slots.length,
+    runningCount,
+    quarantinedCount,
+    warningCodes,
+  };
+}
+
+function mappedAccountErrorDetail(mapping: Pick<BotProviderAccountRow, 'id' | 'botInstanceId'>, err: unknown): Record<string, unknown> {
+  return {
+    botProviderAccountId: mapping.id,
+    botInstanceId: mapping.botInstanceId,
+    error: opMessage(err),
+  };
+}
+
 export async function snapshotLegacyBotPostgres(db: Db, now = Date.now(), env: WorkerEnv = process.env): Promise<LegacyLiveSnapshotResult> {
-  const { ensureBotInstance, insertBotMetricSnapshot, insertBotPositionSnapshot, recordHealthCheck } = await import('@wtc/db');
+  const { ensureBotInstance, listActiveBotProviderAccounts, recordHealthCheck } = await import('@wtc/db');
   const enabled = flagEnabled(env.LEGACY_LIVE_READS_ENABLED);
   const databaseUrl = env.LEGACY_DATABASE_URL;
   const instanceId = env.SYSTEM_LEGACY_BOT_INSTANCE_ID;
@@ -389,7 +507,16 @@ export async function snapshotLegacyBotPostgres(db: Db, now = Date.now(), env: W
       adapterMode,
       liveControlDisabled: true,
     });
-    return { status: 'skipped', lastError: null, accountsSeen: 0, settingsSeen: 0, positionsSeen: 0 };
+    return {
+      status: 'skipped',
+      lastError: null,
+      healthStatus: 'not_configured',
+      readState: 'not_configured',
+      accountsSeen: 0,
+      settingsSeen: 0,
+      positionsSeen: 0,
+      providerAccountsScoped: 0,
+    };
   }
   if (!databaseUrl) {
     await recordHealthCheck(db, 'legacy-bot', 'not_configured', {
@@ -398,104 +525,157 @@ export async function snapshotLegacyBotPostgres(db: Db, now = Date.now(), env: W
       adapterMode,
       liveControlDisabled: true,
     });
-    return { status: 'skipped', lastError: null, accountsSeen: 0, settingsSeen: 0, positionsSeen: 0 };
-  }
-  if (!instanceId && !ownerId) {
-    await recordHealthCheck(db, 'legacy-bot', 'not_configured', {
+    return {
+      status: 'skipped',
+      lastError: null,
+      healthStatus: 'not_configured',
       readState: 'not_configured',
-      readStateDetail: 'set SYSTEM_LEGACY_BOT_INSTANCE_ID or SYSTEM_LEGACY_BOT_OWNER_ID/SYSTEM_BOT_OWNER_ID',
-      adapterMode,
-      liveControlDisabled: true,
-    });
-    return { status: 'skipped', lastError: null, accountsSeen: 0, settingsSeen: 0, positionsSeen: 0 };
+      accountsSeen: 0,
+      settingsSeen: 0,
+      positionsSeen: 0,
+      providerAccountsScoped: 0,
+    };
   }
 
   try {
-    const botInstanceId = instanceId ?? (await ensureBotInstance(db, { userId: ownerId!, productCode: 'legacy_bot' })).id;
-    const rows = await readLegacyRows(databaseUrl, env.LEGACY_API_ID);
-    const config = buildLegacyLiveConfig(rows);
-    const positions = buildLegacyLivePositions(rows);
-    const warningCodes = buildLegacyLiveWarnings(rows);
-    const walletEquity = rows.accounts.reduce((sum, row) => sum + n(row.balance), 0);
-    const runningCount = rows.accounts.filter((row) => row.running).length;
-    const quarantinedCount = rows.accounts.filter((row) => row.quarantined === true).length;
-    const status = rows.accounts.length === 0 ? 'not_configured' : quarantinedCount > 0 ? 'error' : 'ok';
-    const readState = rows.accounts.length === 0 ? 'not_configured' : 'ok';
+    const providerAccounts = await listActiveBotProviderAccounts(db, {
+      productCode: 'legacy_bot',
+      provider: 'legacy-db',
+      limit: 100,
+    });
 
-    await insertBotMetricSnapshot(db, {
-      botInstanceId,
-      snapshotAt: new Date(now),
-      sourceAdapter: 'legacy-db',
-      walletEquityUsd: String(walletEquity),
-      closedPnlUsd: undefined,
-      unrealizedPnlUsd: undefined,
-      winRate: undefined,
-      profitFactor: undefined,
-      maxDrawdownPct: undefined,
-      currentDrawdownPct: undefined,
-      totalFeesUsd: undefined,
-      totalFundingUsd: undefined,
-      openRiskUsd: undefined,
-      tradeCount: 0,
-      rawJson: {
+    if (providerAccounts.length > 0) {
+      let accountsSeen = 0;
+      let settingsSeen = 0;
+      let positionsSeen = 0;
+      let runningCount = 0;
+      let quarantinedCount = 0;
+      let errors = 0;
+      let lastError: string | null = null;
+      const warningCodes = new Set<string>();
+
+      for (const providerAccount of providerAccounts) {
+        try {
+          const rows = await readLegacyRows(databaseUrl, providerAccount.providerAccountId);
+          const snap = await snapshotLegacyRowsToWtc(db, {
+            botInstanceId: providerAccount.botInstanceId,
+            botProviderAccountId: providerAccount.id,
+            rows,
+            now,
+            adapterMode,
+          });
+          accountsSeen += snap.accountsSeen;
+          settingsSeen += snap.settingsSeen;
+          positionsSeen += snap.positionsSeen;
+          runningCount += snap.runningCount;
+          quarantinedCount += snap.quarantinedCount;
+          for (const code of snap.warningCodes) warningCodes.add(code);
+        } catch (err) {
+          errors += 1;
+          lastError = opMessage(err);
+          console.warn(`[worker:legacy-snapshot] provider account scoped read failed: ${lastError}`);
+          await recordHealthCheck(db, 'legacy-bot-provider-account', 'error', {
+            ...mappedAccountErrorDetail(providerAccount, err),
+            adapterMode,
+            sourceAdapter: 'legacy-db',
+            liveControlDisabled: true,
+          });
+        }
+      }
+
+      const healthStatus = errors > 0 || quarantinedCount > 0 ? 'error' : accountsSeen === 0 ? 'not_configured' : 'ok';
+      const readState = accountsSeen === 0 ? 'not_configured' : 'ok';
+      await recordHealthCheck(db, 'legacy-bot', healthStatus, {
+        status: healthStatus === 'ok' ? 'healthy' : healthStatus === 'error' ? 'degraded' : 'down',
+        readState,
+        readStateDetail:
+          accountsSeen === 0
+            ? 'Legacy DB scoped reads succeeded but no mapped provider accounts were found in the provider DB'
+            : 'Legacy DB live-read snapshots stored by WTC provider-account mapping',
+        processAlive: accountsSeen > 0 && runningCount > 0,
         adapterMode,
         sourceAdapter: 'legacy-db',
-        healthStatus: status === 'ok' ? 'healthy' : status === 'error' ? 'degraded' : 'down',
-        readState,
-        processAlive: rows.accounts.length > 0 && runningCount > 0,
-        accountCount: rows.accounts.length,
-        runningCount,
+        liveControlDisabled: true,
+        providerAccountMappingsSeen: providerAccounts.length,
+        providerAccountMappingsSnapshotted: providerAccounts.length - errors,
+        providerAccountMappingErrors: errors,
+        accountsSeen,
+        settingsSeen,
+        positionsSnapshotted: positionsSeen,
         quarantinedCount,
-        settingsSeen: rows.settings.length,
-        stageConfigsSeen: rows.stages.length,
-        slotsSeen: rows.slots.length,
-        warningCodes,
-        liveConfig: config,
-      },
-    });
+        warningCodes: Array.from(warningCodes),
+      });
 
-    await insertBotPositionSnapshot(db, {
+      return {
+        status: errors > 0 ? 'error' : 'ok',
+        lastError,
+        healthStatus,
+        readState,
+        accountsSeen,
+        settingsSeen,
+        positionsSeen,
+        providerAccountsScoped: providerAccounts.length - errors,
+      };
+    }
+
+    if (!instanceId && !ownerId) {
+      await recordHealthCheck(db, 'legacy-bot', 'not_configured', {
+        readState: 'not_configured',
+        readStateDetail:
+          'Create active bot_provider_accounts rows or set SYSTEM_LEGACY_BOT_INSTANCE_ID/SYSTEM_LEGACY_BOT_OWNER_ID for fleet diagnostics',
+        adapterMode,
+        liveControlDisabled: true,
+      });
+      return {
+        status: 'skipped',
+        lastError: null,
+        healthStatus: 'not_configured',
+        readState: 'not_configured',
+        accountsSeen: 0,
+        settingsSeen: 0,
+        positionsSeen: 0,
+        providerAccountsScoped: 0,
+      };
+    }
+
+    const botInstanceId = instanceId ?? (await ensureBotInstance(db, { userId: ownerId!, productCode: 'legacy_bot' })).id;
+    const rows = await readLegacyRows(databaseUrl, env.LEGACY_API_ID);
+    const snap = await snapshotLegacyRowsToWtc(db, {
       botInstanceId,
-      snapshotAt: new Date(now),
-      sourceAdapter: 'legacy-db',
-      positions: positions.map((p) => ({
-        symbol: p.symbol,
-        side: p.side,
-        size: String(p.qty),
-        entryPrice: String(p.entryPrice),
-        markPrice: String(p.markPrice),
-        unrealizedPnlUsd: '0',
-        ...(p.tpPrice != null ? { tpPrice: String(p.tpPrice) } : {}),
-        ...(p.stopPrice != null ? { slPrice: String(p.stopPrice) } : {}),
-        ...(p.openedAt ? { openedAt: new Date(p.openedAt) } : {}),
-      })),
+      rows,
+      now,
+      adapterMode,
     });
 
-    await recordHealthCheck(db, 'legacy-bot', status, {
-      status: status === 'ok' ? 'healthy' : status === 'error' ? 'degraded' : 'down',
-      readState,
+    await recordHealthCheck(db, 'legacy-bot', snap.healthStatus, {
+      status: snap.healthStatus === 'ok' ? 'healthy' : snap.healthStatus === 'error' ? 'degraded' : 'down',
+      readState: snap.readState,
       readStateDetail:
         rows.accounts.length === 0
           ? 'Legacy DB read succeeded but no running API accounts were found'
-          : 'Legacy DB live-read snapshot stored in WTC Postgres',
-      processAlive: rows.accounts.length > 0 && runningCount > 0,
+          : 'Legacy DB fleet diagnostic snapshot stored in WTC Postgres',
+      processAlive: rows.accounts.length > 0 && snap.runningCount > 0,
       adapterMode,
       sourceAdapter: 'legacy-db',
       liveControlDisabled: true,
-      accountsSeen: rows.accounts.length,
-      settingsSeen: rows.settings.length,
-      positionsSnapshotted: positions.length,
-      quarantinedCount,
-      quarantineReasons: rows.accounts.map((row) => safeText(row.quarantine_reason)).filter((v): v is string => !!v).slice(0, 5),
-      warningCodes,
+      providerAccountMappingsSeen: 0,
+      providerAccountMappingsSnapshotted: 0,
+      accountsSeen: snap.accountsSeen,
+      settingsSeen: snap.settingsSeen,
+      positionsSnapshotted: snap.positionsSeen,
+      quarantinedCount: snap.quarantinedCount,
+      warningCodes: snap.warningCodes,
     });
 
     return {
       status: 'ok',
       lastError: null,
-      accountsSeen: rows.accounts.length,
-      settingsSeen: rows.settings.length,
-      positionsSeen: positions.length,
+      healthStatus: snap.healthStatus,
+      readState: snap.readState,
+      accountsSeen: snap.accountsSeen,
+      settingsSeen: snap.settingsSeen,
+      positionsSeen: snap.positionsSeen,
+      providerAccountsScoped: 0,
     };
   } catch (err) {
     const error = opMessage(err);
@@ -505,6 +685,15 @@ export async function snapshotLegacyBotPostgres(db: Db, now = Date.now(), env: W
       sourceAdapter: 'legacy-db',
       liveControlDisabled: true,
     });
-    return { status: 'error', lastError: error, accountsSeen: 0, settingsSeen: 0, positionsSeen: 0 };
+    return {
+      status: 'error',
+      lastError: error,
+      healthStatus: 'error',
+      readState: null,
+      accountsSeen: 0,
+      settingsSeen: 0,
+      positionsSeen: 0,
+      providerAccountsScoped: 0,
+    };
   }
 }

@@ -115,8 +115,11 @@ const envSchema = z.object({
   }
   // A real (non-mock) adapter mode in production REQUIRES the journal read token — the journal is
   // auth-gated. Without it the adapter reports readState 'not_configured' and never reads live data.
-  if (data.NODE_ENV === 'production' && data.BOT_ADAPTER_MODE !== 'mock' && !data.JOURNAL_READ_TOKEN) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['JOURNAL_READ_TOKEN'], message: 'JOURNAL_READ_TOKEN is required when BOT_ADAPTER_MODE is not mock in production' });
+  if (productionLike && data.BOT_ADAPTER_MODE !== 'mock' && !data.JOURNAL_READ_TOKEN) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['JOURNAL_READ_TOKEN'], message: 'JOURNAL_READ_TOKEN is required when BOT_ADAPTER_MODE is not mock in production-like environments' });
+  }
+  if (productionLike && data.BOT_ADAPTER_MODE !== 'mock' && !data.TORTILA_JOURNAL_URL) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['TORTILA_JOURNAL_URL'], message: 'TORTILA_JOURNAL_URL is required when BOT_ADAPTER_MODE is not mock in production-like environments' });
   }
   if (productionLike && data.LEGACY_LIVE_READS_ENABLED) {
     if (!data.LEGACY_DATABASE_URL) {

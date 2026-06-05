@@ -178,4 +178,10 @@ describe('Legacy live worker DB-backed snapshot helpers', () => {
     expect(source).not.toMatch(/\bapi_key\b/);
     expect(source).not.toMatch(/\bsecret_key\b/);
   });
+
+  it('keeps retained health warnings code-only instead of storing provider quarantine reason arrays', () => {
+    expect(source).not.toMatch(/\bquarantineReasons\b/);
+    expect(source).toMatch(/warningCodes: Array\.from\(warningCodes\)/);
+    expect(source).toMatch(/warningCodes: snap\.warningCodes/);
+  });
 });

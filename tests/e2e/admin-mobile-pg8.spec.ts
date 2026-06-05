@@ -20,11 +20,13 @@ const shot = (slug: string) => `tests/e2e/screenshots/${slug}-mobile375.png`;
 const ADMIN_PAGES: { path: string; heading: string; slug: string }[] = [
   { path: '/admin', heading: 'System overview', slug: 'admin-overview' },
   { path: '/admin/users', heading: 'User directory', slug: 'admin-users' },
+  { path: '/admin/users/demo-user/bots', heading: 'User bot details', slug: 'admin-user-bots' },
   { path: '/admin/products', heading: 'Products & plans', slug: 'admin-products' },
   { path: '/admin/entitlements', heading: 'Entitlements', slug: 'admin-entitlements' },
   { path: '/admin/entitlements/review', heading: 'Billing manual-review queue', slug: 'admin-review' },
   { path: '/admin/tradingview-access', heading: 'TradingView access queue', slug: 'admin-tv' },
   { path: '/admin/bots', heading: 'Bot fleet', slug: 'admin-bots' },
+  { path: '/admin/bots/config', heading: 'System bot defaults', slug: 'admin-bot-defaults' },
   { path: '/admin/terminal', heading: 'Terminal releases', slug: 'admin-terminal' },
   { path: '/admin/education', heading: 'Education moderation', slug: 'admin-education' },
   { path: '/admin/system-health', heading: 'System health', slug: 'admin-system-health' },
@@ -46,6 +48,25 @@ test('PG8: admin console is mobile-readable at 375px (no h-scroll + mobile nav +
 
     // (3) Honest storage/state pill present on every admin page.
     await expect(page.getByText(/storage:/).first()).toBeVisible();
+
+    if (path === '/admin/bots') {
+      await expect(page.getByText('Worker bot continuity')).toBeVisible();
+      await expect(page.getByText('Admin fleet evidence ladder')).toBeVisible();
+      await expect(page.getByText('Read-only admin evidence').first()).toBeVisible();
+      await expect(page.getByText('open read-only user views')).toBeVisible();
+    }
+
+    if (path === '/admin/users') {
+      await expect(page.getByText('Selected-user inspection only')).toBeVisible();
+      await expect(page.getByText('Results open read-only user settings and statistics')).toBeVisible();
+    }
+
+    if (path === '/admin/users/demo-user/bots') {
+      await expect(page.getByText('Read-only bot access, saved WTC configuration state')).toBeVisible();
+      await expect(page.getByText('LIVE CONTROL: DISABLED')).toBeVisible();
+      await expect(page.getByText('user settings: read-only')).toBeVisible();
+      await expect(page.getByText('provider mappings: read-only')).toBeVisible();
+    }
 
     // (4) No horizontal page scroll at 375px — the core PG8 acceptance criterion.
     const noHScroll = await page.evaluate(() => {

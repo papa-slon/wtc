@@ -3,13 +3,18 @@ import { z } from 'zod';
 import { getServerDb } from '@/lib/backend';
 import {
   ensureBotInstance,
+  getPublishedBotGlobalConfig,
   saveBotConfig,
   getCurrentBotConfig,
   listBotConfigVersions,
   listBotInstancesForUser,
   listBotSafetyEvents,
 } from '@wtc/db';
+import type { BotGlobalConfigRow } from '@wtc/db';
 import type { BotProductCode } from '@/features/bots/meta';
+import type { BotConfigActionConfigError } from './config-action-handler';
+export { exportBotConfig } from './config-export';
+export { serializeTortilaSymbolConfig, serializeTortilaSymbolConfigs } from './tortila-runtime-format';
 
 const operationMode = z.enum(['manual', 'auto']).default('manual');
 
@@ -64,9 +69,8 @@ export const tortilaBotConfigSchema = z.object({
   maxNewEntriesPerTick: z.coerce.number().int().min(1).max(20),
 });
 
-export const legacySymbolConfigSchema = z.object({
+const legacySymbolConfigShape = {
   symbol: z.string().trim().min(1).max(40),
-  providerPubId: z.string().trim().min(1).max(256).optional(),
   active: booleanLike.default(true),
   timeframe: legacyTimeframe,
   useRsi: booleanLike.default(true),
@@ -87,7 +91,12 @@ export const legacySymbolConfigSchema = z.object({
   delayBars: z.coerce.number().int().min(1).max(100).default(1),
   useDeltaFilter: booleanLike.default(false),
   deltaFilter: z.coerce.number().min(-10_000).max(10_000).default(0),
-}).superRefine((row, ctx) => {
+};
+
+const legacySymbolConfigBaseSchema = z.object(legacySymbolConfigShape);
+type LegacySymbolConfigShape = z.infer<typeof legacySymbolConfigBaseSchema>;
+
+function refineLegacySymbolConfig(row: LegacySymbolConfigShape, ctx: z.RefinementCtx): void {
   if (row.useRsi === row.useCci) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['useRsi'], message: 'Choose exactly one signal: RSI or CCI.' });
   }
@@ -99,9 +108,16 @@ export const legacySymbolConfigSchema = z.object({
   if (volumeCount !== row.averagingLevels) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['averagingVolumePercents'], message: 'Volume count must match averaging levels.' });
   }
-});
+}
+
+export const legacySymbolConfigSchema = legacySymbolConfigBaseSchema.superRefine(refineLegacySymbolConfig);
+
+export const legacyRuntimeSymbolConfigSchema = legacySymbolConfigBaseSchema.extend({
+  providerPubId: z.string().trim().min(1).max(256).optional(),
+}).superRefine(refineLegacySymbolConfig);
 
 export type LegacySymbolConfig = z.infer<typeof legacySymbolConfigSchema>;
+export type LegacyRuntimeSymbolConfig = z.infer<typeof legacyRuntimeSymbolConfigSchema>;
 
 export const legacyStageConfigSchema = z.object({
   stage: z.coerce.number().int().min(1).max(8),
@@ -155,8 +171,8 @@ export const BOT_OPERATION_MODES = [
   },
   {
     value: 'auto',
-    label: 'Managed live profile',
-    hint: 'Use the provider-side strategy already attached to the existing pub_id runtime.',
+    label: 'WTC automation intent',
+    hint: 'Save an automation preference for review. Runtime apply still requires a separately audited adapter.',
   },
 ] as const;
 
@@ -380,15 +396,261 @@ export function botConfigFormInput(productCode: BotProductCode, formData: FormDa
   };
 }
 
+function zodMessages(result: z.SafeParseReturnType<unknown, unknown>): string[] {
+  return result.success ? [] : result.error.issues.map((issue) => issue.message);
+}
+
+function duplicateIssues(kind: string, values: string[]): string[] {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const value of values) {
+    const normalized = value.trim().toUpperCase();
+    if (!normalized) continue;
+    if (seen.has(normalized)) duplicates.add(value.trim());
+    seen.add(normalized);
+  }
+  return [...duplicates].map((value) => `${kind} "${value}" is duplicated.`);
+}
+
+function hasDuplicate(values: readonly string[]): boolean {
+  const seen = new Set<string>();
+  for (const value of values) {
+    const normalized = value.trim().toUpperCase();
+    if (!normalized) continue;
+    if (seen.has(normalized)) return true;
+    seen.add(normalized);
+  }
+  return false;
+}
+
+function firstZodPath(result: z.SafeParseReturnType<unknown, unknown>): string {
+  if (result.success) return '';
+  const path = result.error.issues[0]?.path[0];
+  return typeof path === 'string' ? path : '';
+}
+
+function tortilaRowIssueCode(field: string): string {
+  if (field === 'symbol') return 'tortila-row-symbol';
+  if (field === 'timeframe') return 'tortila-row-timeframe';
+  if (field === 'system') return 'tortila-row-system';
+  if (field === 'riskPercent') return 'tortila-row-risk';
+  if (field === 'stopN') return 'tortila-row-stop';
+  if (field === 'addStep') return 'tortila-row-add';
+  if (field === 'maxUnits') return 'tortila-row-units';
+  if (field === 'atrPeriod') return 'tortila-row-atr';
+  if (field === 'takeProfitRr') return 'tortila-row-tp';
+  return 'tortila-row-invalid';
+}
+
+function legacyRowIssueCode(field: string): string {
+  if (field === 'symbol') return 'legacy-row-symbol';
+  if (field === 'timeframe') return 'legacy-row-timeframe';
+  if (field === 'active') return 'legacy-row-status';
+  if (field === 'useRsi' || field === 'useCci') return 'legacy-row-signal';
+  if (field === 'rsiLength' || field === 'rsiThreshold') return 'legacy-row-rsi';
+  if (field === 'cciLength' || field === 'cciThreshold') return 'legacy-row-cci';
+  if (field === 'takeProfitPercent') return 'legacy-row-tp';
+  if (field === 'initialEntryPercent') return 'legacy-row-entry';
+  if (field === 'useBalancePercent') return 'legacy-row-balance';
+  if (field === 'leverage') return 'legacy-row-leverage';
+  if (field === 'averagingLevels') return 'legacy-row-levels';
+  if (field === 'averagingPercents' || field === 'averagingVolumePercents') return 'legacy-row-ladder';
+  if (field === 'stage') return 'legacy-row-stage';
+  if (field === 'delayBars' || field === 'useDelayFilter') return 'legacy-row-delay';
+  if (field === 'deltaFilter' || field === 'useDeltaFilter') return 'legacy-row-delta';
+  return 'legacy-row-invalid';
+}
+
+function legacyStageIssueCode(field: string): string {
+  return field === 'stage' ? 'legacy-stage-number' : 'legacy-stage-capacity';
+}
+
+function topLevelIssueCode(productCode: BotProductCode, field: string): string {
+  if (field === 'operationMode') return 'operation-mode';
+  if (productCode === 'legacy_bot') {
+    if (field === 'apiProfile') return 'legacy-api-profile';
+    if (field === 'maxSymbols') return 'legacy-max-symbols';
+    if (field === 'defaultTimeframe') return 'legacy-default-timeframe';
+    if (field === 'defaultTakeProfitPercent') return 'legacy-default-tp';
+    if (field === 'defaultInitialEntryPercent') return 'legacy-default-entry';
+    if (field === 'defaultUseBalancePercent') return 'legacy-default-balance';
+    if (field === 'defaultLeverage') return 'legacy-default-leverage';
+    return 'legacy-config-invalid';
+  }
+  if (field === 'maxOpenSymbols' || field === 'maxTotalUnits' || field === 'maxUnitsPerDirection') return 'tortila-portfolio-limit';
+  if (field === 'haltDrawdownPercent' || field === 'dailyMaxLossPercent') return 'tortila-risk-limit';
+  if (field === 'maxNewEntriesPerTick') return 'tortila-entry-throttle';
+  return 'tortila-config-invalid';
+}
+
+export function botConfigFirstFormIssue(productCode: BotProductCode, formData: FormData): BotConfigActionConfigError | null {
+  if (productCode === 'tortila_bot') {
+    const symbols: string[] = [];
+    for (let i = 0; i < TORTILA_SYMBOL_ROW_LIMIT; i += 1) {
+      const selectedSymbol = String(formData.get(`symbol_${i}`) ?? '').trim();
+      const customSymbol = String(formData.get(`symbol_custom_${i}`) ?? '').trim();
+      const symbol = customSymbol || selectedSymbol;
+      if (!symbol) continue;
+      symbols.push(symbol);
+      const parsed = tortilaSymbolConfigSchema.safeParse({
+        symbol,
+        timeframe: formData.get(`tf_${i}`),
+        system: formData.get(`system_${i}`),
+        riskPercent: formData.get(`risk_${i}`),
+        stopN: formData.get(`stop_${i}`),
+        addStep: formData.get(`add_${i}`),
+        maxUnits: formData.get(`maxUnits_${i}`),
+        atrPeriod: formData.get(`atr_${i}`),
+        takeProfitRr: formData.get(`tp_${i}`),
+      });
+      if (!parsed.success) return { code: tortilaRowIssueCode(firstZodPath(parsed)), row: i + 1 };
+    }
+    if (hasDuplicate(symbols)) return { code: 'tortila-duplicate-symbol' };
+  } else {
+    const legacySymbols: string[] = [];
+    for (let i = 0; i < LEGACY_SYMBOL_ROW_LIMIT; i += 1) {
+      const selectedSymbol = String(formData.get(`legacy_symbol_${i}`) ?? '').trim();
+      const customSymbol = String(formData.get(`legacy_symbol_custom_${i}`) ?? '').trim();
+      const symbol = customSymbol || selectedSymbol;
+      if (!symbol) continue;
+      legacySymbols.push(symbol);
+      const signal = String(formData.get(`legacy_signal_${i}`) ?? 'rsi');
+      const parsed = legacySymbolConfigSchema.safeParse({
+        symbol,
+        active: formData.get(`legacy_active_${i}`),
+        timeframe: formData.get(`legacy_tf_${i}`),
+        useRsi: signal === 'rsi',
+        useCci: signal === 'cci',
+        rsiLength: formData.get(`legacy_rsi_len_${i}`),
+        rsiThreshold: formData.get(`legacy_rsi_thr_${i}`),
+        cciLength: formData.get(`legacy_cci_len_${i}`),
+        cciThreshold: formData.get(`legacy_cci_thr_${i}`),
+        takeProfitPercent: formData.get(`legacy_tp_${i}`),
+        initialEntryPercent: formData.get(`legacy_entry_${i}`),
+        averagingLevels: formData.get(`legacy_levels_${i}`),
+        averagingPercents: formData.get(`legacy_drops_${i}`),
+        averagingVolumePercents: formData.get(`legacy_volumes_${i}`),
+        useBalancePercent: formData.get(`legacy_balance_${i}`),
+        leverage: formData.get(`legacy_lev_${i}`),
+        stage: formData.get(`legacy_stage_${i}`),
+        useDelayFilter: formData.get(`legacy_delay_on_${i}`),
+        delayBars: formData.get(`legacy_delay_bars_${i}`) ?? '1',
+        useDeltaFilter: formData.get(`legacy_delta_on_${i}`),
+        deltaFilter: formData.get(`legacy_delta_${i}`) ?? '0',
+      });
+      if (!parsed.success) return { code: legacyRowIssueCode(firstZodPath(parsed)), row: i + 1 };
+    }
+    if (hasDuplicate(legacySymbols)) return { code: 'legacy-duplicate-symbol' };
+
+    const stages: string[] = [];
+    for (let i = 0; i < LEGACY_STAGE_ROW_LIMIT; i += 1) {
+      const stage = String(formData.get(`legacy_stage_slot_${i}`) ?? '').trim();
+      if (!stage) continue;
+      stages.push(stage);
+      const parsed = legacyStageConfigSchema.safeParse({
+        stage,
+        rsiSlots: formData.get(`legacy_stage_rsi_${i}`),
+        cciSlots: formData.get(`legacy_stage_cci_${i}`),
+      });
+      if (!parsed.success) return { code: legacyStageIssueCode(firstZodPath(parsed)), row: i + 1 };
+    }
+    if (hasDuplicate(stages)) return { code: 'legacy-stage-duplicate' };
+  }
+
+  const parsedConfig = botConfigSchemaFor(productCode).safeParse(botConfigFormInput(productCode, formData));
+  if (!parsedConfig.success) return { code: topLevelIssueCode(productCode, firstZodPath(parsedConfig)) };
+  return null;
+}
+
+export function botConfigFormIssues(productCode: BotProductCode, formData: FormData): string[] {
+  const issues: string[] = [];
+
+  if (productCode === 'tortila_bot') {
+    const symbols: string[] = [];
+    for (let i = 0; i < TORTILA_SYMBOL_ROW_LIMIT; i += 1) {
+      const selectedSymbol = String(formData.get(`symbol_${i}`) ?? '').trim();
+      const customSymbol = String(formData.get(`symbol_custom_${i}`) ?? '').trim();
+      const symbol = customSymbol || selectedSymbol;
+      if (!symbol) continue;
+      symbols.push(symbol);
+      const parsed = tortilaSymbolConfigSchema.safeParse({
+        symbol,
+        timeframe: formData.get(`tf_${i}`),
+        system: formData.get(`system_${i}`),
+        riskPercent: formData.get(`risk_${i}`),
+        stopN: formData.get(`stop_${i}`),
+        addStep: formData.get(`add_${i}`),
+        maxUnits: formData.get(`maxUnits_${i}`),
+        atrPeriod: formData.get(`atr_${i}`),
+        takeProfitRr: formData.get(`tp_${i}`),
+      });
+      if (!parsed.success) issues.push(`Tortila coin ${i + 1}: ${zodMessages(parsed).join(' ')}`);
+    }
+    issues.push(...duplicateIssues('Tortila coin', symbols));
+    return issues;
+  }
+
+  const legacySymbols: string[] = [];
+  for (let i = 0; i < LEGACY_SYMBOL_ROW_LIMIT; i += 1) {
+    const selectedSymbol = String(formData.get(`legacy_symbol_${i}`) ?? '').trim();
+    const customSymbol = String(formData.get(`legacy_symbol_custom_${i}`) ?? '').trim();
+    const symbol = customSymbol || selectedSymbol;
+    if (!symbol) continue;
+    legacySymbols.push(symbol);
+    const signal = String(formData.get(`legacy_signal_${i}`) ?? 'rsi');
+    const parsed = legacySymbolConfigSchema.safeParse({
+      symbol,
+      active: formData.get(`legacy_active_${i}`),
+      timeframe: formData.get(`legacy_tf_${i}`),
+      useRsi: signal === 'rsi',
+      useCci: signal === 'cci',
+      rsiLength: formData.get(`legacy_rsi_len_${i}`),
+      rsiThreshold: formData.get(`legacy_rsi_thr_${i}`),
+      cciLength: formData.get(`legacy_cci_len_${i}`),
+      cciThreshold: formData.get(`legacy_cci_thr_${i}`),
+      takeProfitPercent: formData.get(`legacy_tp_${i}`),
+      initialEntryPercent: formData.get(`legacy_entry_${i}`),
+      averagingLevels: formData.get(`legacy_levels_${i}`),
+      averagingPercents: formData.get(`legacy_drops_${i}`),
+      averagingVolumePercents: formData.get(`legacy_volumes_${i}`),
+      useBalancePercent: formData.get(`legacy_balance_${i}`),
+      leverage: formData.get(`legacy_lev_${i}`),
+      stage: formData.get(`legacy_stage_${i}`),
+      useDelayFilter: formData.get(`legacy_delay_on_${i}`),
+      delayBars: formData.get(`legacy_delay_bars_${i}`) ?? '1',
+      useDeltaFilter: formData.get(`legacy_delta_on_${i}`),
+      deltaFilter: formData.get(`legacy_delta_${i}`) ?? '0',
+    });
+    if (!parsed.success) issues.push(`Legacy coin ${i + 1}: ${zodMessages(parsed).join(' ')}`);
+  }
+  issues.push(...duplicateIssues('Legacy coin', legacySymbols));
+
+  const stages: string[] = [];
+  for (let i = 0; i < LEGACY_STAGE_ROW_LIMIT; i += 1) {
+    const stage = String(formData.get(`legacy_stage_slot_${i}`) ?? '').trim();
+    if (!stage) continue;
+    stages.push(stage);
+    const parsed = legacyStageConfigSchema.safeParse({
+      stage,
+      rsiSlots: formData.get(`legacy_stage_rsi_${i}`),
+      cciSlots: formData.get(`legacy_stage_cci_${i}`),
+    });
+    if (!parsed.success) issues.push(`Legacy stage ${i + 1}: ${zodMessages(parsed).join(' ')}`);
+  }
+  issues.push(...duplicateIssues('Legacy stage', stages));
+  return issues;
+}
+
 function legacySymbolConfigsFromForm(formData: FormData): LegacySymbolConfig[] {
   const rows: LegacySymbolConfig[] = [];
   for (let i = 0; i < LEGACY_SYMBOL_ROW_LIMIT; i += 1) {
-    const symbol = String(formData.get(`legacy_symbol_${i}`) ?? '').trim();
+    const selectedSymbol = String(formData.get(`legacy_symbol_${i}`) ?? '').trim();
+    const customSymbol = String(formData.get(`legacy_symbol_custom_${i}`) ?? '').trim();
+    const symbol = customSymbol || selectedSymbol;
     if (!symbol) continue;
     const signal = String(formData.get(`legacy_signal_${i}`) ?? 'rsi');
     const parsed = legacySymbolConfigSchema.safeParse({
       symbol,
-      providerPubId: formData.get(`legacy_pub_id_${i}`) || undefined,
       active: formData.get(`legacy_active_${i}`),
       timeframe: formData.get(`legacy_tf_${i}`),
       useRsi: signal === 'rsi',
@@ -430,36 +692,12 @@ function legacyStageConfigsFromForm(formData: FormData): LegacyStageConfig[] {
   return rows.length > 0 ? rows : [...LEGACY_STAGE_DEFAULTS];
 }
 
-function trimNumber(n: number, decimals = 8): string {
-  return n.toFixed(decimals).replace(/\.?0+$/, '');
-}
-
-function toRuntimeRiskFraction(riskPercent: number): string {
-  return trimNumber(riskPercent / 100, 6);
-}
-
-export function serializeTortilaSymbolConfig(row: TortilaSymbolConfig): string {
-  return [
-    row.symbol,
-    row.timeframe,
-    String(row.system),
-    toRuntimeRiskFraction(row.riskPercent),
-    trimNumber(row.stopN, 3),
-    trimNumber(row.addStep, 3),
-    String(row.maxUnits),
-    String(row.atrPeriod),
-    trimNumber(row.takeProfitRr, 3),
-  ].join('@');
-}
-
-export function serializeTortilaSymbolConfigs(rows: readonly TortilaSymbolConfig[]): string {
-  return rows.map(serializeTortilaSymbolConfig).join(';');
-}
-
 function tortilaSymbolConfigsFromForm(formData: FormData): TortilaSymbolConfig[] {
   const rows: TortilaSymbolConfig[] = [];
   for (let i = 0; i < TORTILA_SYMBOL_ROW_LIMIT; i += 1) {
-    const symbol = String(formData.get(`symbol_${i}`) ?? '').trim();
+    const selectedSymbol = String(formData.get(`symbol_${i}`) ?? '').trim();
+    const customSymbol = String(formData.get(`symbol_custom_${i}`) ?? '').trim();
+    const symbol = customSymbol || selectedSymbol;
     if (!symbol) continue;
     const parsed = tortilaSymbolConfigSchema.safeParse({
       symbol,
@@ -523,6 +761,18 @@ export function legacySymbolConfigsFromConfig(config: Record<string, unknown> | 
   return [...LEGACY_SYMBOL_DEFAULTS];
 }
 
+export function legacyRuntimeSymbolConfigsFromConfig(config: Record<string, unknown> | null | undefined): LegacyRuntimeSymbolConfig[] {
+  const parsed = z.array(legacyRuntimeSymbolConfigSchema).safeParse(config?.symbolConfigs);
+  if (parsed.success && parsed.data.length > 0) return parsed.data;
+  return legacySymbolConfigsFromConfig(config);
+}
+
+export function legacyRuntimeSymbolSourceExists(config: Record<string, unknown> | null | undefined): boolean {
+  const parsed = z.array(legacyRuntimeSymbolConfigSchema).safeParse(config?.symbolConfigs);
+  if (parsed.success && parsed.data.length > 0) return true;
+  return typeof config?.symbols === 'string' && config.symbols.split(',').some((s) => s.trim().length > 0);
+}
+
 export function legacyStageConfigsFromConfig(config: Record<string, unknown> | null | undefined): LegacyStageConfig[] {
   const parsed = z.array(legacyStageConfigSchema).safeParse(config?.stageConfigs);
   if (parsed.success && parsed.data.length > 0) return parsed.data;
@@ -533,85 +783,209 @@ export function legacyStageConfigsFromConfig(config: Record<string, unknown> | n
   return [...LEGACY_STAGE_DEFAULTS];
 }
 
-function valueFromConfig(config: Record<string, unknown> | null | undefined, defaults: Record<string, string>, key: string): string {
-  const v = config?.[key];
-  return v === null || v === undefined || v === '' ? defaults[key] ?? '' : String(v);
-}
-
-export function exportBotConfig(productCode: BotProductCode, config: Record<string, unknown> | null | undefined): { filename: string; contentType: string; body: string } {
-  if (productCode === 'tortila_bot') {
-    const defaults = botConfigDefaultsFor(productCode);
-    const rows = tortilaSymbolConfigsFromConfig(config);
-    const lines = [
-      '# WTC Tortila Bot reference export',
-      '# Safe config only: no exchange keys, no secrets, no live-apply token.',
-      `OPERATION_MODE=${valueFromConfig(config, defaults, 'operationMode')}`,
-      `SYMBOL_CONFIGS=${serializeTortilaSymbolConfigs(rows)}`,
-      `MAX_OPEN_SYMBOLS=${valueFromConfig(config, defaults, 'maxOpenSymbols')}`,
-      `MAX_TOTAL_UNITS=${valueFromConfig(config, defaults, 'maxTotalUnits')}`,
-      `MAX_UNITS_PER_DIRECTION=${valueFromConfig(config, defaults, 'maxUnitsPerDirection')}`,
-      `HALT_DRAWDOWN_PCT=${valueFromConfig(config, defaults, 'haltDrawdownPercent')}`,
-      `DAILY_MAX_LOSS_PCT=${valueFromConfig(config, defaults, 'dailyMaxLossPercent')}`,
-      `MAX_NEW_ENTRIES_PER_TICK=${valueFromConfig(config, defaults, 'maxNewEntriesPerTick')}`,
-      '',
-    ];
-    return { filename: 'wtc-tortila-config.env', contentType: 'text/plain; charset=utf-8', body: lines.join('\n') };
-  }
-
-  const defaults = botConfigDefaultsFor(productCode);
-  const safeConfig = { ...defaults, ...(config ?? {}) };
-  const symbolConfigs = legacySymbolConfigsFromConfig(safeConfig);
-  const stageConfigs = legacyStageConfigsFromConfig(safeConfig);
-  return {
-    filename: 'wtc-legacy-config.json',
-    contentType: 'application/json; charset=utf-8',
-    body: `${JSON.stringify({
-      productCode,
-      warning: 'Safe config export only. Legacy live-read uses provider pub_id snapshots. No exchange keys included. No live apply token included.',
-      config: {
-        ...safeConfig,
-        symbols: symbolConfigs.map((row) => row.symbol).join(', '),
-        symbolConfigs,
-        stageConfigs,
-      },
-      native: {
-        settings: symbolConfigs.map((row) => ({
-          symbol: row.symbol,
-          active: row.active,
-          timeframe: row.timeframe,
-          use_rsi: row.useRsi,
-          use_cci: row.useCci,
-          rsi_length: row.rsiLength,
-          rsi_threshold: row.rsiThreshold,
-          cci_length: row.cciLength,
-          cci_threshold: row.cciThreshold,
-          take_profit_percent: row.takeProfitPercent,
-          initial_entry_percent: row.initialEntryPercent,
-          averaging_levels: row.averagingLevels,
-          averaging_percents: row.averagingPercents,
-          averaging_volume_percents: row.averagingVolumePercents,
-          use_balance_percent: row.useBalancePercent,
-          leverage: row.leverage,
-          stage: row.stage,
-        })),
-        stage_config: stageConfigs.map((row) => ({
-          stage: row.stage,
-          rsi_slots: row.rsiSlots,
-          cci_slots: row.cciSlots,
-        })),
-      },
-    }, null, 2)}\n`,
-  };
+export function legacyRuntimeStageSourceExists(config: Record<string, unknown> | null | undefined): boolean {
+  const parsed = z.array(legacyStageConfigSchema).safeParse(config?.stageConfigs);
+  if (parsed.success && parsed.data.length > 0) return true;
+  const maxSlots = configNumber(config, 'maxSlots', Number.NaN);
+  return Number.isFinite(maxSlots) && maxSlots > 0;
 }
 
 export interface BotConfigVersionView { version: number; createdAt: number; note: string | null }
 export interface BotSafetyView { code: string; severity: string; description: string; observedAt: number }
+export type BotConfigSource = 'user_override' | 'system_default' | 'built_in';
+export interface BotConfigSourceIssue {
+  kind: 'warning' | 'error';
+  title: string;
+  detail: string;
+}
+export interface BotSystemDefaultView {
+  id: string;
+  profileCode: string;
+  label: string;
+  version: number;
+  allowUserOverride: boolean;
+  appliesToNewUsers: boolean;
+  updatedAt: number;
+}
 export interface BotConfigState {
   mode: 'postgres' | 'demo';
+  source: BotConfigSource;
+  sourceLabel: string;
+  sourceDetail: string;
   current: Record<string, unknown> | null;
+  userCurrent: Record<string, unknown> | null;
   version: number | null;
+  systemDefault: BotSystemDefaultView | null;
+  sourceIssue?: BotConfigSourceIssue | null;
   versions: BotConfigVersionView[];
   safety: BotSafetyView[];
+}
+
+const BOT_CONFIG_SOURCE_KEY = '__wtcBotConfigSource';
+const SYSTEM_DEFAULT_PROFILE_CODE = 'system_default';
+
+function productDefaultName(productCode: string): string {
+  return productCode === 'legacy_bot' ? 'Legacy' : 'Tortila';
+}
+
+function isBotProductCode(productCode: string): productCode is BotProductCode {
+  return productCode === 'tortila_bot' || productCode === 'legacy_bot';
+}
+
+function isSystemDefaultSelection(config: Record<string, unknown> | null | undefined): boolean {
+  return config?.[BOT_CONFIG_SOURCE_KEY] === SYSTEM_DEFAULT_PROFILE_CODE;
+}
+
+const FORBIDDEN_USER_BOT_CONFIG_KEYS = new Set([
+  'apikey',
+  'apisecret',
+  'secret',
+  'password',
+  'passwordhash',
+  'token',
+  'authorization',
+  'cookie',
+  'sealed',
+  'keyid',
+  'wrappeddek',
+  'vaultrecord',
+  'credentials',
+  'providerpubid',
+  'provideraccountid',
+  'pubid',
+  'provideraccounts',
+  'liveconfig',
+  'rawjson',
+  'legacydatabaseurl',
+  'tortilajournalbaseurl',
+  'tortilajournalurl',
+  'headers',
+  'applyconfig',
+  'startbot',
+  'stopbot',
+  'start',
+  'stop',
+  'restart',
+  'retest',
+  'testexchange',
+]);
+
+function normalizedConfigKey(key: string): string {
+  return key.replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+}
+
+function assertNoForbiddenUserBotConfigKeys(value: unknown, path = 'config'): void {
+  if (!value || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => assertNoForbiddenUserBotConfigKeys(item, `${path}[${index}]`));
+    return;
+  }
+  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+    if (FORBIDDEN_USER_BOT_CONFIG_KEYS.has(normalizedConfigKey(key))) {
+      throw new Error(`bot_config_forbidden_key:${path}.${key}`);
+    }
+    assertNoForbiddenUserBotConfigKeys(nested, `${path}.${key}`);
+  }
+}
+
+function safeUserBotConfigForProduct(productCode: string, config: Record<string, unknown>): Record<string, unknown> {
+  if (!isBotProductCode(productCode)) throw new Error('bot_config_unknown_product');
+  assertNoForbiddenUserBotConfigKeys(config);
+  const parsed = botConfigSchemaFor(productCode).safeParse(config);
+  if (!parsed.success) throw new Error('bot_config_invalid');
+  return parsed.data as unknown as Record<string, unknown>;
+}
+
+function parseUserBotConfigForProduct(productCode: string, config: Record<string, unknown>): Record<string, unknown> | null {
+  try {
+    return safeUserBotConfigForProduct(productCode, config);
+  } catch {
+    return null;
+  }
+}
+
+function systemDefaultSelectionConfig(systemDefault: BotSystemDefaultView): Record<string, unknown> {
+  return {
+    [BOT_CONFIG_SOURCE_KEY]: SYSTEM_DEFAULT_PROFILE_CODE,
+    profileCode: systemDefault.profileCode,
+    globalConfigId: systemDefault.id,
+    selectedGlobalVersion: systemDefault.version,
+  };
+}
+
+function publishedSystemDefault(row: BotGlobalConfigRow | null): BotSystemDefaultView | null {
+  if (!row) return null;
+  return {
+    id: row.id,
+    profileCode: row.profileCode,
+    label: row.label,
+    version: row.version,
+    allowUserOverride: row.allowUserOverride,
+    appliesToNewUsers: row.appliesToNewUsers,
+    updatedAt: row.updatedAt.getTime(),
+  };
+}
+
+function publishedSystemDefaultConfig(productCode: string, row: BotGlobalConfigRow | null): Record<string, unknown> | null {
+  if (!row || !isBotProductCode(productCode)) return null;
+  const parsed = botConfigSchemaFor(productCode).safeParse(row.config);
+  return parsed.success ? parsed.data as unknown as Record<string, unknown> : null;
+}
+
+function sourceLabelFor(productCode: string, source: BotConfigSource, version: number | null, systemDefault: BotSystemDefaultView | null): string {
+  if (source === 'user_override') return version !== null ? `My custom profile v${version}` : 'My custom profile';
+  if (source === 'system_default') return systemDefault ? `${systemDefault.label} v${systemDefault.version}` : 'System default';
+  return `Built-in ${productDefaultName(productCode)} defaults`;
+}
+
+function sourceDetailFor(productCode: string, source: BotConfigSource, systemDefault: BotSystemDefaultView | null): string {
+  if (source === 'user_override') {
+    if (productCode === 'legacy_bot') {
+      return 'You are editing your personal WTC reference version. Admins can update the shared default, but they cannot edit this user-owned Legacy profile; provider snapshots stay read-only evidence.';
+    }
+    return 'You are editing your personal WTC reference version. Admins can update the shared default, but they cannot edit this user-owned Tortila profile; exchange keys stay encrypted separately.';
+  }
+  if (source === 'system_default') {
+    const overrideText = systemDefault?.allowUserOverride === false
+      ? 'Personal overrides are locked for this default.'
+      : 'Saving the form creates your own user-owned version.';
+    if (productCode === 'legacy_bot') {
+      return `Editable fields are resolved from the admin-published Legacy system default. ${overrideText} Provider runtime snapshots are never silently copied into this form.`;
+    }
+    return `Editable fields are resolved from the admin-published Tortila system default. ${overrideText} Live exchange apply and connection testing remain disabled.`;
+  }
+  if (productCode === 'legacy_bot') {
+    return 'Editable fields start from safe built-in Legacy defaults because no user version or published system default is available. Nothing is pushed to the live bot.';
+  }
+  return 'Editable fields start from safe built-in Tortila defaults because no user version or published system default is available. Save a version before treating this as your personal bot profile.';
+}
+
+function configState(input: {
+  mode: 'postgres' | 'demo';
+  productCode: string;
+  source: BotConfigSource;
+  current: Record<string, unknown> | null;
+  userCurrent: Record<string, unknown> | null;
+  version: number | null;
+  systemDefault: BotSystemDefaultView | null;
+  sourceIssue?: BotConfigSourceIssue | null;
+  versions: BotConfigVersionView[];
+  safety: BotSafetyView[];
+}): BotConfigState {
+  return {
+    ...input,
+    sourceLabel: sourceLabelFor(input.productCode, input.source, input.version, input.systemDefault),
+    sourceDetail: sourceDetailFor(input.productCode, input.source, input.systemDefault),
+    sourceIssue: input.sourceIssue ?? null,
+  };
+}
+
+function invalidUserConfigIssue(version: number): BotConfigSourceIssue {
+  return {
+    kind: 'error',
+    title: 'Saved custom profile failed validation',
+    detail: `The latest user-owned config v${version} is no longer valid for this bot schema, so WTC is using the published system default or built-in fallback until a valid profile is saved.`,
+  };
 }
 
 interface DemoConfigVersion {
@@ -634,42 +1008,112 @@ function demoKey(userId: string, productCode: string): string {
 function loadDemoBotConfig(userId: string, productCode: string): BotConfigState {
   const versions = demoConfigs().get(demoKey(userId, productCode)) ?? [];
   const current = versions.at(-1) ?? null;
-  return {
+  return configState({
     mode: 'demo',
-    current: current?.config ?? null,
+    productCode,
+    source: current && !isSystemDefaultSelection(current.config) && parseUserBotConfigForProduct(productCode, current.config) ? 'user_override' : 'built_in',
+    current: current && !isSystemDefaultSelection(current.config) ? parseUserBotConfigForProduct(productCode, current.config) : null,
+    userCurrent: current && !isSystemDefaultSelection(current.config) ? parseUserBotConfigForProduct(productCode, current.config) : null,
     version: current?.version ?? null,
+    systemDefault: null,
+    sourceIssue: current && !isSystemDefaultSelection(current.config) && !parseUserBotConfigForProduct(productCode, current.config) ? invalidUserConfigIssue(current.version) : null,
     versions: versions.slice().reverse().slice(0, 10).map((v) => ({ version: v.version, createdAt: v.createdAt, note: v.note })),
     safety: [],
-  };
+  });
 }
 
 export async function loadBotConfig(userId: string, productCode: string): Promise<BotConfigState> {
   const db = getServerDb();
   if (!db) return loadDemoBotConfig(userId, productCode);
-  const inst = (await listBotInstancesForUser(db, userId)).find((i) => i.productCode === productCode);
-  if (!inst) return { mode: 'postgres', current: null, version: null, versions: [], safety: [] };
+  const [systemDefaultRow, instances] = await Promise.all([
+    getPublishedBotGlobalConfig(db, productCode),
+    listBotInstancesForUser(db, userId),
+  ]);
+  let systemDefault = publishedSystemDefault(systemDefaultRow);
+  const systemDefaultConfig = publishedSystemDefaultConfig(productCode, systemDefaultRow);
+  if (systemDefault && !systemDefaultConfig) systemDefault = null;
+  const inst = instances.find((i) => i.productCode === productCode);
+  if (!inst) {
+    return configState({
+      mode: 'postgres',
+      productCode,
+      source: systemDefault ? 'system_default' : 'built_in',
+      current: systemDefaultConfig && systemDefault ? systemDefaultConfig : null,
+      userCurrent: null,
+      version: null,
+      systemDefault,
+      versions: [],
+      safety: [],
+    });
+  }
   const cfg = await getCurrentBotConfig(db, inst.id);
-  const versions = await listBotConfigVersions(db, inst.id, 10);
-  const safety = await listBotSafetyEvents(db, inst.id);
-  return {
+  const [versions, safety] = await Promise.all([
+    listBotConfigVersions(db, inst.id, 10),
+    listBotSafetyEvents(db, inst.id),
+  ]);
+  const versionViews = versions.map((v) => ({ version: v.version, createdAt: v.createdAt.getTime(), note: v.note }));
+  const safetyViews = safety.slice(0, 20).map((e) => ({ code: e.eventCode, severity: e.severity, description: e.description, observedAt: e.observedAt.getTime() }));
+  const parsedUserConfig = cfg && !isSystemDefaultSelection(cfg.config) ? parseUserBotConfigForProduct(productCode, cfg.config) : null;
+  const invalidUserConfig = !!cfg && !isSystemDefaultSelection(cfg.config) && !parsedUserConfig;
+  if (cfg && parsedUserConfig && systemDefault?.allowUserOverride !== false) {
+    return configState({
+      mode: 'postgres',
+      productCode,
+      source: 'user_override',
+      current: parsedUserConfig,
+      userCurrent: parsedUserConfig,
+      version: cfg.version,
+      systemDefault,
+      versions: versionViews,
+      safety: safetyViews,
+    });
+  }
+  return configState({
     mode: 'postgres',
-    current: cfg?.config ?? null,
+    productCode,
+    source: systemDefault ? 'system_default' : 'built_in',
+    current: systemDefaultConfig && systemDefault ? systemDefaultConfig : null,
+    userCurrent: parsedUserConfig,
     version: cfg?.version ?? null,
-    versions: versions.map((v) => ({ version: v.version, createdAt: v.createdAt.getTime(), note: v.note })),
-    safety: safety.slice(0, 20).map((e) => ({ code: e.eventCode, severity: e.severity, description: e.description, observedAt: e.observedAt.getTime() })),
-  };
+    systemDefault,
+    sourceIssue: invalidUserConfig && cfg ? invalidUserConfigIssue(cfg.version) : null,
+    versions: versionViews,
+    safety: safetyViews,
+  });
 }
 
 export async function persistBotConfig(userId: string, productCode: string, config: Record<string, unknown>, note?: string): Promise<'saved' | 'demo'> {
+  const safeConfig = safeUserBotConfigForProduct(productCode, config);
   const db = getServerDb();
   if (!db) {
     const key = demoKey(userId, productCode);
     const versions = demoConfigs().get(key) ?? [];
-    versions.push({ version: versions.length + 1, createdAt: Date.now(), note: note ?? null, config });
+    versions.push({ version: versions.length + 1, createdAt: Date.now(), note: note ?? null, config: safeConfig });
     demoConfigs().set(key, versions);
     return 'demo';
   }
+  const systemDefaultRow = await getPublishedBotGlobalConfig(db, productCode);
+  const systemDefault = publishedSystemDefault(systemDefaultRow);
+  const systemDefaultConfig = publishedSystemDefaultConfig(productCode, systemDefaultRow);
+  if (systemDefault && systemDefaultConfig && !systemDefault.allowUserOverride) throw new Error('bot_config_override_disabled');
   const inst = await ensureBotInstance(db, { userId, productCode });
-  await saveBotConfig(db, { botInstanceId: inst.id, config, changedBy: userId, note });
+  await saveBotConfig(db, { botInstanceId: inst.id, config: safeConfig, changedBy: userId, note });
+  return 'saved';
+}
+
+export async function selectSystemDefaultBotConfig(userId: string, productCode: string): Promise<'saved' | 'unavailable'> {
+  const db = getServerDb();
+  if (!db) return 'unavailable';
+  const systemDefaultRow = await getPublishedBotGlobalConfig(db, productCode);
+  const systemDefault = publishedSystemDefault(systemDefaultRow);
+  const systemDefaultConfig = publishedSystemDefaultConfig(productCode, systemDefaultRow);
+  if (!systemDefault || !systemDefaultConfig) return 'unavailable';
+  const inst = await ensureBotInstance(db, { userId, productCode });
+  await saveBotConfig(db, {
+    botInstanceId: inst.id,
+    config: systemDefaultSelectionConfig(systemDefault),
+    changedBy: userId,
+    note: `use-system-default:${systemDefault.profileCode}:v${systemDefault.version}`,
+  });
   return 'saved';
 }

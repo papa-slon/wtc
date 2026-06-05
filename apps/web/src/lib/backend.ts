@@ -61,6 +61,7 @@ export const grantProduct = guard(core.grantProduct);
 export const revokeProduct = guard(core.revokeProduct);
 export const addExchangeKey = guard(core.addExchangeKey);
 export const listExchangeKeys = guard(core.listExchangeKeys);
+export const recordExchangeKeyMetadataCheck = guard(core.recordExchangeKeyMetadataCheck);
 export const audit: AuditWriter = denied ? { async write() { throw new Error('[backend] DATABASE_URL required in production'); } } : core.audit;
 
 // TradingView web UI: DB-backed when DATABASE_URL is set, in-memory otherwise; FAIL CLOSED in

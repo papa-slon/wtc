@@ -13,14 +13,14 @@ import 'server-only';
  * No business logic lives in the React page — it consumes loadCabinet()'s view-models directly.
  */
 import { accessFor } from '@/lib/access';
-import { backendMode, listExchangeKeys } from '@/lib/backend';
-import { loadBotConfig } from '@/features/bots/config';
+import { backendMode } from '@/lib/backend';
+import { loadBotReadinessForUser } from '@/features/bots/readiness-loader';
 import { loadTvUserData } from '@/features/tv/queries';
 import { loadStudentCatalogue } from '@/features/lms/queries';
 import { PRODUCT_CODES, PRODUCTS, type ProductCode, type AccessDecision } from '@wtc/entitlements';
 import { productAvailability } from '@/lib/product-status';
 import { BOT_CAPS } from '@/features/bots/meta';
-import { TORTILA_WARNINGS } from '@wtc/bot-adapters';
+import { knownWarningsForProduct, warningSummaryFromWarnings, type BotProductCode } from '@wtc/bot-adapters';
 import {
   deriveProductCard,
   type CabinetCardView,
@@ -64,11 +64,8 @@ function effectiveEnd(d: AccessDecision): number | null {
   return ends.length ? Math.min(...ends) : null;
 }
 
-function tortilaWarningsSummary(): CabinetWarnings {
-  const count = TORTILA_WARNINGS.length;
-  if (count === 0) return { count: 0, maxSeverity: null };
-  const hasError = TORTILA_WARNINGS.some((w) => w.severity === 'error');
-  return { count, maxSeverity: hasError ? 'error' : 'warning' };
+function botWarningsSummary(code: BotProductCode): CabinetWarnings {
+  return warningSummaryFromWarnings(knownWarningsForProduct(code));
 }
 
 /**
@@ -76,27 +73,43 @@ function tortilaWarningsSummary(): CabinetWarnings {
  * Returns honest values from the real backend — never fabricated; in demo mode the underlying loaders
  * return empty/null and the card carries the demo-persistence note instead.
  */
-async function gatherSignals(userId: string, code: ProductCode): Promise<CabinetSignals> {
+async function gatherSignals(userId: string, code: ProductCode, decision: AccessDecision): Promise<CabinetSignals> {
   switch (code) {
     case 'tortila_bot':
     case 'legacy_bot': {
-      const [keys, cfg] = code === 'legacy_bot'
-        ? [[], await loadBotConfig(userId, code)] as const
-        : await Promise.all([listExchangeKeys(userId), loadBotConfig(userId, code)]);
+      const readiness = await loadBotReadinessForUser({ id: userId, roles: [] }, code, 'cabinet', {
+        includeOperationalRows: false,
+        access: decision,
+      });
+      const strategyConfigured = readiness.config.source !== 'built_in';
+      const readinessItems = readiness.items.map(({ label, status, value, detail }) => ({ label, status, value, detail }));
+      const connectionReady = code === 'legacy_bot'
+        ? readiness.providerPubIdState === 'db_mapping_confirmed'
+        : readiness.exchangeKeyState === 'vault_metadata_confirmed';
       const signals: CabinetSignals = {
         setupItems: code === 'legacy_bot'
           ? [
-              { label: 'Use existing Legacy pub_id runtime', done: true },
-              { label: 'Save a strategy configuration', done: cfg.version != null },
+              { label: connectionReady ? 'Legacy provider pub_id mapped in WTC DB' : 'Admin maps one active Legacy provider pub_id', done: connectionReady },
+              { label: 'Choose or save a strategy configuration', done: strategyConfigured },
             ]
           : [
-              { label: 'Add an exchange API key', done: keys.length > 0 },
-              { label: 'Save a strategy configuration', done: cfg.version != null },
+              {
+                label: connectionReady
+                  ? 'Exchange vault metadata confirmed - live ping not available yet'
+                  : 'Add exchange key metadata - live ping not available yet',
+                done: connectionReady,
+              },
+              { label: 'Choose or save a strategy configuration', done: strategyConfigured },
             ],
-        activityLine: cfg.version != null ? `Strategy config v${cfg.version} saved` : null,
-        activityAt: cfg.versions[0]?.createdAt ?? null,
+        readinessItems,
+        activityLine: strategyConfigured
+          ? code === 'tortila_bot' && connectionReady
+            ? `Strategy source: ${readiness.config.sourceLabel}; exchange metadata confirmed, live ping not run`
+            : `Strategy source: ${readiness.config.sourceLabel}`
+          : null,
+        activityAt: null,
       };
-      if (code === 'tortila_bot') signals.warnings = tortilaWarningsSummary();
+      signals.warnings = botWarningsSummary(code);
       return signals;
     }
     case 'tradingview_indicators': {
@@ -144,7 +157,7 @@ export async function loadCabinet(userId: string): Promise<CabinetData> {
   const cards = await Promise.all(
     PRODUCT_CODES.map(async (code, i): Promise<CabinetCardView> => {
       const decision = decisions[i]!;
-      const signals = decision.allowed ? await gatherSignals(userId, code) : undefined;
+      const signals = decision.allowed ? await gatherSignals(userId, code, decision) : undefined;
       return deriveProductCard({
         productCode: code,
         name: PRODUCTS[code].name,

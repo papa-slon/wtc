@@ -2,7 +2,15 @@ import { describe, it, expect } from 'vitest';
 import { getBotAdapter } from './factory.ts';
 import { createHttpTortilaAdapter, AdapterNotReadyError } from './http.ts';
 import { BotControlDisabledError } from './control.ts';
-import { CANONICAL_WARNING_CODES, TORTILA_WARNINGS, LEGACY_WARNINGS } from './warnings.ts';
+import {
+  CANONICAL_WARNING_CODES,
+  LEGACY_RUNTIME_WARNINGS,
+  TORTILA_WARNINGS,
+  knownWarningsForProduct,
+  warningCodesFromDetail,
+  warningSummaryFromWarnings,
+  warningsFromDetail,
+} from './warnings.ts';
 
 describe('adapter flag governance (BOT_ADAPTER_MODE)', () => {
   it('defaults to mock adapters', () => {
@@ -50,7 +58,7 @@ describe('Tortila unresolved warnings persist across adapter modes', () => {
 
 describe('warning codes match the documented canonical set', () => {
   it('every mock/http warning code is canonical', () => {
-    for (const w of [...TORTILA_WARNINGS, ...LEGACY_WARNINGS]) {
+    for (const w of [...TORTILA_WARNINGS, ...LEGACY_RUNTIME_WARNINGS]) {
       expect(CANONICAL_WARNING_CODES).toContain(w.code as (typeof CANONICAL_WARNING_CODES)[number]);
     }
   });
@@ -74,5 +82,40 @@ describe('warning codes match the documented canonical set', () => {
     const mock = getBotAdapter('tortila_bot', { mode: 'mock' });
     const [health, warnings] = await Promise.all([mock.getHealth(), mock.getWarnings()]);
     expect(health.warnings.map((w) => w.code)).toEqual(warnings.map((w) => w.code));
+  });
+});
+
+describe('shared warning normalizer', () => {
+  it('extracts only canonical warning codes from mixed health detail shapes', () => {
+    expect(warningCodesFromDetail({
+      warnings: ['tp_reconcile_p0', { code: 'margin_preflight_p1' }, 'apiKey=SECRET_SHOULD_DROP'],
+      warningCodes: ['tp_reconcile_p0', 'legacy_quarantined', 'not_real'],
+    })).toEqual(['tp_reconcile_p0', 'margin_preflight_p1', 'legacy_quarantined']);
+  });
+
+  it('maps warning codes through the product registry without cross-product leakage', () => {
+    const legacyWarnings = warningsFromDetail('legacy_bot', {
+      warnings: [{ code: 'no_trade_history' }],
+      warningCodes: ['legacy_quarantined', 'tp_reconcile_p0', 'apiSecret=SECRET_SHOULD_DROP'],
+    });
+    expect(legacyWarnings.map((w) => w.code)).toEqual(['no_trade_history', 'legacy_quarantined']);
+    expect(JSON.stringify(legacyWarnings)).not.toContain('SECRET_SHOULD_DROP');
+
+    const tortilaWarnings = warningsFromDetail('tortila_bot', {
+      warningCodes: ['fill_lookup_109421', 'legacy_quarantined'],
+    });
+    expect(tortilaWarnings.map((w) => w.code)).toEqual(['tp_reconcile_p0', 'margin_preflight_p1', 'fill_lookup_109421']);
+  });
+
+  it('summarizes known product warnings for compact UI DTOs', () => {
+    expect(knownWarningsForProduct('legacy_bot').map((w) => w.code)).toEqual([
+      'ws_fallback',
+      'legacy_plaintext_keys',
+      'no_trade_history',
+    ]);
+    expect(warningSummaryFromWarnings(knownWarningsForProduct('legacy_bot'))).toEqual({
+      count: 3,
+      maxSeverity: 'warning',
+    });
   });
 });

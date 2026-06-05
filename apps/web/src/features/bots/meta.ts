@@ -103,6 +103,11 @@ export function botHealthPill(health: BotHealth): { tone: Tone; label: string } 
     case 'stale':
       return { tone: 'warn', label: 'Data stale' };
     case 'ok':
+      if (health.productCode === 'legacy_bot') {
+        return health.status === 'healthy'
+          ? { tone: 'neutral', label: 'DB snapshot ok' }
+          : { tone: 'warn', label: 'DB snapshot warning' };
+      }
       return health.status === 'healthy'
         ? { tone: 'ok', label: 'Healthy' }
         : { tone: 'warn', label: 'Running (warnings)' };

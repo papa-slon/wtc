@@ -10,7 +10,7 @@ import 'server-only';
  * adminUsersLoader strips passwordHash via mapToAdminUserView — never returned to any caller.
  */
 
-import { eq, and, ne, desc } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import { getServerDb } from '@/lib/backend';
 import { listUsersWithCreatedAt, listAllTv, recentAuditEvents, listManualReviewItems, summarizeLmsObjectCleanupOperations } from '@wtc/db';
 import { schema } from '@wtc/db';
@@ -18,9 +18,12 @@ import { botAdapterMode } from '@/lib/server-config';
 import { productAvailability } from '@/lib/product-status';
 import { ENTITLEMENT_STATUSES, PLANS, PRODUCT_CODES, PRODUCTS } from '@wtc/entitlements';
 import { projectHealthDetail } from './health-detail';
+import { emptyAdminBotHealth, loadAdminBotHealthFromDb } from './bot-health-loader';
+import { emptyAdminUserBotDetail, loadAdminUserBotDetailFromDb } from './user-bot-detail-loader';
 import type {
   AdminProductOverviewRow,
   AdminProductsResult,
+  AdminUserBotDetailResult,
   AdminUserView,
   SystemHealthSnapshot,
   HealthCheckView,
@@ -164,6 +167,14 @@ export async function loadAdminUsers(): Promise<AdminUsersResult> {
     }),
   );
   return { mode: 'postgres', users };
+}
+
+export async function loadAdminUserBotDetail(userId: string): Promise<AdminUserBotDetailResult> {
+  const db = getServerDb();
+  if (!db) {
+    return emptyAdminUserBotDetail('demo');
+  }
+  return loadAdminUserBotDetailFromDb(db, userId);
 }
 
 // ---- System health ----
@@ -356,161 +367,9 @@ export async function loadAdminBotHealth(): Promise<AdminBotHealthResult> {
   };
 
   if (!db) {
-    return {
-      ...base,
-      mode: 'demo',
-      tortilaLastOkAt: null,
-      tortilaLastError: null,
-      tortilaJournalStatus: null,
-      tortilaJournalReadState: null,
-      tortilaJournalReadStateDetail: null,
-      latestSnapshot: null,
-      legacyProviderAccounts: [],
-      legacyActiveSlots: [],
-      legacyActiveOrders: [],
-      botHealthChecks: [],
-    };
+    return emptyAdminBotHealth(base, 'demo');
   }
-
-  // Last successful health check for tortila-journal
-  const [lastOk] = await db
-    .select({ id: schema.integrationHealthChecks.id, checkedAt: schema.integrationHealthChecks.checkedAt })
-    .from(schema.integrationHealthChecks)
-    .where(and(eq(schema.integrationHealthChecks.target, 'tortila-journal'), eq(schema.integrationHealthChecks.status, 'ok')))
-    .orderBy(desc(schema.integrationHealthChecks.checkedAt))
-    .limit(1);
-
-  // Latest non-ok health row for tortila-journal. not_configured is a setup state, not an error.
-  const [lastErr] = await db
-    .select({ status: schema.integrationHealthChecks.status, detail: schema.integrationHealthChecks.detail, checkedAt: schema.integrationHealthChecks.checkedAt })
-    .from(schema.integrationHealthChecks)
-    .where(and(eq(schema.integrationHealthChecks.target, 'tortila-journal'), ne(schema.integrationHealthChecks.status, 'ok')))
-    .orderBy(desc(schema.integrationHealthChecks.checkedAt))
-    .limit(1);
-
-  const [latestJournal] = await db
-    .select({ status: schema.integrationHealthChecks.status, detail: schema.integrationHealthChecks.detail, checkedAt: schema.integrationHealthChecks.checkedAt })
-    .from(schema.integrationHealthChecks)
-    .where(eq(schema.integrationHealthChecks.target, 'tortila-journal'))
-    .orderBy(desc(schema.integrationHealthChecks.checkedAt))
-    .limit(1);
-
-  const latestJournalDetail = latestJournal?.detail as Record<string, unknown> | null | undefined;
-  const latestReadState =
-    typeof latestJournalDetail?.readState === 'string' ? latestJournalDetail.readState : null;
-  const latestReadStateDetail =
-    typeof latestJournalDetail?.readStateDetail === 'string'
-      ? latestJournalDetail.readStateDetail.slice(0, 200)
-      : null;
-
-  const tortilaLastError = lastErr
-    ? (() => {
-        if (lastErr.status === 'not_configured' || lastErr.status === 'stale') return null;
-        const d = lastErr.detail as Record<string, unknown> | null;
-        const msg = d?.error ?? d?.message ?? null;
-        return msg ? String(msg).slice(0, 200) : 'error (no detail)';
-      })()
-    : null;
-
-  // Latest bot metric snapshot
-  const [snap] = await db
-    .select({
-      snapshotAt: schema.botMetricSnapshots.snapshotAt,
-      walletEquityUsd: schema.botMetricSnapshots.walletEquityUsd,
-      sourceAdapter: schema.botMetricSnapshots.sourceAdapter,
-    })
-    .from(schema.botMetricSnapshots)
-    .orderBy(desc(schema.botMetricSnapshots.snapshotAt))
-    .limit(1);
-
-  const [legacySnap] = await db
-    .select({
-      snapshotAt: schema.botMetricSnapshots.snapshotAt,
-      rawJson: schema.botMetricSnapshots.rawJson,
-    })
-    .from(schema.botMetricSnapshots)
-    .innerJoin(schema.botInstances, eq(schema.botMetricSnapshots.botInstanceId, schema.botInstances.id))
-    .where(eq(schema.botInstances.productCode, 'legacy_bot'))
-    .orderBy(desc(schema.botMetricSnapshots.snapshotAt))
-    .limit(1);
-
-  const legacyRaw = (legacySnap?.rawJson ?? {}) as Record<string, unknown>;
-  const legacyLiveConfig = legacyRaw.liveConfig && typeof legacyRaw.liveConfig === 'object'
-    ? legacyRaw.liveConfig as Record<string, unknown>
-    : {};
-  const legacyRows = (value: unknown): Record<string, unknown>[] =>
-    Array.isArray(value) ? value.filter((row): row is Record<string, unknown> => !!row && typeof row === 'object') : [];
-  const legacyNum = (value: unknown): number | null => {
-    const n = Number(value);
-    return Number.isFinite(n) ? n : null;
-  };
-  const legacyText = (value: unknown): string => (typeof value === 'string' ? value : '');
-  const legacyProviderAccounts = legacyRows(legacyLiveConfig.providerAccounts).map((row) => ({
-    pubId: legacyText(row.pubId),
-    market: legacyText(row.market) || 'BINGX',
-    running: row.running === true,
-    balance: legacyNum(row.balance),
-    quarantined: row.quarantined === true,
-    quarantineReason: typeof row.quarantineReason === 'string' ? row.quarantineReason : null,
-    symbols: legacyNum(row.symbols) ?? 0,
-    activeSlots: legacyNum(row.activeSlots) ?? 0,
-    activeOrders: legacyNum(row.activeOrders) ?? 0,
-    latestSnapshotAt: legacySnap?.snapshotAt.getTime() ?? null,
-  })).filter((row) => row.pubId);
-  const legacyActiveSlots = legacyRows(legacyLiveConfig.activeSlots).map((row) => ({
-    pubId: legacyText(row.providerPubId),
-    symbol: legacyText(row.symbol),
-    signal: legacyText(row.signal),
-    stage: legacyNum(row.stage),
-    averagingCount: legacyNum(row.averagingCount),
-    openedAt: legacyNum(row.openedAt),
-  })).filter((row) => row.pubId && row.symbol);
-  const legacyActiveOrders = legacyRows(legacyLiveConfig.activeOrderSummary).map((row) => ({
-    pubId: legacyText(row.providerPubId),
-    symbol: legacyText(row.symbol),
-    note: legacyText(row.note),
-    qty: legacyNum(row.qty),
-    price: legacyNum(row.price),
-  })).filter((row) => row.pubId && row.symbol);
-
-  // Bot-related health checks (last 20). Targets include old bot.* names plus worker DB targets.
-  const botHealthCheckRows = await db
-    .select()
-    .from(schema.integrationHealthChecks)
-    .orderBy(desc(schema.integrationHealthChecks.checkedAt))
-    .limit(50);
-
-  const botHealthChecks: HealthCheckView[] = botHealthCheckRows
-    .filter((r) => r.target.startsWith('bot.') || r.target === 'tortila-journal' || r.target === 'legacy-bot')
-    .slice(0, 20)
-    .map((r) => ({
-      id: r.id,
-      target: r.target,
-      status: r.status,
-      detail: r.detail as Record<string, unknown> | null,
-      checkedAt: r.checkedAt.getTime(),
-    }));
-
-  return {
-    ...base,
-    mode: 'postgres',
-    tortilaLastOkAt: lastOk ? lastOk.checkedAt.getTime() : null,
-    tortilaLastError,
-    tortilaJournalStatus: latestJournal?.status ?? null,
-    tortilaJournalReadState: latestReadState,
-    tortilaJournalReadStateDetail: latestReadStateDetail,
-    latestSnapshot: snap
-      ? {
-          snapshotAt: snap.snapshotAt.getTime(),
-          walletEquityUsd: snap.walletEquityUsd ?? null,
-          sourceAdapter: snap.sourceAdapter,
-        }
-      : null,
-    legacyProviderAccounts,
-    legacyActiveSlots,
-    legacyActiveOrders,
-    botHealthChecks,
-  };
+  return loadAdminBotHealthFromDb(db, base);
 }
 
 // ---- Admin products overview ----
