@@ -1,8 +1,8 @@
 # Credential Acceptance Blockers Current
 
-Last updated: 2026-06-02, Phase 3.63 production-readiness gap closure.
+Last updated: 2026-06-05, Phase 4.61 main merge and CI truth.
 
-This packet is the current operator-facing blocker list after Phase 3.63. The LMS DB browser managed gate, active managed
+This packet is the current operator-facing blocker list after Phase 4.61. The LMS DB browser managed gate, active managed
 real-Postgres proof, local managed throwaway audit-role proof, local site-readiness proof, and local auth DB-backed
 production-profile browser proof are now **RUN/PASS** with
 operator-approved local sources where needed. Remaining live or credentialed gates are still **NOT RUN** unless explicitly
@@ -13,7 +13,9 @@ substitutes for the remaining gates.
 
 Observed in this session:
 
-- `git rev-parse --show-toplevel` -> not a git repository.
+- Phase 4.61 git/CI release proof -> **RUN/PASS** for the WTC repo: PR #1 merged at
+  `ed31aaaf89ebc4920a13887542fa3bb0bbd99545`; pre-merge PR CI run `27015532545` and post-merge `main` CI run
+  `27016644974` both passed `gates` and `e2e`.
 - `C:\Users\maxib\GTE BOT\bot\.env` had Postgres connection fields; the connection and `CREATE DATABASE` permission were
   checked without printing values.
 - `LMS_E2E_ADMIN_DATABASE_URL` was built only in-process for the managed runner and removed from the shell after the run.
@@ -42,7 +44,8 @@ Observed in this session:
   (`934` passed, `10` skipped), web build, core smoke, root/web typecheck, lint, secret scan, default e2e (`44` passed,
   `6` skipped), auth production-profile e2e (`2` passed), and managed auth DB e2e against existing-bot Postgres source
   (`wtc_test_auth_20260602130742_099899` created/dropped, 17 migrations plus seed, Playwright `2` passed).
-- No provider network call, SSH, nginx/systemd, bot service, deploy, or GitHub CI command was run.
+- No provider network call, SSH, nginx/systemd, bot service, production deploy, live bot control, or production DB command
+  was run by the credentialed-gate phases. Phase 4.61 used read-only GitHub CLI inspection and observed green GitHub CI.
 
 Previously checked env vars without printing values in Phase 3.58; remaining gates still require these names unless a later
 phase supplies them:
@@ -92,7 +95,7 @@ AXIOMA_BRIDGE_API_TOKEN=NOT_SET
 | Local site-readiness / safe-preview smoke | `npm test`; `npm run build -w @wtc/web`; `npm run e2e`; `npm run preview:safe` or scoped preview smoke | Local demo/mock preview scope; no live bot/provider/deploy mutation | **RUN/PASS in Phase 3.62** - root tests `921` passed, web build PASS, default e2e `44` passed / `8` skipped, `http://127.0.0.1:3000` returned `200` with a title containing `WTC Ecosystem` and `World Trader Club` | Cleared for local manual demo/mock website review only; screenshot inventory is not screenshot acceptance |
 | Local auth DB-backed browser acceptance | `npm run e2e:auth:db:managed` | Existing-bot Postgres source approved by operator; in-process `AUTH_E2E_ADMIN_DATABASE_URL`, value never printed | **RUN/PASS in Phase 3.63** - throwaway DB `wtc_test_auth_20260602130742_099899` created/dropped, 17 migrations plus seed, real register/login Playwright `2` passed | Cleared for local auth registration/login DB-backed acceptance; not a production DB/server/deploy proof |
 | Live/server preview smoke | Approved server/preview target smoke | Operator-approved server target, retained evidence plan, rollback/cleanup plan if needed | **NOT RUN** - no server/SSH/nginx/systemd/deploy target approved in Phase 3.62 | Approved smoke actually runs on intended target; retained evidence is compact, redacted, scanner-clean, and screenshot-reviewed if retained |
-| GitHub CI | GitHub Actions workflow on push/PR | Git repo initialization, remote, pushed branch/PR | **NOT RUN** - current folder is not git-backed | A real GitHub Actions run exits 0; local gates alone are not CI |
+| GitHub CI for current WTC release | GitHub Actions workflow on PR and `main` push | Git-backed repo, PR/push to GitHub | **RUN/PASS in Phase 4.61** - PR CI `27015532545` and post-merge `main` CI `27016644974` both passed `gates` and `e2e` | Cleared for merge commit `ed31aaaf89ebc4920a13887542fa3bb0bbd99545`; rerun for every future release commit |
 | Deploy/server checks | Approved deploy checklist | Explicit operator approval, server target, secrets, rollback plan | **NOT RUN** - forbidden in this phase | Approved deploy/SSH/nginx/systemd checks execute and are documented without secrets |
 
 ## Safe Run Order When Credentials Arrive
@@ -106,8 +109,8 @@ AXIOMA_BRIDGE_API_TOKEN=NOT_SET
 ## Not Production Ready
 
 The standing production truth is unchanged: WTC is **not production-ready** until the remaining credentialed
-DB/provider/server/CI gates above are observed green in their intended environments. Phase 3.59 cleared local managed LMS DB
+DB/provider/server gates above are observed green in their intended environments. Phase 3.59 cleared local managed LMS DB
 browser acceptance; Phase 3.60 cleared local active managed real-PG proof; Phase 3.61 cleared local generated-role
 append-only audit proof, not the production/preview intended-role proof; Phase 3.62 cleared local demo/mock site-readiness;
-Phase 3.63 cleared local production-readiness harness gaps and DB-backed auth browser acceptance, not live/server production
-readiness.
+Phase 3.63 cleared local production-readiness harness gaps and DB-backed auth browser acceptance; Phase 4.61 cleared
+GitHub CI for the merged WTC release commit, not live/server production readiness.

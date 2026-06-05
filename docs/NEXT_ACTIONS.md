@@ -1,6 +1,6 @@
 # NEXT ACTIONS
 
-**Current local bot/admin state after Phase 4.60:** the WTC-side Legacy/Tortila settings, setup, readiness, warning,
+**Current local bot/admin state after Phase 4.61:** the WTC-side Legacy/Tortila settings, setup, readiness, warning,
 statistics, admin fleet, selected-user read-only, provider-scoping, no-live-control, root test, and retained visual evidence
 surfaces are substantially built and locally green in mock/no-live mode. Phase 4.46 closes the no-env worker interval
 overlap gap: long-running DB worker intervals now use a serialized in-flight guard that skips overlapping attempts with
@@ -65,8 +65,13 @@ Tortila contract/deploy docs now separate local adjacent token proof from canoni
 proof. Phase 4.60 broad local gates are green: `npm run accept:bots:local` PASS (`ci:local`, worker smoke, continuity
 fixture, rendered E2E `65` passed, visual inventory `117` images), and `npm run accept:tortila:real-read:managed` PASS
 against a disposable local Postgres lane with token matrix and WTC persisted read proof.
+Phase 4.61 is the release/CI truth pass: PR #1 was merged to `main` at
+`ed31aaaf89ebc4920a13887542fa3bb0bbd99545`; pre-merge PR CI run `27015532545` and post-merge `main` push CI run
+`27016644974` both passed `gates` and `e2e`. This closes the "GitHub Actions for the committed exact tree" gap for this
+release, but it does not deploy production and does not clear canonical Tortila source, production Tortila
+auth/firewall/probes, Legacy closed-trade source, live-control audit, monitoring, or burn-in.
 
-**Current gate state as of Phase 4.60:**
+**Current gate state as of Phase 4.61:**
 
 | Gate | Current state | Next action |
 | --- | --- | --- |
@@ -76,7 +81,8 @@ against a disposable local Postgres lane with token matrix and WTC persisted rea
 | Tortila production auth/firewall/deploy | NOT RUN | Requires canonical bot repo/source landing, production secret provisioning, firewall/private-network proof, authorized probes, deploy, monitoring, artifact scans |
 | Legacy closed-trade realized analytics/import | Blocked by source proof | Do not implement importer or loaded realized PnL until a valid Legacy source artifact exists |
 | Live control, exchange ping, test-connection, start/stop/apply-config | NOT RUN and intentionally disabled | Needs separate bot-integration plus security approval; no local shortcut |
-| Exact dirty-tree release/CI/deploy | Local exact-tree gates green; GitHub Actions/commit/deploy NOT RUN | Stage intentionally, commit/PR/CI, then canary/deploy only with explicit approval |
+| Exact-tree release/CI | PR #1 merged to `main`; PR CI `27015532545` and post-merge main CI `27016644974` green (`gates`, `e2e`) | Future release changes must branch from `main`, run PR CI, then watch post-merge `main` CI |
+| Production deploy/canary | NOT RUN | Requires explicit production target, rollback plan, secrets, migrations/seed approval, firewall/probe plan, and monitoring |
 Phase 4.44 closes the admin worker-continuity
 freshness gap: stale `target='worker'` rows now stay attention and cannot make `/admin/bots` show green continuity proof.
 Phase 4.43 closes the admin read-only-label copy

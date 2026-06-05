@@ -439,21 +439,24 @@ inert while the no-DB availability, DB-name guard, and schema table-list helper 
 `npm test -- tests/integration/db-real-postgres.test.ts` pass with skipped real-PG tests is NOT an active
 real-PG pass вЂ” the gate is NOT RUN (honest state).
 
-## CI status (staged вЂ” inert)
+## CI status
 
-CI (`ci.yml`) is **staged but NOT RUN** вЂ” the repository has no `.git` directory and no GitHub remote.
-The workflow file is correct and future-ready but has never executed. The local equivalent is:
+CI (`ci.yml`) is active for this repository. Phase 4.61 observed PR #1 merge and the post-merge `main` push run:
+pre-merge PR run `27015532545` passed `gates` and `e2e`, and post-merge `main` run `27016644974` passed `gates` and
+`e2e` for merge commit `ed31aaaf89ebc4920a13887542fa3bb0bbd99545`.
+
+The local equivalent remains:
 
 ```powershell
 npm run ci:local
 ```
 
-`ci:local` omits `db:migrate`, `db:seed`, and e2e (offline-fast). When git is initialised and a
-remote is added, CI will run the full sequence including a `postgres:17-alpine` service, real
-`db:migrate`/`db:seed`, and a fresh `wtc_test` DB for the opt-in real-PG harness (see `ci.yml`
-for the exact drop/create steps).
+`ci:local` is still the fast local release gate. GitHub Actions adds a `postgres:17-alpine` service, runs
+`db:migrate`/`db:seed`, validates production-like adapter env fences with ephemeral values, runs root tests/coverage,
+builds `@wtc/web`, and runs Playwright `e2e` plus visual evidence inventory/manifest validation.
 
-Do NOT claim CI is green until it has run on a real push/PR to the GitHub remote.
+Do NOT treat green CI as production deployment. It proves repository gates for a commit only; server rollout, production
+DB changes, firewall/proxy checks, live provider probes, and monitoring remain separate approved gates.
 
 ## Audit append-only role acceptance
 
@@ -544,7 +547,8 @@ separately to `/home/ubuntu/apps/wtc_ecosystem_platform` behind nginx at the ope
 
 - `db:migrate` / `db:seed` against the raw-IP preview database (RUN on 2026-06-01 against `<preview-db-name>`; not a production deploy)
 - `db:migrate` / `db:seed` against any production database (NOT RUN)
-- CI via GitHub Actions (NOT RUN вЂ” not a git repo / no remote)
+- CI via GitHub Actions for the Phase 4.60 merge commit is RUN/PASS in Phase 4.61; future release commits must be watched
+  on both PR and post-merge `main` runs before deployment
 - Production server deployment with `DATABASE_URL`, real secrets, migrations, seed, rollback, and production start path (NOT RUN)
 - Production nginx/domain/TLS cutover (NOT RUN). The current raw-IP nginx route is only a Postgres-backed safe preview.
 - Production auth `limit_req` / trusted proxy header verification (NOT RUN). The app middleware is per instance; production must prove nginx/shared-store throttling and trusted `X-Forwarded-For`/`X-Real-IP` handling separately.

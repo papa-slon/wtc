@@ -1,6 +1,6 @@
 # STATUS
 
-_Latest update: 2026-06-05 - Phase 4.60 production-readiness hardening._
+_Latest update: 2026-06-05 - Phase 4.61 main merge and CI truth._
 The current WTC-side Legacy/Tortila bot workbench is substantially built locally: settings/setup quick paths, symbol/stage
 configuration, safe config export/review, metadata-only exchange-key readiness, launch-readiness maps, warning summaries,
 admin fleet views, selected-user read-only drilldowns, provider-scoped Legacy runtime evidence, Tortila statistics, Legacy
@@ -14,8 +14,20 @@ confirms the strict blocked threshold is met with the same inputs still absent; 
 disposable Postgres lane to run the previously blocked managed DB gates; Phase 4.58 proves a WTC read-only Tortila journal
 source path through the worker with `/api/marks` blocked; Phase 4.59 adds a local Tortila journal read-token boundary and
 proves WTC can read through it without widening the endpoint allowlist; Phase 4.60 hardens production-like configuration,
-worker token-failure behavior, Tortila contract truth, CI env validation, and non-secret web liveness. This is still
-**not final production completion** and not a live-control release.
+worker token-failure behavior, Tortila contract truth, CI env validation, and non-secret web liveness; Phase 4.61 merges
+the exact Phase 4.60 tree through PR #1, observes green PR and post-merge `main` GitHub Actions, and updates CI truth.
+This is still **not final production completion** and not a live-control release.
+
+Phase 4.61 closes the GitHub release/CI proof gap for the Phase 4.60 tree without deploying production or enabling live
+controls. PR #1 is merged at `ed31aaaf89ebc4920a13887542fa3bb0bbd99545` after green pre-merge PR CI run
+`27015532545` (`gates=success`, `e2e=success`). The post-merge `main` push CI run `27016644974` is also green:
+`gates` completed successfully at `2026-06-05T13:12:09Z`, and `e2e` completed successfully at
+`2026-06-05T13:16:15Z`. Three Phase 4.61 read-only agents checked release/merge/deploy boundaries, production
+boundaries, and CI/PR state; all were closed. GitHub Actions for the merged tree are now RUN/PASS, but production deploy,
+production DB migration/seed, canary switch, nginx/TLS/firewall checks, production Tortila journal secret/firewall probes,
+canonical Tortila source landing, Legacy closed-trade source/import proof, live-control audit, and monitoring/burn-in
+remain NOT RUN. Aggregate:
+[`docs/handoffs/20260605-2018-phase-461-main-merge-ci-truth.md`](handoffs/20260605-2018-phase-461-main-merge-ci-truth.md).
 
 Phase 4.60 closes the locally completable production-readiness gaps found by four read-only auditors. Production-like
 non-mock adapter mode now requires both `JOURNAL_READ_TOKEN` and an explicit `TORTILA_JOURNAL_URL`, so staging/production
@@ -34,9 +46,9 @@ secret scan, root Vitest (`133` files, `1134` passed, `10` skipped), and web bui
 (`5` gates, `0` failing, rendered bot/admin E2E `65` passed, visual inventory `117` images); and
 `npm run accept:tortila:real-read:managed` PASS against a disposable local Postgres lane with `missingToken=401`,
 `wrongToken=401`, `bearerAllowedEndpoints=4`, `tokenHeader=ok`, `sourceAdapter=tortila`, `readState=ok`,
-`tradesImported=2`, `positionsSnapshotted=1`, and `marksRequests=0`. Production deploy, GitHub Actions for a committed
-exact tree, canonical Tortila repo landing, production firewall/authorized probes, Legacy closed-trade source,
-live-control audit, and monitoring/burn-in remain NOT RUN. Aggregate:
+`tradesImported=2`, `positionsSnapshotted=1`, and `marksRequests=0`. GitHub Actions for the committed exact tree are
+closed in Phase 4.61; production deploy, canonical Tortila repo landing, production firewall/authorized probes, Legacy
+closed-trade source, live-control audit, and monitoring/burn-in remain NOT RUN. Aggregate:
 [`docs/handoffs/20260605-1810-phase-460-production-readiness-hardening.md`](handoffs/20260605-1810-phase-460-production-readiness-hardening.md).
 
 Phase 4.59 hardens the local Tortila journal proof boundary. The adjacent non-git-backed `../bot_tortila` checkout now
@@ -1914,8 +1926,9 @@ final post-implementation run.)_
   per-keyId `WTC_VAULT_KEK_*` scheme → TARGET; crypto takes the KEK as an argument; `SealedSecret` base64),
   `NEXT_ACTIONS.md` (stale counts → defer to STATUS; boot `loadEnv` DONE in 1.6.1), `DATA_MODEL.md:843`
   (`schema/ops.ts` → TARGET), `MVP_SCOPE.md` (`job_queue` RESERVED), `OPEN_QUESTIONS.md` (KEK env name).
-- **CI:** `REAL_POSTGRES_DATABASE_URL` mapped to a fresh `wtc_test` (dropped/created before Test + Coverage) so
-  the opt-in real-PG harness no longer silently skips — **STAGED + UNVERIFIED** (CI inert: not a git repo).
+- **CI (historical Phase 1.6.1, superseded by Phase 4.61):** `REAL_POSTGRES_DATABASE_URL` mapped to a fresh `wtc_test` (dropped/created before Test + Coverage) so
+  the opt-in real-PG harness no longer silently skips - **STAGED + UNVERIFIED at that time**; current GitHub CI for the
+  merged WTC tree is recorded in the Phase 4.61 section.
 
 ## Verified gates (Phase 1.7 — clean SEQUENTIAL run on the final tree; artifacts safe-cleaned first; `npm ci` NOT re-run)
 - Pre-step: no :3100/:3000 listener; removed generated-only `apps/web/.next`, `test-results`, `coverage`.
@@ -1925,7 +1938,7 @@ final post-implementation run.)_
 - `npm run secret:scan` → **PASS** (clean). `npm run coverage` → **26.92% stmts / 64.67% branch** (branch ↑ from 63.77).
 - `npm run build -w @wtc/web` → **PASS** (compiled 12.1s; 31/31 pages) — doubles as the no-secrets `instrumentation.ts` acceptance check.
 - `npm run e2e` (Playwright, `CI=1`) → **PASS 14/14** (desktop + mobile; +indicators/education/teacher specs; no flake).
-- `db:migrate`/`db:seed` against **real Postgres** → **NOT RUN** (no `DATABASE_URL`/`REAL_POSTGRES_DATABASE_URL`; Docker absent). Opt-in harness skipped (5 cases). CI mapping staged but unverified.
+- `db:migrate`/`db:seed` against **real Postgres** -> **NOT RUN** (no `DATABASE_URL`/`REAL_POSTGRES_DATABASE_URL`; Docker absent). Opt-in harness skipped (5 cases). Historical CI mapping was staged but unverified in this Phase 1.7 entry; current GitHub CI is Phase 4.61.
 
 ## Phase 1.6.1 additions (prior session)
 - **governance:check strengthened:** the N-agent claim is now backed by per-agent handoff links **actually
