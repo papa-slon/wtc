@@ -1,6 +1,6 @@
 # STATUS
 
-_Latest update: 2026-06-05 - Phase 4.62 production/source input map._
+_Latest update: 2026-06-05 - Phase 4.63 GitHub Actions Node 24 runtime migration._
 The current WTC-side Legacy/Tortila bot workbench is substantially built locally: settings/setup quick paths, symbol/stage
 configuration, safe config export/review, metadata-only exchange-key readiness, launch-readiness maps, warning summaries,
 admin fleet views, selected-user read-only drilldowns, provider-scoped Legacy runtime evidence, Tortila statistics, Legacy
@@ -17,7 +17,16 @@ proves WTC can read through it without widening the endpoint allowlist; Phase 4.
 worker token-failure behavior, Tortila contract truth, CI env validation, and non-secret web liveness; Phase 4.61 merges
 the exact Phase 4.60 tree through PR #1, observes green PR and post-merge `main` GitHub Actions, and updates CI truth;
 Phase 4.62 proves the remaining production/source gates need external target/source packets, not another local UI/static
-loop. This is still **not final production completion** and not a live-control release.
+loop; Phase 4.63 updates the active GitHub Actions workflow to Node 24-runtime action majors after GitHub's deprecation
+warning surfaced on the green `main` runs. This is still **not final production completion** and not a live-control release.
+
+Phase 4.63 addresses the GitHub Actions Node.js 20 deprecation warning observed on the post-merge `main` CI runs. The
+project Node was already set to `24`, but the JavaScript action runtime was still provided by `actions/checkout@v4`,
+`actions/setup-node@v4`, and `actions/upload-artifact@v4`. The active workflow now uses `actions/checkout@v6`,
+`actions/setup-node@v6`, and `actions/upload-artifact@v7`, matching current official action README examples and avoiding
+the June 16, 2026 forced Node 24 transition as an untested surprise. One read-only CI-runtime auditor was closed after
+handoff collection. Aggregate:
+[`docs/handoffs/20260605-2147-phase-463-node24-actions.md`](handoffs/20260605-2147-phase-463-node24-actions.md).
 
 Phase 4.62 maps the remaining non-looping blockers with three read-only source/deploy auditors. Production deploy cannot
 proceed from local repo evidence alone: the current target packet is missing target host/domain/canary URL, exact release

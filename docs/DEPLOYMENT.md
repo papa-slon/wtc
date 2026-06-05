@@ -443,7 +443,13 @@ real-PG pass вЂ” the gate is NOT RUN (honest state).
 
 CI (`ci.yml`) is active for this repository. Phase 4.61 observed PR #1 merge and the post-merge `main` push run:
 pre-merge PR run `27015532545` passed `gates` and `e2e`, and post-merge `main` run `27016644974` passed `gates` and
-`e2e` for merge commit `ed31aaaf89ebc4920a13887542fa3bb0bbd99545`.
+`e2e` for merge commit `ed31aaaf89ebc4920a13887542fa3bb0bbd99545`. Phase 4.62 then merged PR #3, and post-merge
+`main` run `27021006853` passed `gates` and `e2e` for merge commit
+`35115df3caf21034d2b4a3d5bffb71ab5a7dfdab`.
+
+Phase 4.63 migrates the active workflow's official JavaScript actions from Node 20-runtime majors to Node 24-runtime
+majors: `actions/checkout@v6`, `actions/setup-node@v6`, and `actions/upload-artifact@v7`. This addresses GitHub's
+Node.js 20 action-runtime deprecation warning; the project runtime remains `node-version: 24`.
 
 The local equivalent remains:
 
