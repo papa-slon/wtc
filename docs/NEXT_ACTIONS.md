@@ -1,6 +1,6 @@
 # NEXT ACTIONS
 
-**Current local/server bot/admin state after Phase 4.68:** the WTC-side Legacy/Tortila settings, setup, readiness, warning,
+**Current local/server bot/admin state after Phase 4.69:** the WTC-side Legacy/Tortila settings, setup, readiness, warning,
 statistics, admin fleet, selected-user read-only, provider-scoping, no-live-control, root test, retained visual evidence,
 and shared instrument picker surfaces are substantially built, locally green in mock/no-live mode, merged through PR #8,
 and deployed to the WTC HTTPS canary at `3aff2738815562c18f5623e9686c4c2f4ba2ef3a`. Phase 4.68 built the current `main`
@@ -8,6 +8,9 @@ tree in `node:22-bookworm`, verified DB migrate with no new migration beyond the
 `wtc-ecosystem-canary` and `wtc-ecosystem-worker`, and proved local/public `/api/health`, protected-route redirects, worker
 continuity, and bot continuity. `journal-server.service`, `turtle-bot.service`, and `turtle-journal.service` stayed
 `active/running` with unchanged PIDs and `NRestarts=0`; Legacy stayed live under tmux; no bot restart was needed or run.
+Phase 4.69 adds the WTC source-gate tool: `npm run verify:tortila:canonical-source` now refuses non-git Tortila source
+roots, and `accept:tortila:real-read:managed` can require canonical proof with `TORTILA_CANONICAL_SOURCE_REQUIRED=1`.
+The current adjacent `bot_tortila` and server runtime source still do **not** clear the canonical source gate.
 Phase 4.46 closes the no-env worker interval
 overlap gap: long-running DB worker intervals now use a serialized in-flight guard that skips overlapping attempts with
 constant/numeric telemetry and does not refresh worker continuity proof. Phase 4.45 closes the `/app/bots` two-bot finish
@@ -100,15 +103,17 @@ a shared instrument catalog/picker, admin Tortila system defaults no longer dupl
 completion text is ASCII-safe, and `accept:bots:rendered` is green (`65` passed plus visual inventory). The next real
 product-completion work is still source/prod gate work: Tortila canonical source/token/network/burn-in, Legacy closed-trade
 source packet, and audited live-control design later.
+Phase 4.69 supplies the Tortila canonical-source verifier for that work, but the operator still must provide or create the
+canonical git-backed Tortila source repo before the source gate can go green.
 
-**Current gate state as of Phase 4.67:**
+**Current gate state as of Phase 4.69:**
 
 | Gate | Current state | Next action |
 | --- | --- | --- |
 | Local bot/admin UX, settings, statistics, admin drilldowns | Substantially built; Phase 4.67 `accept:bots:rendered` green with shared instrument picker/admin cap de-duplication | Do not add more local UI polish unless a fresh gate fails or locked override read-only UX is explicitly prioritized |
 | Managed DB user/admin/worker proof | Green in Phase 4.57 for this tree; rerun after relevant DB/web/worker changes | Rerun managed gates only under disposable local `wtc_test_*` DB lifecycle |
-| Tortila local real-read and token proof | Green in Phase 4.60 after env/wrong-token hardening and disposable local Postgres rerun | Rerun only after adapter/worker/journal/auth changes |
-| Tortila production auth/firewall/deploy | NOT RUN | Requires canonical bot repo/source landing, production secret provisioning, firewall/private-network proof, authorized probes, deploy, monitoring, artifact scans |
+| Tortila local real-read and token proof | Green in Phase 4.60 after env/wrong-token hardening and disposable local Postgres rerun; Phase 4.69 added strict canonical-source mode | Rerun local fixture only after adapter/worker/journal/auth changes; for canonical proof set `TORTILA_CANONICAL_SOURCE_REQUIRED=1` |
+| Tortila production auth/firewall/deploy | PARTIAL tooling in Phase 4.69; production gate still NOT RUN | Requires canonical bot repo/source landing, `npm run verify:tortila:canonical-source` PASS, production secret provisioning, firewall/private-network proof, authorized probes, deploy, monitoring, artifact scans |
 | Legacy closed-trade realized analytics/import | Blocked by source proof | Do not implement importer or loaded realized PnL until a valid Legacy source artifact exists |
 | Live control, exchange ping, test-connection, start/stop/apply-config | NOT RUN and intentionally disabled | Needs separate bot-integration plus security approval; no local shortcut |
 | Exact-tree release/CI | Phase 4.65: `main` protected by ruleset `17324564`; required checks are GitHub Actions `gates` and `e2e` only, strict policy enabled. | Future release changes must branch from `main`, run PR CI, confirm merge box requires only `gates`/`e2e`, then watch post-merge `main` CI |
@@ -120,7 +125,7 @@ source packet, and audited live-control design later.
 | Packet | Required contents | Why it is required |
 | --- | --- | --- |
 | Deploy target packet | Phase 4.68 supplied and used the existing canary target for WTC `3aff273`; full branded production still needs branded target host/domain, release SHA, rollback target, allowed services, DB migration/seed approval, secret provisioning method, smoke routes, firewall/proxy probes, monitoring window | Local repo + GitHub CI prove code; Phase 4.68 proves the existing WTC canary only |
-| Canonical Tortila source packet | git-backed repo/path/remote/branch or source bundle, proof of `JOURNAL_READ_TOKEN` middleware/tests, bot-side pytest/ruff plan | Adjacent `../bot_tortila` has the patch but is not source-control authority |
+| Canonical Tortila source packet | git-backed repo/path/remote/branch or source bundle, `npm run verify:tortila:canonical-source` PASS, proof of `JOURNAL_READ_TOKEN` middleware/tests, bot-side pytest/ruff plan | Adjacent `../bot_tortila` has the patch but is not source-control authority; Phase 4.69 now fails it closed as non-git |
 | Legacy closed-trade source packet | source table/API/artifact, provider/pub_id filter, stable trade/fill id, symbol/side/size, entry/exit, realized PnL, fees/funding sign policy, opened/closed timestamps, exit reason, replay/backfill semantics, raw payload allowlist | Active orders/slots/FILLED handling cannot prove realized analytics honestly |
 Phase 4.44 closes the admin worker-continuity
 freshness gap: stale `target='worker'` rows now stay attention and cannot make `/admin/bots` show green continuity proof.

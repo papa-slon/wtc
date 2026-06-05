@@ -6,6 +6,7 @@ import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import postgres from 'postgres';
 import { redactProcessOutput, runRedactedChildProcess } from './redacted-child-process.mjs';
+import { verifyTortilaCanonicalSourceRoot } from './tortila-canonical-source-verifier.mjs';
 
 const args = process.argv.slice(2);
 const allowedArgs = new Set(['--help', '-h']);
@@ -22,6 +23,9 @@ function usage() {
       'creates a temporary Tortila SQLite journal fixture, starts the local Tortila journal behind an allowlist proxy,',
       'runs one WTC worker tick in BOT_ADAPTER_MODE=read-only, verifies sourceAdapter=tortila/readState=ok,',
       'then drops the Postgres database and removes temporary local files.',
+      '',
+      'Set TORTILA_CANONICAL_SOURCE_REQUIRED=1 and TORTILA_REAL_READ_SOURCE_ROOT=<canonical git checkout>',
+      'to require a clean git-backed Tortila source packet before the proof runs.',
       '',
       'Safety: no live bot start/stop/apply-config, no exchange/provider probes, no /api/marks, no production DB targets.',
     ].join('\n'),
@@ -92,21 +96,33 @@ function runSeed(targetUrl) {
 }
 
 function findTortilaSourceRoot() {
-  const candidates = [
-    process.env.TORTILA_REAL_READ_SOURCE_ROOT,
-    resolve(process.cwd(), '..', 'bot_tortila'),
-  ].filter(Boolean);
+  const canonicalRequired = process.env.TORTILA_CANONICAL_SOURCE_REQUIRED === '1';
+  const explicitRoot = process.env.TORTILA_REAL_READ_SOURCE_ROOT;
+  const candidates = canonicalRequired
+    ? [explicitRoot].filter(Boolean)
+    : [explicitRoot, resolve(process.cwd(), '..', 'bot_tortila')].filter(Boolean);
+  let lastError = null;
   for (const candidate of candidates) {
     const root = resolve(String(candidate));
     try {
       const appFile = join(root, 'src', 'turtle_bot', 'journal', 'app.py');
       const storeFile = join(root, 'src', 'turtle_bot', 'state', 'store.py');
-      if (readFileSync(appFile, 'utf8') && readFileSync(storeFile, 'utf8')) return root;
-    } catch {
+      if (readFileSync(appFile, 'utf8') && readFileSync(storeFile, 'utf8')) {
+        if (canonicalRequired) {
+          verifyTortilaCanonicalSourceRoot(root);
+        }
+        return root;
+      }
+    } catch (error) {
+      lastError = error;
       // Try next candidate.
     }
   }
-  throw new Error('Tortila real-read managed runner refused: local bot_tortila source root was not found.');
+  throw new Error(
+    canonicalRequired
+      ? `Tortila real-read managed runner refused: canonical Tortila source root was not found or did not pass verification. ${safeMessage(lastError ?? 'No source root candidate.')}`
+      : 'Tortila real-read managed runner refused: local bot_tortila source root was not found.',
+  );
 }
 
 function pythonEnv(sourceRoot, sqlitePath, tempDir) {
@@ -444,6 +460,7 @@ function runWorkerTick(targetUrl, ownerId, proxyUrl) {
  * {
  *   APP_ENV: 'development',
  *   BOT_ADAPTER_MODE: 'read-only',
+ *   TORTILA_CANONICAL_SOURCE_REQUIRED: '1',
  *   JOURNAL_READ_TOKEN: 'phase-458-dummy-read-token',
  *   FEATURE_LIVE_BOT_CONTROL: 'false',
  *   FEATURE_TV_AUTOMATION: 'false',

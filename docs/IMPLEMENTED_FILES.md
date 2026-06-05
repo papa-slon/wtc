@@ -1,5 +1,22 @@
 # Implemented files (current code vs. target contracts)
 
+## 2026-06-06 Phase 4.69 Tortila canonical source verifier
+- `scripts/tortila-canonical-source-verifier.mjs` (**new**) - fail-closed local/read-only verifier for a canonical
+  Tortila/Turtle source packet. It requires a clean git root, full HEAD, named branch, remote name, required journal files,
+  token middleware, bearer/header parsing, `/api/*` 401 guard, and auth tests.
+- `scripts/run-tortila-real-read-managed.mjs` - managed real-read proof can now require canonical source with
+  `TORTILA_CANONICAL_SOURCE_REQUIRED=1`, checking only explicit `TORTILA_REAL_READ_SOURCE_ROOT` instead of falling back to
+  adjacent `../bot_tortila`.
+- `tests/integration/tortila-canonical-source-verifier.test.ts` and
+  `tests/integration/tortila-real-read-managed-runner.test.ts` - coverage for non-git refusal, clean git fixture PASS,
+  dirty checkout refusal, package script exposure, and strict runner integration.
+- `docs/handoffs/20260606-0440-phase-469-tortila-canonical-source-verifier.md` plus three read-only agent handoffs -
+  records server-confirmed Tortila/Legacy source blockers, the new verifier, and remaining source/prod gates.
+- `docs/CONTRACTS/tortila-adapter.md`, `docs/STATUS.md`, `docs/NEXT_ACTIONS.md`,
+  `docs/PRODUCTION_BLOCKERS_CURRENT.md`, and `docs/CREDENTIAL_ACCEPTANCE_BLOCKERS_CURRENT.md` - current source-gate truth
+  now points to the verifier while keeping canonical Tortila source, production auth/firewall, and Legacy closed-trade
+  source as not complete.
+
 ## 2026-06-06 Phase 4.68 canary deploy 3aff273
 - Server release `/home/ubuntu/apps/wtc_ecosystem_platform_releases/20260605-203900-3aff273-phase467-picker` - current
   WTC HTTPS canary/worker release for GitHub `main` `3aff2738815562c18f5623e9686c4c2f4ba2ef3a`.

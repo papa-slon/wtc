@@ -1,6 +1,21 @@
 # STATUS
 
-_Latest update: 2026-06-06 - Phase 4.68 canary deploy to `3aff273`._
+_Latest update: 2026-06-06 - Phase 4.69 Tortila canonical source verifier._
+Phase 4.69 adds a strict WTC-side canonical Tortila source verifier after the canary deploy. The new
+`npm run verify:tortila:canonical-source` command refuses non-git adjacent/runtime source folders and requires a clean
+git repo root, full HEAD, named branch, at least one remote name, `pyproject.toml`, `src/turtle_bot/journal/app.py`,
+`tests/test_journal.py`, `JOURNAL_READ_TOKEN` middleware, bearer/header token parsing, `/api/*` 401 guard, and auth tests.
+`accept:tortila:real-read:managed` can now run in strict mode with `TORTILA_CANONICAL_SOURCE_REQUIRED=1` so it checks only
+the explicit `TORTILA_REAL_READ_SOURCE_ROOT` instead of falling back to adjacent `../bot_tortila`. The full local Vitest
+gate is green (`135` files, `1138` passed, `10` skipped), and the current adjacent `bot_tortila` source correctly fails
+the verifier because it is not git-backed. Server
+read-only audits also confirmed Legacy still has no durable closed-trade source and Tortila runtime source still lacks the
+token middleware. Aggregate:
+[`docs/handoffs/20260606-0440-phase-469-tortila-canonical-source-verifier.md`](handoffs/20260606-0440-phase-469-tortila-canonical-source-verifier.md).
+This improves the source gate tooling; it does not clear canonical Tortila source, production token deployment, firewall
+probes, Legacy realized closed-trade source/import, live-control audit, or full branded production.
+
+_Previous server update: 2026-06-06 - Phase 4.68 canary deploy to `3aff273`._
 Phase 4.68 deploys PR #8's shared bot instrument picker release to the existing WTC HTTPS canary. PR #8 merged to `main`
 at `3aff2738815562c18f5623e9686c4c2f4ba2ef3a`; PR checks and post-merge `main` CI run `27038370453` both passed
 `gates` and `e2e`. Current server release:

@@ -39,10 +39,21 @@ before worker ingestion.
 
 **Required before production WTC deployment:**
 - Land or confirm the same API-token middleware in the canonical git-backed Tortila source.
+- Prove that source with `TORTILA_CANONICAL_SOURCE_ROOT=<canonical git checkout> npm run verify:tortila:canonical-source`.
+- Rerun WTC managed proof with `TORTILA_CANONICAL_SOURCE_REQUIRED=1` and
+  `TORTILA_REAL_READ_SOURCE_ROOT=<canonical git checkout>` so the runner cannot silently fall back to adjacent
+  `../bot_tortila`.
 - Provision `JOURNAL_READ_TOKEN` as a deployment secret; never commit or print the real value.
 - WTC worker sends `Authorization: Bearer <token>` on every request.
 - Token is stored in WTC encrypted secret vault (see [SECRET_VAULT_DESIGN.md](../SECRET_VAULT_DESIGN.md)).
 - Token rotation: 90-day cycle, overlapping 24h grace period.
+
+**Current verifier (Phase 4.69):** WTC now ships `scripts/tortila-canonical-source-verifier.mjs`, exposed as
+`npm run verify:tortila:canonical-source`. It is local/read-only and fail-closed: a source root must be a clean git repo
+root with full HEAD, named branch, at least one remote name, `pyproject.toml`, `src/turtle_bot/journal/app.py`,
+`tests/test_journal.py`, `JOURNAL_READ_TOKEN` middleware, bearer/header token parsing, `/api/*` 401 guard, and tests for
+missing/wrong/correct token behavior including `/api/marks` rejection when configured. The adjacent non-git
+`../bot_tortila` fixture is intentionally not canonical.
 
 **Network boundary:** the local token proof is not a firewall/deploy proof. Before production
 `BOT_ADAPTER_MODE=read-only`, restrict the journal port to the WTC worker host or private network

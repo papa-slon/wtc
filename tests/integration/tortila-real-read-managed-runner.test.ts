@@ -20,6 +20,7 @@ function runRunner(args: string[] = []) {
 describe('Tortila real-read managed runner', () => {
   it('is exposed as the canonical managed Tortila real-read acceptance script', () => {
     expect(pkg.scripts?.['accept:tortila:real-read:managed']).toBe(`node ${runnerPath}`);
+    expect(pkg.scripts?.['verify:tortila:canonical-source']).toBe('node scripts/tortila-canonical-source-verifier.mjs');
   });
 
   it('refuses missing admin URL and unknown args before DB work', () => {
@@ -37,6 +38,8 @@ describe('Tortila real-read managed runner', () => {
     expect(runner).toContain('wtc_test_tortila_real_read_');
     expect(runner).toContain('DROP DATABASE IF EXISTS');
     expect(runner).toContain('bot_tortila');
+    expect(runner).toContain('TORTILA_CANONICAL_SOURCE_REQUIRED');
+    expect(runner).toContain('verifyTortilaCanonicalSourceRoot(root)');
     expect(runner).toContain("'127.0.0.1'");
     expect(runner).toContain("BOT_ADAPTER_MODE: 'read-only'");
     expect(runner).toContain('JOURNAL_READ_TOKEN');
