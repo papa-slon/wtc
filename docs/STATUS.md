@@ -1,6 +1,6 @@
 # STATUS
 
-_Latest update: 2026-06-05 - Phase 4.63 GitHub Actions Node 24 runtime migration._
+_Latest update: 2026-06-05 - Phase 4.64 Node 24 Actions merge and CI truth._
 The current WTC-side Legacy/Tortila bot workbench is substantially built locally: settings/setup quick paths, symbol/stage
 configuration, safe config export/review, metadata-only exchange-key readiness, launch-readiness maps, warning summaries,
 admin fleet views, selected-user read-only drilldowns, provider-scoped Legacy runtime evidence, Tortila statistics, Legacy
@@ -18,7 +18,15 @@ worker token-failure behavior, Tortila contract truth, CI env validation, and no
 the exact Phase 4.60 tree through PR #1, observes green PR and post-merge `main` GitHub Actions, and updates CI truth;
 Phase 4.62 proves the remaining production/source gates need external target/source packets, not another local UI/static
 loop; Phase 4.63 updates the active GitHub Actions workflow to Node 24-runtime action majors after GitHub's deprecation
-warning surfaced on the green `main` runs. This is still **not final production completion** and not a live-control release.
+warning surfaced on the green `main` runs; Phase 4.64 records the PR and post-merge `main` GitHub proof for that exact
+workflow migration. This is still **not final production completion** and not a live-control release.
+
+Phase 4.64 closes the CI-truth follow-up for the Node 24 action-runtime migration. PR #4 merged to `main` at
+`787443d8ca040cf94d001f79d1a28bbdc0d84bd3` after green PR CI run `27022463493` (`gates=success`, `e2e=success`).
+The post-merge `main` push CI run `27023047118` is also green (`gates=success`, `e2e=success`) and its job view shows
+`actions/checkout@v6` and `actions/setup-node@v6` running in both jobs plus the reviewed visual evidence artifact upload
+step passing. One read-only CI-truth auditor was closed after handoff collection. Aggregate:
+[`docs/handoffs/20260605-2221-phase-464-node24-ci-truth.md`](handoffs/20260605-2221-phase-464-node24-ci-truth.md).
 
 Phase 4.63 addresses the GitHub Actions Node.js 20 deprecation warning observed on the post-merge `main` CI runs. The
 project Node was already set to `24`, but the JavaScript action runtime was still provided by `actions/checkout@v4`,

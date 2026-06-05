@@ -2149,3 +2149,5 @@ production DB, firewall, provider, or monitoring proof.
 Phase 4.63 updates the active workflow action runtimes after GitHub's Node.js 20 deprecation warning: checkout/setup use
 `actions/checkout@v6` and `actions/setup-node@v6`, and the visual-evidence artifact upload uses
 `actions/upload-artifact@v7`. The workflow still runs the same repository gates and still uses project `node-version: 24`.
+Phase 4.64 records GitHub proof for that active workflow: PR #4 CI run `27022463493` and post-merge `main` run
+`27023047118` both passed `gates` and `e2e` for merge commit `787443d8ca040cf94d001f79d1a28bbdc0d84bd3`.
