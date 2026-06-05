@@ -1,6 +1,6 @@
 # NEXT ACTIONS
 
-**Current local bot/admin state after Phase 4.63:** the WTC-side Legacy/Tortila settings, setup, readiness, warning,
+**Current local bot/admin state after Phase 4.64:** the WTC-side Legacy/Tortila settings, setup, readiness, warning,
 statistics, admin fleet, selected-user read-only, provider-scoping, no-live-control, root test, and retained visual evidence
 surfaces are substantially built and locally green in mock/no-live mode. Phase 4.46 closes the no-env worker interval
 overlap gap: long-running DB worker intervals now use a serialized in-flight guard that skips overlapping attempts with
@@ -78,8 +78,10 @@ Phase 4.63 is a separate CI infrastructure hardening pass: the active workflow m
 actions from Node 20-runtime majors to Node 24-runtime majors (`checkout@v6`, `setup-node@v6`, `upload-artifact@v7`) after
 GitHub's deprecation warning appeared on green `main` CI. This does not change bot runtime behavior or clear deploy/source
 blockers.
+Phase 4.64 records that migration as merged and green: PR #4 CI run `27022463493` passed `gates` and `e2e`, the merge commit
+is `787443d8ca040cf94d001f79d1a28bbdc0d84bd3`, and post-merge `main` run `27023047118` also passed `gates` and `e2e`.
 
-**Current gate state as of Phase 4.63:**
+**Current gate state as of Phase 4.64:**
 
 | Gate | Current state | Next action |
 | --- | --- | --- |
@@ -89,7 +91,7 @@ blockers.
 | Tortila production auth/firewall/deploy | NOT RUN | Requires canonical bot repo/source landing, production secret provisioning, firewall/private-network proof, authorized probes, deploy, monitoring, artifact scans |
 | Legacy closed-trade realized analytics/import | Blocked by source proof | Do not implement importer or loaded realized PnL until a valid Legacy source artifact exists |
 | Live control, exchange ping, test-connection, start/stop/apply-config | NOT RUN and intentionally disabled | Needs separate bot-integration plus security approval; no local shortcut |
-| Exact-tree release/CI | Phase 4.62 merged through PR #3; post-merge main CI `27021006853` green (`gates`, `e2e`). Phase 4.63 migrates active workflow actions to Node 24-runtime majors; pending PR/main CI proof for that exact commit. | Future release changes must branch from `main`, run PR CI, then watch post-merge `main` CI |
+| Exact-tree release/CI | Phase 4.64: PR #4 CI `27022463493` and post-merge main CI `27023047118` green (`gates`, `e2e`) for the Node 24 action-runtime workflow migration. | Future release changes must branch from `main`, run PR CI, then watch post-merge `main` CI |
 | Production deploy/canary | NOT RUN | Requires explicit production target, rollback plan, secrets, migrations/seed approval, firewall/probe plan, and monitoring |
 
 **Phase 4.62 required external packets:**

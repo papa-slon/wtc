@@ -449,7 +449,9 @@ pre-merge PR run `27015532545` passed `gates` and `e2e`, and post-merge `main` r
 
 Phase 4.63 migrates the active workflow's official JavaScript actions from Node 20-runtime majors to Node 24-runtime
 majors: `actions/checkout@v6`, `actions/setup-node@v6`, and `actions/upload-artifact@v7`. This addresses GitHub's
-Node.js 20 action-runtime deprecation warning; the project runtime remains `node-version: 24`.
+Node.js 20 action-runtime deprecation warning; the project runtime remains `node-version: 24`. Phase 4.64 proves that
+migration on GitHub: PR #4 CI run `27022463493` passed `gates` and `e2e`, PR #4 merged at
+`787443d8ca040cf94d001f79d1a28bbdc0d84bd3`, and post-merge `main` run `27023047118` passed `gates` and `e2e`.
 
 The local equivalent remains:
 
