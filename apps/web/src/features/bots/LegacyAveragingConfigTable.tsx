@@ -2,8 +2,10 @@
 
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { StatusPill } from '@wtc/ui';
+import { instrumentOptionsForBot } from '@wtc/shared';
 import type { LegacyRuntimeSymbolConfig, LegacyStageConfig, LegacySymbolConfig } from './config-types';
 import type { BotConfigErrorCopy } from './config-error-copy';
+import { InstrumentPicker } from './InstrumentPicker';
 import {
   LEGACY_STAGE_CAPACITY_DRAFT_EVENT,
   type LegacyStageCapacityDraftEventDetail,
@@ -14,20 +16,6 @@ const TF_OPTIONS = ['1m', '3m', '5m', '15m', '1h'] as const;
 const LEGACY_SYMBOL_ROW_LIMIT = 14;
 const LEGACY_STAGE_ROW_LIMIT = 4;
 const ISSUE_SCROLL_MARGIN_TOP = 96;
-const BASE_SYMBOL_OPTIONS = [
-  'AAVE-USDT',
-  'ATOM-USDT',
-  'AVAX-USDT',
-  'BCH-USDT',
-  'FARTCOIN-USDT',
-  'KSM-USDT',
-  'LINK-USDT',
-  'SOL-USDT',
-  'SUI-USDT',
-  'TAO-USDT',
-  'UNI-USDT',
-  'XLM-USDT',
-];
 
 type LegacySignal = 'rsi' | 'cci';
 interface LegacyStageDraft {
@@ -265,10 +253,7 @@ export function LegacyAveragingConfigTable({
     },
     { over: 0, full: 0 },
   );
-  const symbolOptions = useMemo(() => {
-    const current = rows.map((row) => row.symbol).filter(Boolean);
-    return [...new Set([...current, ...BASE_SYMBOL_OPTIONS])].sort();
-  }, [rows]);
+  const symbolOptions = useMemo(() => instrumentOptionsForBot('legacy_bot', rows.map((row) => row.symbol).filter(Boolean)), [rows]);
   const updateRowDraft = (index: number, patch: Partial<LegacyRowDraft>) => {
     setRowDrafts((current) => current.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)));
   };
@@ -404,19 +389,16 @@ export function LegacyAveragingConfigTable({
               </div>
 
               <div className="wtc-grid wtc-grid-4">
-                <label className="wtc-stack" style={{ gap: 4 }}>
-                  <span style={{ fontSize: 12 }}>Coin</span>
-                  <select
-                    className="wtc-input"
-                    name={`legacy_symbol_${i}`}
-                    defaultValue={r.symbol ?? ''}
-                    {...errorProps}
-                    onChange={(event) => updateRowDraft(i, { symbol: event.target.value })}
-                  >
-                    <option value="">Add coin...</option>
-                    {symbolOptions.map((symbol) => <option key={symbol} value={symbol}>{symbol}</option>)}
-                  </select>
-                </label>
+                <InstrumentPicker
+                  name={`legacy_symbol_${i}`}
+                  defaultValue={r.symbol ?? ''}
+                  options={symbolOptions}
+                  placeholder="AAVE-USDT"
+                  help="Search the Legacy/BingX catalog or type a dash-format symbol."
+                  invalid={hasSaveIssue}
+                  describedBy={hasSaveIssue ? issueId : undefined}
+                  onChange={(event) => updateRowDraft(i, { symbol: event.target.value })}
+                />
                 <label className="wtc-stack" style={{ gap: 4 }}>
                   <span style={{ fontSize: 12 }}>Manual symbol override</span>
                   <input

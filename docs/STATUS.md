@@ -1,6 +1,19 @@
 # STATUS
 
-_Latest update: 2026-06-06 - Phase 4.66 server canary update to `72f21d5`._
+_Latest update: 2026-06-06 - Phase 4.67 bot settings catalog/admin polish._
+Phase 4.67 is a local UI/product correctness pass after the server canary update. It launches three read-only auditors,
+then adds a shared `@wtc/shared` instrument catalog plus a reusable web `InstrumentPicker` so Legacy and Tortila settings
+use one canonical symbol source with runtime-symbol fallback instead of duplicated hardcoded UI lists. Admin Tortila system
+defaults now render portfolio caps only once through the Tortila strategy table, preventing duplicate `name=` fields from
+shadowing admin edits. The setup wizard completion marker is ASCII `OK` to avoid glyph/mojibake drift in Windows/server
+rendering. Verification is green: shared catalog Vitest, root typecheck, web typecheck, lint, governance, secret scan, web
+production build, focused bot settings/setup/admin Playwright, and final `npm run accept:bots:rendered` (`bot-admin-e2e`
+65 passed plus visual inventory). Aggregate:
+[`docs/handoffs/20260606-0240-phase-467-bot-settings-catalog-admin-polish.md`](handoffs/20260606-0240-phase-467-bot-settings-catalog-admin-polish.md).
+This phase does not deploy, restart bots, run live controls, test exchange keys, clear Legacy closed-trade source proof, or
+canonicalize Tortila source.
+
+_Previous server update: 2026-06-06 - Phase 4.66 server canary update to `72f21d5`._
 Phase 4.66 uses the operator-approved SSH target to deploy the current GitHub `main` commit
 `72f21d5a735ba5ce3a1b6e112cebf70742b72b62` to the WTC HTTPS canary without restarting live bot services.
 New server release:

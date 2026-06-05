@@ -2,8 +2,10 @@
 
 import { useMemo, useState } from 'react';
 import { StatusPill, buttonClasses } from '@wtc/ui';
+import { instrumentOptionsForBot } from '@wtc/shared';
 import type { TortilaSymbolConfig } from './config-types';
 import type { BotConfigErrorCopy } from './config-error-copy';
+import { InstrumentPicker } from './InstrumentPicker';
 import {
   serializeTortilaSymbolConfigs,
   trimTortilaRuntimeNumber as trimNumber,
@@ -12,20 +14,6 @@ import {
 
 const TF_OPTIONS = ['4h', '1h'] as const;
 const TORTILA_SYMBOL_ROW_LIMIT = 8;
-const TORTILA_SYMBOL_OPTIONS = [
-  'XRP/USDT:USDT',
-  'TRX/USDT:USDT',
-  'NEAR/USDT:USDT',
-  'HBAR/USDT:USDT',
-  'LINK/USDT:USDT',
-  'BTC/USDT:USDT',
-  'ETH/USDT:USDT',
-  'SOL/USDT:USDT',
-  'BNB/USDT:USDT',
-  'AVAX/USDT:USDT',
-  'SUI/USDT:USDT',
-  'ATOM/USDT:USDT',
-] as const;
 const ISSUE_SCROLL_MARGIN_TOP = 96;
 const TORTILA_CAP_INPUTS = [
   { name: 'maxOpenSymbols', label: 'Max open symbols', step: '1', hint: 'How many configured coins the reference profile allows open at once.' },
@@ -84,10 +72,6 @@ interface TortilaPortfolioCapRow {
 
 function rowAt(rows: readonly TortilaSymbolConfig[], index: number): Partial<TortilaSymbolConfig> {
   return rows[index] ?? {};
-}
-
-function symbolOptions(rows: readonly TortilaSymbolConfig[]): string[] {
-  return [...new Set([...rows.map((row) => row.symbol).filter(Boolean), ...TORTILA_SYMBOL_OPTIONS])].sort();
 }
 
 function systemLabel(system: number | string | undefined): string {
@@ -296,7 +280,7 @@ export function TortilaSymbolConfigTable({
   const exportValue = useMemo(() => serializeTortilaSymbolConfigs(runtimeDraftRows(rowDrafts)), [rowDrafts]);
   const mapRows = useMemo(() => strategyMapRows(rowDrafts), [rowDrafts]);
   const portfolioRows = useMemo(() => portfolioCapRows(rowDrafts, capDraft), [rowDrafts, capDraft]);
-  const options = symbolOptions(rows);
+  const options = useMemo(() => instrumentOptionsForBot('tortila_bot', rows.map((row) => row.symbol).filter(Boolean)), [rows]);
   const systemOne = activeRows.filter((row) => numericDraft(row.system, 2) === 1).length;
   const systemTwo = activeRows.filter((row) => numericDraft(row.system, 2) === 2).length;
   const avgDraftRisk = activeRows.length === 0
@@ -527,20 +511,16 @@ export function TortilaSymbolConfigTable({
               </div>
 
               <div className="wtc-grid wtc-grid-4">
-                <label className="wtc-stack" style={{ gap: 4 }}>
-                  <span style={{ fontSize: 12 }}>Coin</span>
-                  <select
-                    className="wtc-input"
-                    name={`symbol_${i}`}
-                    value={selected}
-                    onChange={(event) => updateRowDraft(i, { symbol: event.target.value })}
-                    aria-invalid={hasSaveIssue || undefined}
-                    aria-describedby={hasSaveIssue ? issueId : undefined}
-                  >
-                    <option value="">Add coin...</option>
-                    {options.map((symbol) => <option key={symbol} value={symbol}>{symbol}</option>)}
-                  </select>
-                </label>
+                <InstrumentPicker
+                  name={`symbol_${i}`}
+                  value={selected}
+                  options={options}
+                  placeholder="XRP/USDT:USDT"
+                  help="Search the Tortila/BingX swap catalog or type a CCXT swap symbol."
+                  invalid={hasSaveIssue}
+                  describedBy={hasSaveIssue ? issueId : undefined}
+                  onChange={(event) => updateRowDraft(i, { symbol: event.target.value })}
+                />
                 <label className="wtc-stack" style={{ gap: 4 }}>
                   <span style={{ fontSize: 12 }}>Manual symbol override</span>
                   <input
