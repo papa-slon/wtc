@@ -313,6 +313,33 @@ And the adapter adds a warning to `BotHealth.warnings[]`:
 }
 ```
 
+### Phase 4.73 Metadata-Only Source Audit Gate
+
+Phase 4.73 adds a repeatable source-packet verifier for Legacy closed trades:
+
+```powershell
+npm run verify:legacy:closed-trade-source -- --input <safe-json> --expect blocked_no_source
+npm run verify:legacy:closed-trade-source -- --input <safe-json> --expect ready_for_mapper
+```
+
+The input is a sanitized metadata packet only: table/API names, safe column names,
+lifecycle counts, explicitly rejected substitutes, and an optional raw payload allowlist.
+It must not contain provider rows, env values, DSNs, exchange credentials, headers, cookies,
+or raw API payloads.
+
+The current Phase 4.73 live Legacy snapshot is pinned at
+`tests/fixtures/legacy-runtime-no-source-audit.json` and validates only as
+`blocked_no_source`. It observes operational tables (`api_keys`, `orders`, `slots`,
+`stageconfigs`, `symbolsettingss`, `users`) and lifecycle counts, but no durable table/API
+with stable trade/fill id, provider/pub_id scope, entry/exit economics, realized PnL,
+fees/funding policy, opened/closed timestamps, exit reason, replay/backfill semantics, and
+raw payload allowlist.
+
+`ready_for_mapper` is source-contract readiness only. It does not mean WTC has implemented
+an importer, and it does not approve live bot controls, exchange pings, start/stop,
+apply-config, or position-closing actions. A future mapper must be a separate audited slice
+that writes provider-scoped rows into `bot_trade_imports` via `importBotTrade()`.
+
 ---
 
 ## Error Envelope

@@ -1,5 +1,23 @@
 # Implemented files (current code vs. target contracts)
 
+## 2026-06-06 Phase 4.73 Legacy source audit gate
+- `packages/bot-adapters/src/legacy/closed-trade-source-proof.ts` - adds the metadata-only Legacy runtime/source audit
+  helper around the existing fail-closed proof contract. Operational tables such as `orders`, `slots`, `api_keys`,
+  `stageconfigs`, `symbolsettingss`, and `users` are rejected as closed-trade sources; a real source packet must provide
+  every required economics/timestamp/replay/raw-allowlist field before it can be `ready_for_mapper`.
+- `scripts/legacy-closed-trade-source-audit.mjs` and root script `verify:legacy:closed-trade-source` - repeatable CLI for
+  sanitized safe JSON source packets. It performs no SSH, DB connection, exchange call, bot control, or env/secret read.
+- `tests/fixtures/legacy-runtime-no-source-audit.json` - safe Phase 4.73 live-runtime metadata snapshot proving the current
+  Legacy schema validates only as `blocked_no_source`.
+- `tests/integration/legacy-closed-trade-source-proof-static.test.ts` - covers current no-source classification,
+  hypothetical `ready_for_mapper` source packet readiness, sanitized CLI output, and no-live-IO/static safety guards.
+- `docs/handoffs/20260606-0825-phase-473-legacy-source-audit-gate.md` plus three read-only agent handoffs - records the
+  live read-only source audit, WTC destination-readiness verdict, UX anti-loop verdict, gates run/not run, and bot
+  continuity requirement. Legacy importer/realized analytics remain blocked until a source packet passes the verifier.
+- `docs/STATUS.md`, `docs/NEXT_ACTIONS.md`, and `docs/CONTRACTS/legacy-bot-adapter.md` - current gate truth now says Phase
+  4.73 cleared the repeated manual source-audit uncertainty but did not clear Legacy importer, live-control audit, or full
+  branded production.
+
 ## 2026-06-06 Phase 4.72 Tortila runtime auth/firewall
 - Server Tortila journal source release `/home/ubuntu/apps/turtle_bingx_releases/20260606-0728-f53a774-journal-auth` -
   canonical Tortila source commit `f53a774c3bc4c14653906bd2f778a515c565cf12` staged as the live journal runtime source.

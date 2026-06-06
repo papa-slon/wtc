@@ -1,6 +1,21 @@
 # STATUS
 
-_Latest update: 2026-06-06 - Phase 4.72 Tortila runtime auth/firewall._
+_Latest update: 2026-06-06 - Phase 4.73 Legacy source audit gate._
+Phase 4.73 re-runs the Legacy closed-trade source truth lane with three read-only agents and current live metadata, then
+adds a repeatable metadata-only verifier:
+`npm run verify:legacy:closed-trade-source -- --input <safe-json> --expect blocked_no_source|ready_for_mapper`.
+The current safe fixture `tests/fixtures/legacy-runtime-no-source-audit.json` validates only as `blocked_no_source`.
+The live Legacy runtime still exposes operational tables only (`api_keys`, `orders`, `slots`, `stageconfigs`,
+`symbolsettingss`, `users`); inactive orders/slots plus `FILLED` handling remain false substitutes for realized PnL,
+fees/funding, close timestamps, exit reasons, and replay semantics. WTC remains destination-ready through
+`bot_trade_imports`/`importBotTrade()`, but Legacy importer/realized analytics stay blocked until a real source packet
+passes as `ready_for_mapper` and a separate mapper/importer phase is implemented. No bot service, tmux session, Docker
+container, firewall, DB row, exchange endpoint, or live-control path was mutated during discovery. Aggregate:
+[`docs/handoffs/20260606-0825-phase-473-legacy-source-audit-gate.md`](handoffs/20260606-0825-phase-473-legacy-source-audit-gate.md).
+This clears the repeated manual Legacy source-audit uncertainty. It does not clear Legacy realized analytics/import,
+live-control audit, full branded production, or provider-console perimeter proof.
+
+_Previous update: 2026-06-06 - Phase 4.72 Tortila runtime auth/firewall._
 Phase 4.72 deploys the Phase 4.70 canonical Tortila source packet to the live Tortila journal runtime as a journal-only
 versioned release:
 `/home/ubuntu/apps/turtle_bingx_releases/20260606-0728-f53a774-journal-auth`. The switch uses a rollbackable systemd
