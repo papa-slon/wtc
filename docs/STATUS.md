@@ -1,6 +1,27 @@
 # STATUS
 
-_Latest update: 2026-06-06 - Phase 4.71 Tortila strict managed proof._
+_Latest update: 2026-06-06 - Phase 4.72 Tortila runtime auth/firewall._
+Phase 4.72 deploys the Phase 4.70 canonical Tortila source packet to the live Tortila journal runtime as a journal-only
+versioned release:
+`/home/ubuntu/apps/turtle_bingx_releases/20260606-0728-f53a774-journal-auth`. The switch uses a rollbackable systemd
+drop-in for `turtle-journal.service`, with `WorkingDirectory` and `PYTHONPATH` pointing at the staged source and a separate
+server-side journal token env file whose value was never printed. Only `turtle-journal.service` was restarted; WTC
+web/worker containers stayed on the existing `3aff273` canary release, `turtle-bot.service` was not restarted, Legacy tmux
+was not touched, and no exchange/live-control path was called. Server-side staged source gates passed: bot pytest `100%`
+and ruff `All checks passed`. Live auth probes are now green: `/api/health`, `/api/summary`, `/api/equity`, and
+`/api/trades/list` returned missing `401`, wrong `401`, bearer `200`; `/api/summary` also accepted the header token; and
+`/api/marks` missing-token returned `401` while WTC still excludes `/api/marks`. Burn-in was green: `turtle-bot.service`
+stayed PID `256398`, active/running, `NRestarts=0`; `journal-server.service` stayed PID `256388`, active/running,
+`NRestarts=0`; `turtle-journal.service` ran as PID `442227`, active/running, `NRestarts=0`; WTC worker stayed running with
+restart count `0` and repeated `tortila-snapshot ok`, `legacy-snapshot ok`, `bot_continuity ok`, `tortila ok`, and
+`legacy ok`. Public TCP negative probes for bot/internal ports returned `connected=False`, and runtime secret-marker counts
+were `0`. Aggregate:
+[`docs/handoffs/20260606-0728-phase-472-tortila-runtime-auth-firewall.md`](handoffs/20260606-0728-phase-472-tortila-runtime-auth-firewall.md).
+This clears Tortila canary runtime journal auth/firewall proof. It does not clear full branded production, live-control
+audit, Legacy realized closed-trade source/import, cloud-provider security-group console audit, or other credentialed
+provider gates.
+
+_Previous update: 2026-06-06 - Phase 4.71 Tortila strict managed proof._
 Phase 4.71 clears the strict WTC managed real-read proof for the Phase 4.70 canonical Tortila source. The proof ran with
 `TORTILA_CANONICAL_SOURCE_REQUIRED=1` and `TORTILA_REAL_READ_SOURCE_ROOT=C:\Users\maxib\GTE BOT\tortila_canonical_source`
 against a separate disposable local PostgreSQL 17 cluster on loopback, not the Windows service DB, server DB, or WTC

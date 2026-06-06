@@ -1,6 +1,6 @@
 # Current Production Blockers
 
-Last updated: 2026-06-06, Phase 4.71 Tortila strict managed proof.
+Last updated: 2026-06-06, Phase 4.72 Tortila runtime auth/firewall.
 
 Phase 4.68 clears the existing WTC HTTPS canary rollout for current GitHub `main`
 `3aff2738815562c18f5623e9686c4c2f4ba2ef3a`: the new server release is mounted into `wtc-ecosystem-canary` and
@@ -9,10 +9,14 @@ state, public `/api/health` returns `200`, and post-switch worker continuity is 
 `legacy ok`. Live bot services stayed running with unchanged PIDs and were not restarted. Phase 4.70 now clears the
 canonical git-backed Tortila source landing/verifier gate with private repo `papa-slon/tortila-canonical-source`, branch
 `main`, commit `f53a774c3bc4c14653906bd2f778a515c565cf12`. Phase 4.71 clears the strict WTC managed proof against that
-canonical source with a disposable local PostgreSQL lane. Remaining production blockers are full branded-domain/burn-in
-rollout, Tortila runtime deploy/auth/firewall probes, Legacy realized closed-trade source/import proof, live-control audit,
-and other credentialed provider gates. Do not substitute local UI polish, active orders/slots, or green GitHub CI for
-those remaining gates.
+canonical source with a disposable local PostgreSQL lane. Phase 4.72 clears the Tortila canary runtime auth/firewall gate:
+the canonical source is deployed to `turtle-journal.service` as
+`/home/ubuntu/apps/turtle_bingx_releases/20260606-0728-f53a774-journal-auth`, missing/wrong token probes return `401`,
+valid bearer/header probes return `200`, worker continuity remains green, public TCP negative probes are green from the
+workstation vantage, and `turtle-bot.service` was not restarted. Remaining production blockers are full branded-domain
+rollout/burn-in/provider-console perimeter proof, Legacy realized closed-trade source/import proof, live-control audit, and
+other credentialed provider gates. Do not substitute local UI polish, active orders/slots, or green GitHub CI for those
+remaining gates.
 
 Phase 4.69 adds WTC tooling for the Tortila source gate. Phase 4.70 uses it against a clean private git-backed source
 packet and passes: export forbidden-artifact scan PASS, export secret scan PASS, bot `pytest` PASS, bot `ruff` PASS, and
@@ -21,6 +25,8 @@ WTC `npm run verify:tortila:canonical-source` PASS. `accept:tortila:real-read:ma
 cluster and verified `sourceAdapter=tortila`, `readState=ok`, `tradesImported=2`, `positionsSnapshotted=1`, and
 `marksRequests=0`, with cleanup checks proving no leftover throwaway DB/temp cluster. Server read-only Legacy audit also
 confirmed no durable closed-trade source table/API/artifact exists, so Legacy realized analytics/import remains blocked.
+Phase 4.72 then deployed that canonical source to the live journal runtime and proved the live journal auth matrix without
+printing the real token.
 
 Phase 4.61 clears the GitHub CI blocker for the current merged WTC repo tree, not production deployment. PR #1 merged to
 `main` at `ed31aaaf89ebc4920a13887542fa3bb0bbd99545`; pre-merge PR CI run `27015532545` and post-merge `main` push CI
