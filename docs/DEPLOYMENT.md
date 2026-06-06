@@ -32,8 +32,20 @@ protected-route login redirects, five short burn-in cycles, worker continuity, a
 `journal-server.service`, `turtle-bot.service`, `turtle-journal.service`, nginx, PostgreSQL, Docker, Legacy tmux, and
 exchange-facing bot processes were not restarted.
 
-Follow-up: the server build completed successfully, but Next.js installed TypeScript during build in the release container.
-Make the release install/build path deterministic in a later devops cleanup; do not treat that cleanup as a bot/runtime gate.
+Phase 4.75 follow-up: the Phase 4.74 server build completed successfully, but the one-off release container inherited
+`NODE_ENV=production` from the canary env file during `npm ci`, so build tooling was not guaranteed to be present before
+`next build`. Future canary release builds must install the repo lockfile with dev/build tooling explicitly:
+
+```bash
+docker run --rm --network host --env-file "$NEW/.env.canary.live" \
+  -v "$NEW:/app" -w /app node:22-bookworm \
+  bash -lc "npm ci --include=dev --no-audit --no-fund && npm run build -w @wtc/web && npm run db:migrate -w @wtc/db"
+```
+
+Do not rely on Next.js auto-installing TypeScript or creating a `yarn.lock` during the release build. Runtime containers
+still run with the server-side canary env file and `NODE_ENV=production`; this build-stage install rule is only to make the
+release artifact deterministic until the worker is compiled to plain JS or otherwise stops requiring build/dev tooling at
+runtime.
 
 ## Current Tortila Journal Runtime Auth (Phase 4.72)
 

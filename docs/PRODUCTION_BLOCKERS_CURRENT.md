@@ -1,13 +1,18 @@
 # Current Production Blockers
 
-Last updated: 2026-06-06, Phase 4.74 exact-main canary deploy/burn-in.
+Last updated: 2026-06-06, Phase 4.75 production readiness + deterministic release-build guard.
 
 Phase 4.74 clears the existing WTC HTTPS canary app/worker rollout for GitHub `main`
 `abe6784518abcbebe38368f3cef05039d55c520f`: the server release
 `/home/ubuntu/apps/wtc_ecosystem_platform_releases/20260606-0213-abe6784-phase474-main` is mounted into
 `wtc-ecosystem-canary` and `wtc-ecosystem-worker`, server build passed, `db:migrate` passed with no DB migration diff in the
 release delta, local/public smoke passed, and five short burn-in cycles showed WTC health `200`, `bot_continuity ok`,
-`tortila ok`, and `legacy ok`. Live bot services and Legacy tmux stayed running and were not restarted. Phase 4.70 clears
+`tortila ok`, and `legacy ok`. Phase 4.75 extends that current-canary proof with an 11-cycle roughly 10-minute read-only
+burn-in: WTC health remained `200`, WTC canary/worker stayed on the expected release with `restartCount=0`, worker
+continuity stayed green, `journal-server.service`, `turtle-bot.service`, and `turtle-journal.service` stayed
+active/running with `NRestarts=0`, and Legacy tmux stayed present. Live bot services and Legacy tmux were not restarted.
+Phase 4.75 also makes the future release-build runbook deterministic with `npm ci --include=dev --no-audit --no-fund`
+before web build. Phase 4.70 clears
 the canonical git-backed Tortila source landing/verifier gate with private repo `papa-slon/tortila-canonical-source`,
 branch `main`, commit `f53a774c3bc4c14653906bd2f778a515c565cf12`. Phase 4.71 clears the strict WTC managed proof against
 that canonical source with a disposable local PostgreSQL lane. Phase 4.72 clears the Tortila canary runtime auth/firewall

@@ -1,6 +1,6 @@
 # NEXT ACTIONS
 
-**Current local/server bot/admin state after Phase 4.74:** the WTC-side Legacy/Tortila settings, setup, readiness, warning,
+**Current local/server bot/admin state after Phase 4.75:** the WTC-side Legacy/Tortila settings, setup, readiness, warning,
 statistics, admin fleet, selected-user read-only, provider-scoping, no-live-control, root test, retained visual evidence,
 and shared instrument picker surfaces are substantially built, locally green in mock/no-live mode, merged through PR #8, and
 deployed to the WTC HTTPS canary. Phase 4.74 updated the canary app/worker release from `3aff273` to
@@ -11,7 +11,12 @@ in `node:22-bookworm`, ran `db:migrate` successfully with no DB migration diff i
 `wtc-ecosystem-canary` and `wtc-ecosystem-worker`, and proved local/public `/api/health`, public `/`, `/login`, `/products`,
 protected-route redirects, five burn-in cycles, worker continuity, and bot continuity. `journal-server.service`,
 `turtle-bot.service`, and `turtle-journal.service` stayed `active/running` with `NRestarts=0`; Legacy stayed live under
-tmux; no bot restart was needed or run.
+tmux; no bot restart was needed or run. Phase 4.75 then adds a deterministic release-build guard for future server builds:
+the release build stage must use `npm ci --include=dev --no-audit --no-fund` before `npm run build -w @wtc/web`, with a
+static regression test protecting the runbook. The main thread also ran an 11-cycle roughly 10-minute read-only canary
+burn-in: WTC health stayed `200`, WTC canary/worker stayed on `20260606-0213-abe6784-phase474-main` with `restartCount=0`,
+worker continuity stayed `bot_continuity ok`, `tortila ok`, and `legacy ok`, all three bot-related services stayed
+`active/running` with `NRestarts=0`, and Legacy tmux stayed present. Full branded production is still not cleared.
 Phase 4.69 adds the WTC source-gate tool: `npm run verify:tortila:canonical-source` now refuses non-git Tortila source
 roots, and `accept:tortila:real-read:managed` can require canonical proof with `TORTILA_CANONICAL_SOURCE_REQUIRED=1`.
 Phase 4.70 clears the canonical source-control/verifier gate by creating a clean private source packet at
@@ -134,9 +139,10 @@ source with a disposable local DB lane and hardens the runner to reject non-loca
 canonical source to the live Tortila journal runtime and clears the canary auth/firewall probe gate without restarting the
 trading bot. Phase 4.73 adds the Legacy metadata-only source-audit gate and reconfirms the live Legacy schema is still
 source-blocked, not mapper-ready. Phase 4.74 deploys that exact main app/worker tree to canary and proves five short
-burn-in cycles without restarting Tortila or Legacy trading processes.
+burn-in cycles without restarting Tortila or Legacy trading processes. Phase 4.75 proves a longer current-canary burn-in
+and makes the next release build command deterministic, but still leaves branded-domain/full-production cutover as NOT RUN.
 
-**Current gate state as of Phase 4.74:**
+**Current gate state as of Phase 4.75:**
 
 | Gate | Current state | Next action |
 | --- | --- | --- |
@@ -148,14 +154,15 @@ burn-in cycles without restarting Tortila or Legacy trading processes.
 | Legacy closed-trade realized analytics/import | **RUN/BLOCKED in Phase 4.73**: read-only live metadata plus the new `verify:legacy:closed-trade-source` gate classify current Legacy runtime as `blocked_no_source`; WTC destination remains ready but source absent | Do not implement importer or loaded realized PnL until a valid source packet passes as `ready_for_mapper` |
 | Live control, exchange ping, test-connection, start/stop/apply-config | NOT RUN and intentionally disabled | Needs separate bot-integration plus security approval; no local shortcut |
 | Exact-tree release/CI | Phase 4.65: `main` protected by ruleset `17324564`; required checks are GitHub Actions `gates` and `e2e` only, strict policy enabled. | Future release changes must branch from `main`, run PR CI, confirm merge box requires only `gates`/`e2e`, then watch post-merge `main` CI |
-| Current WTC canary deploy | RUN/PASS in Phase 4.74 for `abe6784518abcbebe38368f3cef05039d55c520f`; WTC canary/worker on `20260606-0213-abe6784-phase474-main`, five burn-in cycles green, no bot restart | Continue monitoring; rollback only WTC web/worker to `20260605-203900-3aff273-phase467-picker` if WTC health/worker continuity fails |
+| Current WTC canary deploy + burn-in | RUN/PASS in Phase 4.74 for deploy and Phase 4.75 for longer burn-in; WTC canary/worker on `20260606-0213-abe6784-phase474-main`, 11-cycle longer burn-in green, no bot restart | Continue monitoring; rollback only WTC web/worker to `20260605-203900-3aff273-phase467-picker` if WTC health/worker continuity fails |
+| Release-build determinism | RUN/PASS in Phase 4.75 for docs/static guard: future release build uses `npm ci --include=dev --no-audit --no-fund` before web build | For the next server release, run the deterministic build command and fail if Next creates lockfile/package manifest deltas |
 | Full production/branded-domain rollout | NOT RUN | Requires branded target, DNS/TLS cutover, longer burn-in, provider/live gates, and rollback plan |
 
 **Phase 4.62 required external packets:**
 
 | Packet | Required contents | Why it is required |
 | --- | --- | --- |
-| Deploy target packet | Phase 4.74 supplied and used the existing canary target for WTC `abe6784`; full branded production still needs branded target host/domain, release SHA, rollback target, allowed services, DB migration/seed approval, secret provisioning method, smoke routes, firewall/proxy probes, monitoring window | Local repo + GitHub CI prove code; Phase 4.74 proves the existing WTC canary only |
+| Deploy target packet | Phase 4.74 supplied and used the existing canary target for WTC `abe6784`; Phase 4.75 added longer canary burn-in and deterministic build guard; full branded production still needs branded target host/domain, release SHA, rollback target, allowed services, DB migration/seed approval, secret provisioning method, smoke routes, firewall/proxy probes, monitoring window, and alert recipients | Local repo + GitHub CI plus canary burn-in prove the existing WTC canary only |
 | Canonical Tortila source packet | **RUN/PASS in Phase 4.70**: private git-backed repo `papa-slon/tortila-canonical-source`, branch `main`, commit `f53a774c3bc4c14653906bd2f778a515c565cf12`; `npm run verify:tortila:canonical-source` PASS; bot pytest/ruff PASS; export secret scan PASS | Source authority exists; Phase 4.71 strict managed proof and Phase 4.72 canary runtime auth/firewall also passed |
 | Legacy closed-trade source packet | source table/API/artifact, provider/pub_id filter, stable trade/fill id, symbol/side/size, entry/exit, realized PnL, fees/funding sign policy, opened/closed timestamps, exit reason, replay/backfill semantics, raw payload allowlist; validate with `npm run verify:legacy:closed-trade-source -- --input <safe-json> --expect ready_for_mapper` | Active orders/slots/FILLED handling cannot prove realized analytics honestly; current Phase 4.73 safe snapshot validates only as `blocked_no_source` |
 Phase 4.44 closes the admin worker-continuity
