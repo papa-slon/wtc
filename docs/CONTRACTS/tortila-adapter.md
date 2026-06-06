@@ -49,11 +49,21 @@ PostgreSQL 17 cluster. The proof verified the token matrix, persisted WTC read e
 `readState=ok`, `tradesImported=2`, `positionsSnapshotted=1`), and `marksRequests=0`; external cleanup verified no
 leftover throwaway DB/temp cluster. The runner now rejects non-local admin DB URLs before DB work.
 
-**Required before production WTC deployment:**
-- Provision `JOURNAL_READ_TOKEN` as a deployment secret; never commit or print the real value.
+**Current runtime auth/firewall proof (Phase 4.72):** the Phase 4.70 canonical source is deployed to the live Tortila
+journal as versioned release `/home/ubuntu/apps/turtle_bingx_releases/20260606-0728-f53a774-journal-auth` via a
+rollbackable `turtle-journal.service` drop-in. The real `JOURNAL_READ_TOKEN` value was not printed or committed. Live
+probes returned missing `401`, wrong `401`, bearer `200` for `/api/health`, `/api/summary`, `/api/equity`, and
+`/api/trades/list`; `/api/summary` header token also returned `200`; `/api/marks` missing-token returned `401`.
+`turtle-bot.service` was not restarted. WTC worker continuity stayed green with repeated `tortila-snapshot ok`,
+`legacy-snapshot ok`, `bot_continuity ok`, `tortila ok`, and `legacy ok`. Public TCP negative probes from the workstation
+vantage returned `connected=False` for protected bot/internal ports.
+
+**Required before full branded production WTC deployment:**
+- Keep `JOURNAL_READ_TOKEN` as a deployment secret; never commit or print the real value.
 - WTC worker sends `Authorization: Bearer <token>` on every request.
-- Token is stored in WTC encrypted secret vault (see [SECRET_VAULT_DESIGN.md](../SECRET_VAULT_DESIGN.md)).
-- Token rotation: 90-day cycle, overlapping 24h grace period.
+- Define and document token rotation: 90-day cycle, overlapping 24h grace period.
+- Re-run the auth matrix and worker burn-in after any future journal source, token, worker, network, or WTC release change.
+- Capture provider-console/security-group or private-network proof if the deployment target changes beyond this canary.
 
 **Current verifier (Phase 4.69):** WTC now ships `scripts/tortila-canonical-source-verifier.mjs`, exposed as
 `npm run verify:tortila:canonical-source`. It is local/read-only and fail-closed: a source root must be a clean git repo
@@ -62,10 +72,9 @@ root with full HEAD, named branch, at least one remote name, `pyproject.toml`, `
 missing/wrong/correct token behavior including `/api/marks` rejection when configured. The adjacent non-git
 `../bot_tortila` fixture is intentionally not canonical.
 
-**Network boundary:** the local token proof is not a firewall/deploy proof. Before production
-`BOT_ADAPTER_MODE=read-only`, restrict the journal port to the WTC worker host or private network
-via security group, firewall, VPN, or reverse-proxy policy, then capture authorized positive/negative
-probe evidence without printing secrets.
+**Network boundary:** Phase 4.72 proves this canary's journal auth plus workstation-vantage public TCP negative probes. For
+any new production target, restrict the journal port to the WTC worker host or private network via security group, firewall,
+VPN, or reverse-proxy policy, then capture authorized positive/negative probe evidence without printing secrets.
 
 ---
 
@@ -555,6 +564,6 @@ They are not blocking for Phase 0 (mock) but are required before read-only produ
 | Change | Priority | Description |
 |---|---|---|
 | `GET /api/config` JSON endpoint | P1 | Expose current bot config as JSON so WTC adapter doesn't need to parse HTML or read SQLite directly |
-| Canonical API token auth on journal | P0 (before prod) | Phase 4.70 private canonical source packet passes bot pytest/ruff and WTC canonical verifier; runtime deploy/token/firewall proof still required |
+| Canonical API token auth on journal | P0 (before prod) | RUN/PASS for the current canary in Phase 4.72: canonical source deployed to `turtle-journal.service`, missing/wrong token `401`, valid bearer/header `200`, worker continuity green |
 | `tp_reconcile_ok` state key | P0 (clears warning) | Journal exposes a state key when TP reconciliation is implemented, allowing WTC to clear the P0 warning |
-| Journal port firewall restriction | P0 (before prod) | Restrict `:8080` to WTC server IP only |
+| Journal port firewall restriction | P0 (before prod) | RUN/PASS for the current canary in Phase 4.72 from the workstation vantage: public TCP negative probes failed to connect to protected bot/internal ports; provider-console proof remains separate for new targets |

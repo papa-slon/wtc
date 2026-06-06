@@ -1,5 +1,20 @@
 # Implemented files (current code vs. target contracts)
 
+## 2026-06-06 Phase 4.72 Tortila runtime auth/firewall
+- Server Tortila journal source release `/home/ubuntu/apps/turtle_bingx_releases/20260606-0728-f53a774-journal-auth` -
+  canonical Tortila source commit `f53a774c3bc4c14653906bd2f778a515c565cf12` staged as the live journal runtime source.
+  Server pytest and ruff passed before switch.
+- Server systemd drop-in `/etc/systemd/system/turtle-journal.service.d/wtc-canonical-journal-auth.conf` - points only
+  `turtle-journal.service` at the versioned source release via `WorkingDirectory`/`PYTHONPATH` and a separate redacted
+  journal token env file. `turtle-bot.service` was not restarted.
+- `docs/handoffs/20260606-0728-phase-472-tortila-runtime-auth-firewall.md` plus three read-only agent handoffs - records
+  runtime auth/firewall rollout, missing/wrong `401`, valid bearer/header `200`, worker continuity, public TCP negative
+  probes, zero secret-marker counts, and gates not run.
+- `docs/STATUS.md`, `docs/NEXT_ACTIONS.md`, `docs/DEPLOYMENT.md`, `docs/CONTRACTS/tortila-adapter.md`,
+  `docs/PRODUCTION_BLOCKERS_CURRENT.md`, and `docs/CREDENTIAL_ACCEPTANCE_BLOCKERS_CURRENT.md` - current gate truth now
+  says Tortila canary runtime auth/firewall is RUN/PASS while full branded production, Legacy realized source/import,
+  live controls, provider-console perimeter proof, and other credentialed provider gates remain separate.
+
 ## 2026-06-06 Phase 4.71 Tortila strict managed proof
 - `scripts/run-tortila-real-read-managed.mjs` - strict managed runner now rejects non-local admin DB URLs before DB work,
   keeping future `TORTILA_REAL_READ_ADMIN_DATABASE_URL` inputs constrained to localhost/loopback disposable lanes.

@@ -30,6 +30,41 @@ public `/api/health`, protected-route login redirects, worker continuity, and li
 restart `journal-server.service`, `turtle-bot.service`, `turtle-journal.service`, nginx, PostgreSQL, Docker, or any
 exchange-facing bot process.
 
+## Current Tortila Journal Runtime Auth (Phase 4.72)
+
+As of 2026-06-06, the Tortila journal read surface is running the Phase 4.70 canonical source packet as a journal-only
+systemd switch. The source release is:
+
+```text
+/home/ubuntu/apps/turtle_bingx_releases/20260606-0728-f53a774-journal-auth
+```
+
+`turtle-journal.service` has a rollbackable drop-in:
+
+```text
+/etc/systemd/system/turtle-journal.service.d/wtc-canonical-journal-auth.conf
+```
+
+The drop-in points `WorkingDirectory` and `PYTHONPATH` at the release above and reads a separate server-side
+`JOURNAL_READ_TOKEN` env file whose value must never be printed, copied into docs, or retained in logs/screenshots. The
+switch restarted only `turtle-journal.service`; it did not restart `turtle-bot.service`, Legacy tmux, WTC containers,
+nginx, PostgreSQL, Docker, or exchange-facing bot processes.
+
+Observed Phase 4.72 gates:
+
+- Server staged source `pytest` - PASS.
+- Server staged source `ruff check src tests` - PASS.
+- Live auth matrix - PASS: `/api/health`, `/api/summary`, `/api/equity`, and `/api/trades/list` missing `401`, wrong
+  `401`, bearer `200`; `/api/summary` header token `200`; `/api/marks` missing-token `401`.
+- Worker continuity - PASS: repeated `tortila-snapshot ok`, `legacy-snapshot ok`, `bot_continuity ok`, `tortila ok`, and
+  `legacy ok`.
+- Bot continuity - PASS: `turtle-bot.service` stayed active/running with unchanged PID and `NRestarts=0`.
+- Public TCP negative probes for bot/internal ports - PASS from the workstation vantage.
+
+Rollback for the Tortila journal auth switch is to remove or replace the drop-in and restart only `turtle-journal.service`.
+Do not restart `turtle-bot.service` as part of journal rollback unless a separate audited recovery phase explicitly approves
+it.
+
 ## Local development
 
 > The running app uses an **in-memory demo backend by default (no DB needed)** so it boots instantly;
