@@ -1,5 +1,17 @@
 # Implemented files (current code vs. target contracts)
 
+## 2026-06-06 Phase 4.74 exact-main canary deploy/burn-in
+- Server release `/home/ubuntu/apps/wtc_ecosystem_platform_releases/20260606-0213-abe6784-phase474-main` - current WTC
+  HTTPS canary/worker app release for GitHub `main` `abe6784518abcbebe38368f3cef05039d55c520f`. It is mounted into
+  `wtc-ecosystem-canary` and `wtc-ecosystem-worker`; immediate web/worker rollback is the Phase 4.68 `3aff273` release.
+- `docs/handoffs/20260606-0918-phase-474-canary-deploy-abe6784.md` plus three read-only auditor handoffs - records deploy
+  preflight, security/perimeter, runtime-continuity baseline, exact SHA clone/build, successful migrate check, WTC-only
+  container switch, local/public smoke, five-cycle burn-in, and live bot continuity with no bot restart.
+- `docs/DEPLOYMENT.md`, `docs/STATUS.md`, `docs/NEXT_ACTIONS.md`, `docs/PRODUCTION_BLOCKERS_CURRENT.md`, and
+  `docs/CREDENTIAL_ACCEPTANCE_BLOCKERS_CURRENT.md` - current canary truth updated from `3aff273` to `abe6784`, while
+  preserving remaining blockers for full branded production, Legacy realized source/import, audited live controls,
+  provider-console perimeter proof, and other credentialed provider gates.
+
 ## 2026-06-06 Phase 4.73 Legacy source audit gate
 - `packages/bot-adapters/src/legacy/closed-trade-source-proof.ts` - adds the metadata-only Legacy runtime/source audit
   helper around the existing fail-closed proof contract. Operational tables such as `orders`, `slots`, `api_keys`,

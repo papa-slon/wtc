@@ -1,6 +1,25 @@
 # STATUS
 
-_Latest update: 2026-06-06 - Phase 4.73 Legacy source audit gate._
+_Latest update: 2026-06-06 - Phase 4.74 exact-main canary deploy/burn-in._
+Phase 4.74 deploys the current WTC app/worker release for GitHub `main`
+`abe6784518abcbebe38368f3cef05039d55c520f` to the existing HTTPS canary. Three read-only agents ran before mutation and
+were closed: deploy preflight, security/perimeter, and runtime continuity. New server release:
+`/home/ubuntu/apps/wtc_ecosystem_platform_releases/20260606-0213-abe6784-phase474-main`; immediate web/worker rollback:
+`/home/ubuntu/apps/wtc_ecosystem_platform_releases/20260605-203900-3aff273-phase467-picker`. The deploy cloned the exact
+SHA, reused existing server-side env files without printing values, built web in `node:22-bookworm`, ran `db:migrate`
+successfully with no release DB migration diff, and recreated only `wtc-ecosystem-canary` and `wtc-ecosystem-worker`.
+Local and public smoke passed: `/api/health`, `/`, `/login`, and `/products` returned `200`; protected bot/admin routes
+redirected to login. Five burn-in cycles stayed green: WTC health `200`, both WTC containers running on the new release
+with `restartCount=0`, worker `bot_continuity ok`, `tortila ok`, and `legacy ok`; `journal-server.service`,
+`turtle-bot.service`, and `turtle-journal.service` stayed `active/running` with `NRestarts=0`; Legacy tmux session `bot`
+stayed present. No Legacy tmux, Tortila trading bot, journal server, nginx, PostgreSQL, Docker daemon, firewall, exchange,
+or live-control path was restarted or mutated. Aggregate:
+[`docs/handoffs/20260606-0918-phase-474-canary-deploy-abe6784.md`](handoffs/20260606-0918-phase-474-canary-deploy-abe6784.md).
+This clears the current WTC canary exact-main app/worker deploy. It does not clear full branded production, provider-console
+perimeter proof, Legacy realized analytics/import, audited live controls, Stripe/Axioma/LMS credentialed provider gates, or
+long production burn-in/alerting.
+
+_Previous update: 2026-06-06 - Phase 4.73 Legacy source audit gate._
 Phase 4.73 re-runs the Legacy closed-trade source truth lane with three read-only agents and current live metadata, then
 adds a repeatable metadata-only verifier:
 `npm run verify:legacy:closed-trade-source -- --input <safe-json> --expect blocked_no_source|ready_for_mapper`.

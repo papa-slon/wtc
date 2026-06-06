@@ -3,19 +3,19 @@
 > Owner: ecosystem-devops-implementer. Phased, approval-gated. No live server is touched without
 > explicit operator approval. Never copy server secrets. Never edit live nginx/systemd/.env.
 
-## Current WTC Canary (Phase 4.68)
+## Current WTC Canary (Phase 4.74)
 
-As of 2026-06-06, the existing HTTPS canary is running GitHub `main`
-`3aff2738815562c18f5623e9686c4c2f4ba2ef3a` from:
+As of 2026-06-06, the existing HTTPS canary is running the WTC app/worker release for GitHub `main`
+`abe6784518abcbebe38368f3cef05039d55c520f` from:
+
+```text
+/home/ubuntu/apps/wtc_ecosystem_platform_releases/20260606-0213-abe6784-phase474-main
+```
+
+`wtc-ecosystem-canary` and `wtc-ecosystem-worker` mount that release. The immediate web/worker rollback release is:
 
 ```text
 /home/ubuntu/apps/wtc_ecosystem_platform_releases/20260605-203900-3aff273-phase467-picker
-```
-
-`wtc-ecosystem-canary` and `wtc-ecosystem-worker` mount that release. The prior rollback release is:
-
-```text
-/home/ubuntu/apps/wtc_ecosystem_platform_releases/20260605-180016-72f21d5-phase465-main
 ```
 
 Latest pre-migration backup from the previous DB-changing canary deploy:
@@ -24,11 +24,16 @@ Latest pre-migration backup from the previous DB-changing canary deploy:
 /home/ubuntu/apps/wtc_ecosystem_platform_releases/_db_backups/20260605-180016-wtc_platform_canary_20260602_1412-pre-72f21d5.dump
 ```
 
-Phase 4.68 built the web app in a one-off `node:22-bookworm` container, verified `db:migrate` as green with no new
-migration beyond `0021_complete_pepper_potts.sql`, recreated only the WTC canary/worker containers, and verified local and
-public `/api/health`, protected-route login redirects, worker continuity, and live bot service continuity. It did not
-restart `journal-server.service`, `turtle-bot.service`, `turtle-journal.service`, nginx, PostgreSQL, Docker, or any
-exchange-facing bot process.
+Phase 4.74 cloned the exact release SHA, reused the existing server-side canary env files without printing values, built the
+web app in a one-off `node:22-bookworm` container, and ran `db:migrate` successfully with no release diff under
+`packages/db/migrations`, `packages/db/src/schema.ts`, the migration journal, or `package-lock.json`. The switch recreated
+only the WTC canary/worker containers and verified local plus public `/api/health`, public `/`, `/login`, `/products`,
+protected-route login redirects, five short burn-in cycles, worker continuity, and live bot service continuity.
+`journal-server.service`, `turtle-bot.service`, `turtle-journal.service`, nginx, PostgreSQL, Docker, Legacy tmux, and
+exchange-facing bot processes were not restarted.
+
+Follow-up: the server build completed successfully, but Next.js installed TypeScript during build in the release container.
+Make the release install/build path deterministic in a later devops cleanup; do not treat that cleanup as a bot/runtime gate.
 
 ## Current Tortila Journal Runtime Auth (Phase 4.72)
 
