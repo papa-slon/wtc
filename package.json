@@ -25,6 +25,7 @@
     "accept:worker:continuity:managed": "node scripts/run-worker-continuity-managed.mjs",
     "accept:tortila:real-read:managed": "node scripts/run-tortila-real-read-managed.mjs",
     "verify:tortila:canonical-source": "node scripts/tortila-canonical-source-verifier.mjs",
+    "verify:legacy:closed-trade-source": "node --import tsx scripts/legacy-closed-trade-source-audit.mjs",
     "db:generate": "npm run db:generate -w @wtc/db",
     "db:migrate": "npm run db:migrate -w @wtc/db",
     "db:seed": "npm run db:seed -w @wtc/db",

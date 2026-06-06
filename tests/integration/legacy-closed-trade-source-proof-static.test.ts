@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
 import {
   CURRENT_LEGACY_CLOSED_TRADE_SOURCE_PROOF,
   LEGACY_CLOSED_TRADE_FORBIDDEN_SUBSTITUTES,
   LEGACY_CLOSED_TRADE_SOURCE_PROOF_REQUIREMENTS,
+  auditLegacyRuntimeClosedTradeSource,
   evaluateLegacyClosedTradeSourceProof,
   legacyClosedTradeSourceProofSummaryFromRaw,
   summarizeLegacyClosedTradeSourceProof,
   type LegacyClosedTradeSourceProofCandidate,
+  type LegacyRuntimeClosedTradeSourceAuditInput,
 } from '@wtc/bot-adapters';
 
 const ROOT = process.cwd();
@@ -16,6 +19,12 @@ const read = (rel: string): string => readFileSync(resolve(ROOT, rel), 'utf8');
 
 const sourceProof = read('packages/bot-adapters/src/legacy/closed-trade-source-proof.ts');
 const legacyLive = read('apps/worker/src/legacy-live.ts');
+const rootPackageJson = read('package.json');
+const auditScript = read('scripts/legacy-closed-trade-source-audit.mjs');
+
+function readJson<T>(rel: string): T {
+  return JSON.parse(read(rel)) as T;
+}
 
 function completeCandidate(overrides: Partial<LegacyClosedTradeSourceProofCandidate> = {}): LegacyClosedTradeSourceProofCandidate {
   return {
@@ -154,5 +163,106 @@ describe('Legacy closed-trade source-proof preflight', () => {
     expect(legacyLive).toMatch(/closedTradeSourceProof/);
     expect(legacyLive).toMatch(/closedPnlUsd: undefined/);
     expect(legacyLive).toMatch(/tradeCount: 0/);
+  });
+
+  it('classifies the current safe Legacy runtime schema snapshot as no source', () => {
+    const packet = readJson<LegacyRuntimeClosedTradeSourceAuditInput>('tests/fixtures/legacy-runtime-no-source-audit.json');
+    const result = auditLegacyRuntimeClosedTradeSource(packet);
+
+    expect(result.artifactId).toBe('phase-4.73-live-legacy-runtime-schema-no-source');
+    expect(result.status).toBe('blocked_no_source');
+    expect(result.canImportClosedTrades).toBe(false);
+    expect(result.candidateSourceTables).toEqual([]);
+    expect(result.observedTables).toEqual(['api_keys', 'orders', 'slots', 'stageconfigs', 'symbolsettingss', 'users']);
+    expect(result.lifecycle).toMatchObject({
+      inactiveOrders: 3421,
+      inactiveSlots: 718,
+      inactiveTakeProfitOrders: 684,
+      filledHandlerObserved: true,
+    });
+    expect(result.missingRequirements).toContain('source_table_or_api');
+    expect(result.missingRequirements).toContain('realized_pnl');
+    expect(result.missingRequirements).toContain('closed_at');
+    expect(result.blockers).toContain('missing_raw_payload_allowlist');
+    expect(JSON.stringify(result)).not.toContain('secret');
+  });
+
+  it('allows a metadata-only source packet to become mapper-ready only when every field is present', () => {
+    const packet: LegacyRuntimeClosedTradeSourceAuditInput = {
+      artifactId: 'fixture-legacy-closed-trades-source',
+      evidenceRef: 'legacy/source.py:42',
+      tables: [
+        {
+          name: 'legacy_closed_trades',
+          columns: [
+            'provider_pub_id',
+            'trade_id',
+            'symbol',
+            'side',
+            'qty',
+            'entry_price',
+            'exit_price',
+            'realized_pnl',
+            'fees',
+            'funding_sign_policy',
+            'opened_at',
+            'closed_at',
+            'exit_reason',
+            'replay_cursor',
+          ],
+        },
+      ],
+      rawPayloadAllowlist: [
+        'trade_id',
+        'provider_pub_id',
+        'symbol',
+        'side',
+        'qty',
+        'entry_price',
+        'exit_price',
+        'realized_pnl',
+        'fees',
+        'funding',
+        'opened_at',
+        'closed_at',
+        'exit_reason',
+      ],
+      rejectedSubstitutes: LEGACY_CLOSED_TRADE_FORBIDDEN_SUBSTITUTES.map((substitute) => substitute.key),
+    };
+    const result = auditLegacyRuntimeClosedTradeSource(packet);
+
+    expect(result.status).toBe('ready_for_mapper');
+    expect(result.canImportClosedTrades).toBe(true);
+    expect(result.candidateSourceTables).toEqual(['legacy_closed_trades']);
+    expect(result.missingRequirements).toEqual([]);
+    expect(result.missingRejectedSubstitutes).toEqual([]);
+    expect(result.unsafeRawPayloadFields).toEqual([]);
+  });
+
+  it('ships a repeatable CLI gate that prints a sanitized no-source summary', () => {
+    expect(JSON.parse(rootPackageJson).scripts['verify:legacy:closed-trade-source']).toBe(
+      'node --import tsx scripts/legacy-closed-trade-source-audit.mjs',
+    );
+    expect(auditScript).toContain('auditLegacyRuntimeClosedTradeSource');
+    expect(auditScript).not.toMatch(/ssh|fetch\(|postgres\(|LEGACY_DATABASE_URL|startBot|stopBot|applyConfig|closePosition|placeOrder/);
+
+    const output = execFileSync(
+      process.execPath,
+      [
+        '--import',
+        'tsx',
+        'scripts/legacy-closed-trade-source-audit.mjs',
+        '--input',
+        'tests/fixtures/legacy-runtime-no-source-audit.json',
+        '--expect',
+        'blocked_no_source',
+      ],
+      { cwd: ROOT, encoding: 'utf8' },
+    );
+    const summary = JSON.parse(output) as { status: string; candidateSourceTables: string[]; observedTables: string[] };
+    expect(summary.status).toBe('blocked_no_source');
+    expect(summary.candidateSourceTables).toEqual([]);
+    expect(summary.observedTables).toContain('orders');
+    expect(output).not.toMatch(/secret_key|password|token|dsn|authorization|cookie|credential/i);
   });
 });

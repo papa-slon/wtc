@@ -1,0 +1,117 @@
+{
+  "artifactId": "phase-4.73-live-legacy-runtime-schema-no-source",
+  "evidenceRef": "docs/handoffs/20260606-0811-legacy-closed-trade-source-auditor.md:18",
+  "tables": [
+    {
+      "name": "api_keys",
+      "rowCount": 2,
+      "columns": [
+        "market",
+        "user_id",
+        "pub_id",
+        "running",
+        "balance",
+        "quarantined",
+        "quarantine_reason",
+        "id",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    {
+      "name": "orders",
+      "rowCount": 3435,
+      "columns": [
+        "order_id",
+        "order_type",
+        "position_side",
+        "side",
+        "note",
+        "price",
+        "quantity",
+        "position",
+        "api_id",
+        "system_id",
+        "reason",
+        "active",
+        "stage",
+        "id",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    {
+      "name": "slots",
+      "rowCount": 720,
+      "columns": [
+        "api_id",
+        "position",
+        "reason",
+        "stage",
+        "averaging_count",
+        "active",
+        "id",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    {
+      "name": "stageconfigs",
+      "rowCount": 4,
+      "columns": [
+        "api_id",
+        "stage",
+        "rsi_slots",
+        "cci_slots",
+        "id",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    {
+      "name": "symbolsettingss",
+      "rowCount": 13,
+      "columns": [
+        "symbol",
+        "api_id",
+        "timeframe",
+        "rsi_length",
+        "cci_length",
+        "rsi_threshold",
+        "cci_threshold",
+        "take_profit_percent",
+        "id",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    {
+      "name": "users",
+      "rowCount": 2,
+      "columns": [
+        "public_id",
+        "name",
+        "id",
+        "created_at",
+        "updated_at"
+      ]
+    }
+  ],
+  "lifecycle": {
+    "activeOrders": 14,
+    "inactiveOrders": 3421,
+    "activeSlots": 2,
+    "inactiveSlots": 718,
+    "inactiveTakeProfitOrders": 684,
+    "filledHandlerObserved": true
+  },
+  "rawPayloadAllowlist": [],
+  "rejectedSubstitutes": [
+    "inactive_orders",
+    "inactive_slots",
+    "open_order_reconciliation",
+    "position_snapshots",
+    "tortila_turtle_journal",
+    "gte_manual_journal"
+  ]
+}

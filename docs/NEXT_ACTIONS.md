@@ -1,6 +1,6 @@
 # NEXT ACTIONS
 
-**Current local/server bot/admin state after Phase 4.72:** the WTC-side Legacy/Tortila settings, setup, readiness, warning,
+**Current local/server bot/admin state after Phase 4.73:** the WTC-side Legacy/Tortila settings, setup, readiness, warning,
 statistics, admin fleet, selected-user read-only, provider-scoping, no-live-control, root test, retained visual evidence,
 and shared instrument picker surfaces are substantially built, locally green in mock/no-live mode, merged through PR #8,
 and deployed to the WTC HTTPS canary at `3aff2738815562c18f5623e9686c4c2f4ba2ef3a`. Phase 4.68 built the current `main`
@@ -20,6 +20,13 @@ source commit
 `/home/ubuntu/apps/turtle_bingx_releases/20260606-0728-f53a774-journal-auth`, `turtle-journal.service` uses that release
 through a rollbackable drop-in, live missing/wrong token probes return `401`, valid bearer/header probes return `200`,
 worker continuity remains `bot_continuity ok`, `tortila ok`, and `legacy ok`, and `turtle-bot.service` was not restarted.
+Phase 4.73 re-runs the Legacy closed-trade source truth lane with three read-only agents and current live metadata. Verdict:
+`NO_SOURCE` / `blocked_no_source`. The live Legacy runtime still exposes operational tables only (`api_keys`, `orders`,
+`slots`, `stageconfigs`, `symbolsettingss`, `users`), inactive orders/slots plus `FILLED` handling remain false substitutes
+for realized analytics, and WTC remains destination-ready but source-blocked. The phase adds
+`npm run verify:legacy:closed-trade-source -- --input <safe-json> --expect blocked_no_source|ready_for_mapper`, a
+metadata-only gate for sanitized Legacy source packets. Current fixture proof:
+`tests/fixtures/legacy-runtime-no-source-audit.json` passes only as `blocked_no_source`; it does not authorize importer work.
 The next non-looping production work is full branded-domain/burn-in readiness, Legacy closed-trade source proof, and a
 separate live-control audit; do not add local UI polish as a substitute.
 Phase 4.46 closes the no-env worker interval
@@ -118,9 +125,10 @@ Phase 4.69 supplies the Tortila canonical-source verifier for that work. Phase 4
 git-backed source repo and makes that verifier pass. Phase 4.71 runs the strict WTC managed proof against that canonical
 source with a disposable local DB lane and hardens the runner to reject non-local admin DB URLs. Phase 4.72 deploys that
 canonical source to the live Tortila journal runtime and clears the canary auth/firewall probe gate without restarting the
-trading bot.
+trading bot. Phase 4.73 adds the Legacy metadata-only source-audit gate and reconfirms the live Legacy schema is still
+source-blocked, not mapper-ready.
 
-**Current gate state as of Phase 4.71:**
+**Current gate state as of Phase 4.73:**
 
 | Gate | Current state | Next action |
 | --- | --- | --- |
@@ -129,7 +137,7 @@ trading bot.
 | Tortila canonical source-control proof | RUN/PASS in Phase 4.70: private repo `papa-slon/tortila-canonical-source`, branch `main`, commit `f53a774c3bc4c14653906bd2f778a515c565cf12`; bot pytest/ruff, export secret scan, and WTC verifier green | Use this source packet for deploy/auth phases; do not fall back to adjacent non-git `../bot_tortila` |
 | Tortila local real-read and token proof | RUN/PASS in Phase 4.71 for canonical source strict mode: token matrix, `sourceAdapter=tortila`, `readState=ok`, `tradesImported=2`, `positionsSnapshotted=1`, `marksRequests=0`, DB/temp cleanup verified | Rerun only after adapter/worker/journal/auth/runner changes; use disposable local loopback DB only |
 | Tortila canary runtime auth/firewall/deploy | **RUN/PASS in Phase 4.72**: canonical source release deployed to `turtle-journal.service`, missing/wrong token `401`, valid bearer/header `200`, public TCP negative probes PASS, worker continuity green, trading bot not restarted | Continue monitoring; full branded production/provider-console perimeter proof remains separate |
-| Legacy closed-trade realized analytics/import | Blocked by source proof | Do not implement importer or loaded realized PnL until a valid Legacy source artifact exists |
+| Legacy closed-trade realized analytics/import | **RUN/BLOCKED in Phase 4.73**: read-only live metadata plus the new `verify:legacy:closed-trade-source` gate classify current Legacy runtime as `blocked_no_source`; WTC destination remains ready but source absent | Do not implement importer or loaded realized PnL until a valid source packet passes as `ready_for_mapper` |
 | Live control, exchange ping, test-connection, start/stop/apply-config | NOT RUN and intentionally disabled | Needs separate bot-integration plus security approval; no local shortcut |
 | Exact-tree release/CI | Phase 4.65: `main` protected by ruleset `17324564`; required checks are GitHub Actions `gates` and `e2e` only, strict policy enabled. | Future release changes must branch from `main`, run PR CI, confirm merge box requires only `gates`/`e2e`, then watch post-merge `main` CI |
 | Current WTC canary deploy | RUN/PASS in Phase 4.68 for `3aff273` | Continue monitoring; rollback web/worker to `20260605-180016-72f21d5-phase465-main` only if health fails |
@@ -141,7 +149,7 @@ trading bot.
 | --- | --- | --- |
 | Deploy target packet | Phase 4.68 supplied and used the existing canary target for WTC `3aff273`; full branded production still needs branded target host/domain, release SHA, rollback target, allowed services, DB migration/seed approval, secret provisioning method, smoke routes, firewall/proxy probes, monitoring window | Local repo + GitHub CI prove code; Phase 4.68 proves the existing WTC canary only |
 | Canonical Tortila source packet | **RUN/PASS in Phase 4.70**: private git-backed repo `papa-slon/tortila-canonical-source`, branch `main`, commit `f53a774c3bc4c14653906bd2f778a515c565cf12`; `npm run verify:tortila:canonical-source` PASS; bot pytest/ruff PASS; export secret scan PASS | Source authority exists; Phase 4.71 strict managed proof and Phase 4.72 canary runtime auth/firewall also passed |
-| Legacy closed-trade source packet | source table/API/artifact, provider/pub_id filter, stable trade/fill id, symbol/side/size, entry/exit, realized PnL, fees/funding sign policy, opened/closed timestamps, exit reason, replay/backfill semantics, raw payload allowlist | Active orders/slots/FILLED handling cannot prove realized analytics honestly |
+| Legacy closed-trade source packet | source table/API/artifact, provider/pub_id filter, stable trade/fill id, symbol/side/size, entry/exit, realized PnL, fees/funding sign policy, opened/closed timestamps, exit reason, replay/backfill semantics, raw payload allowlist; validate with `npm run verify:legacy:closed-trade-source -- --input <safe-json> --expect ready_for_mapper` | Active orders/slots/FILLED handling cannot prove realized analytics honestly; current Phase 4.73 safe snapshot validates only as `blocked_no_source` |
 Phase 4.44 closes the admin worker-continuity
 freshness gap: stale `target='worker'` rows now stay attention and cannot make `/admin/bots` show green continuity proof.
 Phase 4.43 closes the admin read-only-label copy

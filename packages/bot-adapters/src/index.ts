@@ -46,6 +46,7 @@ export {
   CURRENT_LEGACY_CLOSED_TRADE_SOURCE_PROOF_CANDIDATE,
   LEGACY_CLOSED_TRADE_FORBIDDEN_SUBSTITUTES,
   LEGACY_CLOSED_TRADE_SOURCE_PROOF_REQUIREMENTS,
+  auditLegacyRuntimeClosedTradeSource,
   evaluateLegacyClosedTradeSourceProof,
   legacyClosedTradeSourceProofSummaryFromRaw,
   summarizeLegacyClosedTradeSourceProof,
@@ -58,6 +59,10 @@ export type {
   LegacyClosedTradeSourceProofResult,
   LegacyClosedTradeSourceProofSafeSummary,
   LegacyClosedTradeSourceProofSummarySource,
+  LegacyRuntimeClosedTradeSourceAuditInput,
+  LegacyRuntimeClosedTradeSourceAuditResult,
+  LegacyRuntimeSourceLifecycleSnapshot,
+  LegacyRuntimeSourceTableSnapshot,
 } from './legacy/closed-trade-source-proof.ts';
 export { getBotAdapter } from './factory.ts';
 export type { AdapterOptions, BotAdapterMode } from './factory.ts';
