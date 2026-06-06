@@ -1,6 +1,6 @@
 # Current Production Blockers
 
-Last updated: 2026-06-06, Phase 4.70 Tortila canonical source landing.
+Last updated: 2026-06-06, Phase 4.71 Tortila strict managed proof.
 
 Phase 4.68 clears the existing WTC HTTPS canary rollout for current GitHub `main`
 `3aff2738815562c18f5623e9686c4c2f4ba2ef3a`: the new server release is mounted into `wtc-ecosystem-canary` and
@@ -8,17 +8,19 @@ Phase 4.68 clears the existing WTC HTTPS canary rollout for current GitHub `main
 state, public `/api/health` returns `200`, and post-switch worker continuity is `bot_continuity ok`, `tortila ok`, and
 `legacy ok`. Live bot services stayed running with unchanged PIDs and were not restarted. Phase 4.70 now clears the
 canonical git-backed Tortila source landing/verifier gate with private repo `papa-slon/tortila-canonical-source`, branch
-`main`, commit `f53a774c3bc4c14653906bd2f778a515c565cf12`. Remaining production blockers are full branded-domain/burn-in
-rollout, strict WTC managed proof with disposable DB lane, Tortila runtime deploy/auth/firewall probes, Legacy realized
-closed-trade source/import proof, live-control audit, and other credentialed provider gates. Do not substitute local UI
-polish, active orders/slots, or green GitHub CI for those remaining gates.
+`main`, commit `f53a774c3bc4c14653906bd2f778a515c565cf12`. Phase 4.71 clears the strict WTC managed proof against that
+canonical source with a disposable local PostgreSQL lane. Remaining production blockers are full branded-domain/burn-in
+rollout, Tortila runtime deploy/auth/firewall probes, Legacy realized closed-trade source/import proof, live-control audit,
+and other credentialed provider gates. Do not substitute local UI polish, active orders/slots, or green GitHub CI for
+those remaining gates.
 
 Phase 4.69 adds WTC tooling for the Tortila source gate. Phase 4.70 uses it against a clean private git-backed source
 packet and passes: export forbidden-artifact scan PASS, export secret scan PASS, bot `pytest` PASS, bot `ruff` PASS, and
 WTC `npm run verify:tortila:canonical-source` PASS. `accept:tortila:real-read:managed` can require that verifier with
-`TORTILA_CANONICAL_SOURCE_REQUIRED=1`, but strict managed proof is still NOT RUN because no disposable Postgres admin URL
-is configured locally. Server read-only Legacy audit also confirmed no durable closed-trade source table/API/artifact
-exists, so Legacy realized analytics/import remains blocked.
+`TORTILA_CANONICAL_SOURCE_REQUIRED=1`. Phase 4.71 ran that strict proof on a separate disposable local PostgreSQL 17
+cluster and verified `sourceAdapter=tortila`, `readState=ok`, `tradesImported=2`, `positionsSnapshotted=1`, and
+`marksRequests=0`, with cleanup checks proving no leftover throwaway DB/temp cluster. Server read-only Legacy audit also
+confirmed no durable closed-trade source table/API/artifact exists, so Legacy realized analytics/import remains blocked.
 
 Phase 4.61 clears the GitHub CI blocker for the current merged WTC repo tree, not production deployment. PR #1 merged to
 `main` at `ed31aaaf89ebc4920a13887542fa3bb0bbd99545`; pre-merge PR CI run `27015532545` and post-merge `main` push CI

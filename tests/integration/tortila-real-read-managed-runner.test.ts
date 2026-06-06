@@ -6,12 +6,12 @@ const runnerPath = 'scripts/run-tortila-real-read-managed.mjs';
 const runner = readFileSync(runnerPath, 'utf8');
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts?: Record<string, string> };
 
-function runRunner(args: string[] = []) {
+function runRunner(args: string[] = [], adminUrl = '') {
   return spawnSync(process.execPath, [runnerPath, ...args], {
     cwd: process.cwd(),
     env: {
       ...process.env,
-      TORTILA_REAL_READ_ADMIN_DATABASE_URL: '',
+      TORTILA_REAL_READ_ADMIN_DATABASE_URL: adminUrl,
     },
     encoding: 'utf8',
   });
@@ -34,7 +34,19 @@ describe('Tortila real-read managed runner', () => {
     expect(`${unknown.stdout}\n${unknown.stderr}`).toContain('unknown argument');
   });
 
+  it('refuses non-local admin URLs before DB work without echoing the URL', () => {
+    const remote = runRunner([], 'postgres://user:secret@db.example.invalid:5432/postgres');
+    const output = `${remote.stdout}\n${remote.stderr}`;
+    expect(remote.status).toBe(2);
+    expect(output).toContain('localhost/loopback');
+    expect(output).not.toContain('db.example.invalid');
+    expect(output).not.toContain('secret');
+    expect(output).not.toContain('CREATE DATABASE');
+  });
+
   it('pins disposable DB, read-only adapter, local journal proxy, and no marks boundary', () => {
+    expect(runner).toContain('LOCAL_ADMIN_HOSTS');
+    expect(runner).toContain('localhost/loopback');
     expect(runner).toContain('wtc_test_tortila_real_read_');
     expect(runner).toContain('DROP DATABASE IF EXISTS');
     expect(runner).toContain('bot_tortila');

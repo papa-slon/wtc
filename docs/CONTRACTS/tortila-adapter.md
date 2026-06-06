@@ -43,10 +43,13 @@ branch `main`, commit `f53a774c3bc4c14653906bd2f778a515c565cf12`. It includes th
 passes bot `pytest`, bot `ruff`, WTC secret scan against the export, and
 `TORTILA_CANONICAL_SOURCE_ROOT=<canonical checkout> npm run verify:tortila:canonical-source`.
 
+**Current strict managed proof (Phase 4.71):** WTC ran `accept:tortila:real-read:managed` with
+`TORTILA_CANONICAL_SOURCE_REQUIRED=1` and the Phase 4.70 canonical checkout against a separate disposable local
+PostgreSQL 17 cluster. The proof verified the token matrix, persisted WTC read evidence (`sourceAdapter=tortila`,
+`readState=ok`, `tradesImported=2`, `positionsSnapshotted=1`), and `marksRequests=0`; external cleanup verified no
+leftover throwaway DB/temp cluster. The runner now rejects non-local admin DB URLs before DB work.
+
 **Required before production WTC deployment:**
-- Rerun WTC managed proof with `TORTILA_CANONICAL_SOURCE_REQUIRED=1` and
-  `TORTILA_REAL_READ_SOURCE_ROOT=<canonical git checkout>` so the runner cannot silently fall back to adjacent
-  `../bot_tortila`.
 - Provision `JOURNAL_READ_TOKEN` as a deployment secret; never commit or print the real value.
 - WTC worker sends `Authorization: Bearer <token>` on every request.
 - Token is stored in WTC encrypted secret vault (see [SECRET_VAULT_DESIGN.md](../SECRET_VAULT_DESIGN.md)).
