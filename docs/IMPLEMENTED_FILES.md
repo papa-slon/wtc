@@ -1,5 +1,18 @@
 # Implemented files (current code vs. target contracts)
 
+## 2026-06-06 Phase 4.75 production readiness + deterministic release-build guard
+- `docs/DEPLOYMENT.md` - future canary release-build command now explicitly installs build/dev tooling with
+  `npm ci --include=dev --no-audit --no-fund` before `npm run build -w @wtc/web`, avoiding the Phase 4.74 Next.js
+  TypeScript auto-install/yarn fallback path while keeping runtime containers production-shaped.
+- `tests/integration/deployment-release-build-static.test.ts` - static regression guard for the deterministic release-build
+  runbook and the distinction between build-stage dev tooling and runtime `NODE_ENV=production`.
+- `docs/handoffs/20260606-1000-phase-475-production-readiness.md` plus three read-only auditor handoffs - records
+  branded-domain/full-production readiness gaps, release-build determinism analysis, the bounded runbook/test fix, and the
+  main-thread 11-cycle current-canary burn-in. No bot restart or live-control action was run.
+- `docs/STATUS.md`, `docs/NEXT_ACTIONS.md`, `docs/PRODUCTION_BLOCKERS_CURRENT.md`, and
+  `docs/CREDENTIAL_ACCEPTANCE_BLOCKERS_CURRENT.md` - current truth now says the current WTC canary has a longer burn-in
+  proof and deterministic build guard, while full branded production/provider-console/credentialed gates remain open.
+
 ## 2026-06-06 Phase 4.74 exact-main canary deploy/burn-in
 - Server release `/home/ubuntu/apps/wtc_ecosystem_platform_releases/20260606-0213-abe6784-phase474-main` - current WTC
   HTTPS canary/worker app release for GitHub `main` `abe6784518abcbebe38368f3cef05039d55c520f`. It is mounted into

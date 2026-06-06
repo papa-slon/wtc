@@ -1,6 +1,27 @@
 # STATUS
 
-_Latest update: 2026-06-06 - Phase 4.74 exact-main canary deploy/burn-in._
+_Latest update: 2026-06-06 - Phase 4.75 production readiness + deterministic release-build guard._
+Phase 4.75 does not cut over a branded production domain. It closes two bounded canary-readiness follow-ups after Phase
+4.74: a deterministic release-build runbook guard and a longer current-canary burn-in. Three read-only agents ran before
+edits and were closed: production-domain readiness, runtime long-burn-in continuity, and release-build determinism. The
+domain auditor confirmed the existing WTC canary is proven only for the current app/worker canary scope; DNS/TLS/nginx
+branded target, provider-console perimeter proof, production secret provisioning, DB backup/restore policy, alerting, and
+credentialed provider gates remain NOT RUN. The build auditor confirmed the Phase 4.74 TypeScript/yarn warning was a
+deterministic-build issue caused by the build container inheriting `NODE_ENV=production`, not a bot/runtime blocker.
+`docs/DEPLOYMENT.md` now requires future canary release builds to run
+`npm ci --include=dev --no-audit --no-fund` before `npm run build -w @wtc/web`, and
+`tests/integration/deployment-release-build-static.test.ts` guards that runbook. The main thread then ran an 11-cycle,
+roughly 10-minute read-only burn-in against the existing canary release `20260606-0213-abe6784-phase474-main`: every cycle
+had WTC health `200`, WTC canary/worker mounted on the expected release with `restartCount=0`, worker
+`bot_continuity ok`, `tortila ok`, and `legacy ok`, `journal-server.service`, `turtle-bot.service`, and
+`turtle-journal.service` active/running with `NRestarts=0`, and Legacy tmux session `bot` present. No bot, tmux, systemd,
+exchange, firewall, nginx, DB row, env file, or live-control path was restarted or mutated. Aggregate:
+[`docs/handoffs/20260606-1000-phase-475-production-readiness.md`](handoffs/20260606-1000-phase-475-production-readiness.md).
+This clears deterministic canary release-build documentation plus the longer current-canary burn-in. It does not clear full
+branded production, provider-console perimeter proof, Legacy realized analytics/import, audited live controls,
+Stripe/Axioma/LMS credentialed provider gates, or production alerting acceptance.
+
+_Previous update: 2026-06-06 - Phase 4.74 exact-main canary deploy/burn-in._
 Phase 4.74 deploys the current WTC app/worker release for GitHub `main`
 `abe6784518abcbebe38368f3cef05039d55c520f` to the existing HTTPS canary. Three read-only agents ran before mutation and
 were closed: deploy preflight, security/perimeter, and runtime continuity. New server release:

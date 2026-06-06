@@ -1,6 +1,6 @@
 # Credential Acceptance Blockers Current
 
-Last updated: 2026-06-06, Phase 4.74 exact-main canary deploy/burn-in.
+Last updated: 2026-06-06, Phase 4.75 production readiness + deterministic release-build guard.
 
 This packet is the current operator-facing blocker list after Phase 4.62. The LMS DB browser managed gate, active managed
 real-Postgres proof, local managed throwaway audit-role proof, local site-readiness proof, and local auth DB-backed
@@ -71,6 +71,11 @@ Observed in this session:
   recreated only `wtc-ecosystem-canary` and `wtc-ecosystem-worker`, proved local/public smoke plus five burn-in cycles, and
   left `journal-server.service`, `turtle-bot.service`, `turtle-journal.service`, and Legacy tmux running with no bot
   restart.
+- Phase 4.75 added deterministic release-build coverage: future release builds must run
+  `npm ci --include=dev --no-audit --no-fund` before `npm run build -w @wtc/web`, guarded by a static integration test.
+  The main thread also ran an 11-cycle roughly 10-minute read-only burn-in for the current canary: WTC health `200`,
+  WTC canary/worker `restartCount=0` on the expected release, worker two-bot continuity green, bot-related services
+  active/running with `NRestarts=0`, and Legacy tmux present. No bot restart or live-control action was run.
 
 Previously checked env vars without printing values in Phase 3.58; remaining gates still require these names unless a later
 phase supplies them:
@@ -119,9 +124,10 @@ AXIOMA_BRIDGE_API_TOKEN=NOT_SET
 | Axioma live bridge / handoff acceptance | `npm run accept:axioma:handoff-preflight` plus live endpoint-shape/account-link/download checks as scoped | Confirmed Axioma endpoint shapes, `AXIOMA_HANDOFF_SIGNING_KEY`, `AXIOMA_HANDOFF_KEY_ID`, bridge token where required | **NOT RUN** - ES256 key/kid and bridge token absent | ES256/JWKS/handoff/account-link/download acceptance passes with confirmed endpoint shapes and retained evidence scans clean |
 | Local site-readiness / safe-preview smoke | `npm test`; `npm run build -w @wtc/web`; `npm run e2e`; `npm run preview:safe` or scoped preview smoke | Local demo/mock preview scope; no live bot/provider/deploy mutation | **RUN/PASS in Phase 3.62** - root tests `921` passed, web build PASS, default e2e `44` passed / `8` skipped, `http://127.0.0.1:3000` returned `200` with a title containing `WTC Ecosystem` and `World Trader Club` | Cleared for local manual demo/mock website review only; screenshot inventory is not screenshot acceptance |
 | Local auth DB-backed browser acceptance | `npm run e2e:auth:db:managed` | Existing-bot Postgres source approved by operator; in-process `AUTH_E2E_ADMIN_DATABASE_URL`, value never printed | **RUN/PASS in Phase 3.63** - throwaway DB `wtc_test_auth_20260602130742_099899` created/dropped, 17 migrations plus seed, real register/login Playwright `2` passed | Cleared for local auth registration/login DB-backed acceptance; not a production DB/server/deploy proof |
-| Current WTC canary server smoke | Existing HTTPS canary smoke | Operator-approved SSH target, existing canary domain, rollback release, DB backup | **RUN/PASS in Phase 4.74** - local/public `/api/health` 200, home/login/products 200, protected bot/admin routes redirect to login, worker/Tortila/Legacy health ok across five burn-in cycles | Cleared for WTC canary app/worker release `abe6784518abcbebe38368f3cef05039d55c520f`; continue monitoring and rerun after future deploys |
+| Current WTC canary server smoke/burn-in | Existing HTTPS canary smoke | Operator-approved SSH target, existing canary domain, rollback release, DB backup | **RUN/PASS in Phase 4.74 and Phase 4.75** - local/public smoke passed in Phase 4.74; Phase 4.75 longer burn-in kept WTC health `200`, WTC container restart counts `0`, worker/Tortila/Legacy health ok, bot services `NRestarts=0`, Legacy tmux present | Cleared for WTC canary app/worker release `abe6784518abcbebe38368f3cef05039d55c520f`; continue monitoring and rerun after future deploys |
 | GitHub CI for current WTC release | GitHub Actions workflow on PR and `main` push | Git-backed repo, PR/push to GitHub | **RUN/PASS in Phase 4.73 for deployed code SHA** - PR #14 and post-merge `main` CI for `abe6784518abcbebe38368f3cef05039d55c520f` passed `gates` and `e2e`; Phase 4.74 docs-only follow-up uses the normal PR/CI path and does not change deployed app/worker code | Cleared for deployed app/worker code SHA; rerun for every future release commit |
 | Current WTC canary deploy/server checks | Approved canary deploy checklist | Operator-approved SSH target, existing server secrets, rollback release, DB backup | **RUN/PASS in Phase 4.74** - new release mounted into `wtc-ecosystem-canary` and `wtc-ecosystem-worker`; bot services and Legacy tmux stayed active and were not restarted | Cleared for existing WTC canary app/worker only; full branded production/live provider rollout remains separate |
+| Deterministic canary release build runbook | Deployment docs/static guard | No credential required | **RUN/PASS in Phase 4.75** - `docs/DEPLOYMENT.md` requires `npm ci --include=dev --no-audit --no-fund`; focused static test guards against Next TypeScript auto-install fallback | Cleared for docs/static guard; future server releases must still execute the command and check for no lockfile/package manifest deltas |
 | Canonical Tortila source landing | Source-control proof plus bot-side tests | Canonical git repo/path/remote/branch or source bundle | **RUN/PASS in Phase 4.70 for source-control/verifier** - private repo `papa-slon/tortila-canonical-source`, branch `main`, commit `f53a774c3bc4c14653906bd2f778a515c565cf12`; bot pytest/ruff PASS; export secret scan PASS; WTC verifier PASS | Source authority cleared; strict managed proof passed in Phase 4.71 and canary runtime auth/firewall passed in Phase 4.72 |
 | Strict Tortila managed real-read proof | `TORTILA_CANONICAL_SOURCE_REQUIRED=1 ... npm run accept:tortila:real-read:managed` | Disposable local/admin Postgres lane; canonical source checkout | **RUN/PASS in Phase 4.71** - separate local PG17 cluster, throwaway DB created/dropped, token matrix PASS, `sourceAdapter=tortila`, `readState=ok`, `tradesImported=2`, `positionsSnapshotted=1`, `marksRequests=0`, cleanup verified | Cleared for local pre-deploy managed proof; rerun after relevant adapter/worker/journal/auth/runner changes |
 | Tortila canary runtime auth/firewall proof | Journal-only runtime deploy plus redacted auth/network/worker probes | Canonical source release, existing WTC worker token, approved SSH target | **RUN/PASS in Phase 4.72** - canonical source release mounted into `turtle-journal.service`, missing/wrong token `401`, valid bearer/header `200`, worker continuity green, public TCP negative probes PASS, no token printed, `turtle-bot.service` not restarted | Cleared for current canary journal auth/firewall; rerun after journal source/token/network/WTC worker changes or for branded production/provider-console proof |
@@ -146,5 +152,6 @@ GitHub CI for the merged WTC release commit; Phase 4.62 clarified the missing de
 existing WTC canary deploy for `3aff273`; Phase 4.69 adds a fail-closed Tortila canonical-source verifier; Phase 4.70
 clears the Tortila canonical source-control/verifier gate; Phase 4.71 clears strict local managed Tortila real-read proof;
 Phase 4.72 clears Tortila canary runtime auth/firewall; Phase 4.73 classifies Legacy as source-blocked; Phase 4.74 clears
-the current WTC canary app/worker deploy for `abe6784`.
+the current WTC canary app/worker deploy for `abe6784`; Phase 4.75 clears deterministic canary release-build docs/static
+guard and longer current-canary burn-in.
 None of those clear full branded/live-provider production readiness.
