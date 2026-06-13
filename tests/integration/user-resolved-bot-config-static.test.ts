@@ -43,17 +43,22 @@ describe('user resolved bot config source guardrails', () => {
     const settingsLoad = settings.indexOf('loadBotConfig(user.id, meta.code)');
     expect(settingsAccess).toBeGreaterThanOrEqual(0);
     expect(settingsLoad).toBeGreaterThan(settingsAccess);
-    expect(settings).toContain('BotSettingsQuickPath');
-    expect(settings).toContain('customVersionCount={state.versions.length}');
-    expect(settings).toContain('exportBlockedByProviderMapping={exportBlockedByProviderMapping}');
+    // SETTINGS_SPEC: the BotSettingsQuickPath ladder AND the "Settings source" /
+    // "Customize my settings" provenance cards are deleted from the decluttered
+    // premium page. The editor is now the first thing the user sees; the single
+    // "Use system default" affordance and the CSRF-guarded source action remain.
+    expect(settings).not.toContain('BotSettingsQuickPath');
+    expect(settings).not.toContain('Customize my settings');
     expect(settings).toContain('Use system default');
-    expect(settings).toContain('Customize my settings');
     expect(settings).toContain('useSystemDefaultAction');
     expect(settings).toContain('selectSystemDefaultBotConfig');
     expect(settings).toContain('assertCsrf(formData)');
     expect(settings).toContain('botAccessForUser(user, meta.code)');
     expect(settings).toContain('Save custom settings');
-    expect(settings).toContain('Customization locked');
+    // Locked state is conveyed by the "Custom settings are locked" banner + the
+    // disabled save button (disabled={!canCustomize}), not a separate ladder card.
+    expect(settings).toContain('Custom settings are locked');
+    expect(settings).toContain('disabled={!canCustomize}');
     expect(settings).toContain('state.sourceIssue');
 
     const setupAccess = setup.indexOf('if (!access.allowed)');

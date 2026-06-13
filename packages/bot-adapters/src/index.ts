@@ -66,3 +66,37 @@ export type {
 } from './legacy/closed-trade-source-proof.ts';
 export { getBotAdapter } from './factory.ts';
 export type { AdapterOptions, BotAdapterMode } from './factory.ts';
+// Extended Tortila journal reader: 9 endpoints beyond the worker-canonical set, consumed by the
+// premium WTC dashboard page only. Never imported by the worker pipeline (the worker stays on the
+// existing `BotAdapter` interface). All methods are read-only GET; the JOURNAL_READ_TOKEN never
+// leaves the server. See packages/bot-adapters/src/tortila/tortila-journal-reader.ts for the rules.
+export {
+  createTortilaJournalReader,
+  isTortilaJournalError,
+} from './tortila/tortila-journal-reader.ts';
+export type {
+  TortilaJournalReader,
+  TortilaJournalReadError,
+  TortilaJournalResult,
+  TortilaTradeListQuery,
+} from './tortila/tortila-journal-reader.ts';
+export type {
+  TortilaSummary,
+  TortilaTradeList,
+  TortilaTradeRow,
+} from './tortila/tortila.schemas.ts';
+export type {
+  TortilaAdvancedMetrics,
+  TortilaSymbolBreakdown,
+  TortilaSymbolBreakdownRow,
+  TortilaMonthly,
+  TortilaMonthlyRow,
+  TortilaCalendar,
+  TortilaCalendarDay,
+  TortilaDistribution,
+  TortilaDrawdownSeries,
+  TortilaMarks,
+  TortilaMark,
+  TortilaActivity,
+  TortilaActivityItem,
+} from './tortila/tortila.extended.schemas.ts';

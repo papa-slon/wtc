@@ -20,8 +20,6 @@ import {
   type BotConfigActionRoutes,
   type BotConfigParseResult,
 } from '@/features/bots/config-action-handler';
-import { BotReadinessMap } from '@/features/bots/BotReadinessMap';
-import { loadBotReadinessForUser } from '@/features/bots/readiness-loader';
 import { ExchangeKeyReadinessPanel } from '@/features/bots/ExchangeKeyReadiness';
 import {
   BOT_OPERATION_MODES,
@@ -43,15 +41,8 @@ import {
   selectSystemDefaultBotConfig,
   tortilaSymbolConfigsFromConfig,
 } from '@/features/bots/config';
-import { TortilaSymbolConfigTable } from '@/features/bots/TortilaSymbolConfigTable';
+import { TortilaCoinConfigEditor } from '@/features/bots/TortilaCoinConfigEditor';
 import { LegacyAveragingConfigTable } from '@/features/bots/LegacyAveragingConfigTable';
-import { BotConfigReviewPanel } from '@/features/bots/BotConfigReviewPanel';
-import { BotOperationMapPanel } from '@/features/bots/BotOperationMapPanel';
-import { BotSetupControlCenter } from '@/features/bots/BotSetupControlCenter';
-import { BotSettingsQuickPath } from '@/features/bots/BotSettingsQuickPath';
-import { BotContinuityPanel } from '@/features/bots/BotContinuityPanel';
-import { uncheckedBotContinuityHealth } from '@/features/bots/continuity';
-import { buildBotConfigReview, firstLegacyStageCapacityIssue } from '@/features/bots/config-review';
 import { botConfigErrorCopy, botConfigErrorRedirect } from '@/features/bots/config-error-copy';
 
 interface LegacyProviderAccountView {
@@ -200,11 +191,10 @@ export default async function Page({
   if (!access.allowed) return <BotAccessRequired meta={meta} section="Settings" />;
 
   const user = await requireUser();
-  const [state, legacyRead, exchangeKeys, readiness] = await Promise.all([
+  const [state, legacyRead, exchangeKeys] = await Promise.all([
     loadBotConfig(user.id, meta.code),
     meta.code === 'legacy_bot' ? loadBotReadModelForUser(user.id, meta.code, ['config']) : Promise.resolve(null),
     meta.code === 'tortila_bot' ? listExchangeKeys(user.id) : Promise.resolve([]),
-    loadBotReadinessForUser(user, meta.code, 'settings', { includeOperationalRows: false }),
   ]);
   const legacyLiveConfig =
     meta.code === 'legacy_bot' && legacyRead?.config.data?.raw && typeof legacyRead.config.data.raw === 'object'
@@ -227,7 +217,6 @@ export default async function Page({
   } : undefined;
   const legacyRows = meta.code === 'legacy_bot' ? legacySymbolConfigsFromConfig(cur) : [];
   const legacyStages = meta.code === 'legacy_bot' ? legacyStageConfigsFromConfig(cur) : [];
-  const legacyStageCapacityIssue = meta.code === 'legacy_bot' ? firstLegacyStageCapacityIssue(legacyRows, legacyStages) : undefined;
   const hasLegacySnapshotRows = meta.code === 'legacy_bot' && legacyRuntimeSymbolSourceExists(legacyLiveConfig);
   const hasLegacySnapshotStages = meta.code === 'legacy_bot' && legacyRuntimeStageSourceExists(legacyLiveConfig);
   const legacySnapshotRows = hasLegacySnapshotRows ? legacyRuntimeSymbolConfigsFromConfig(legacyLiveConfig) : [];
@@ -235,31 +224,12 @@ export default async function Page({
   const legacyAccounts = meta.code === 'legacy_bot' ? legacyProviderAccounts(legacyLiveConfig) : [];
   const sourceLabel = state.sourceLabel;
   const sourceDetail = state.sourceDetail;
-  const configReview = buildBotConfigReview({
-    productCode: meta.code,
-    sourceLabel,
-    config: cur,
-    tortilaRows,
-    legacyRows,
-    legacyStages,
-    providerAccountCount: legacyAccounts.length,
-  });
   const modeMeta = BOT_OPERATION_MODES.find((m) => m.value === currentMode) ?? BOT_OPERATION_MODES[0]!;
   const hasSystemDefault = state.systemDefault !== null;
   const canCustomize = state.systemDefault?.allowUserOverride !== false;
-  const sourceTone = state.source === 'user_override' ? 'ok' : state.source === 'system_default' ? 'gold' : 'warn';
   const legacySnapshotStageCapacity = legacySnapshotStages.reduce((sum, row) => sum + row.rsiSlots + row.cciSlots, 0);
   const checkResult = keyCheckResult(sp.keyCheck);
   const configError = botConfigErrorCopy(meta.code, sp);
-  const settingsReadiness = readiness.items;
-  const settingsContinuityHealth = legacyRead?.health ?? uncheckedBotContinuityHealth(
-    meta.code,
-    'Runtime proof is not checked on the settings render. Open the dashboard or safety tab for the latest worker-backed runtime proof before treating the bot as live-green.',
-  );
-  const settingsContinuityRows = configReview.metrics.length + (meta.code === 'legacy_bot' ? legacyAccounts.length : exchangeKeys.length);
-  const settingsConnectionLabel = meta.code === 'legacy_bot'
-    ? pubIdSummary(readiness.providerAccountCount)
-    : exchangeKeys.length === 1 ? '1 encrypted key row' : `${exchangeKeys.length} encrypted key rows`;
   const legacyExportProviderCount = meta.code === 'legacy_bot' ? legacyAccounts.length : 0;
   const exportBlockedByProviderMapping = meta.code === 'legacy_bot' && legacyExportProviderCount !== 1;
   const legacyExportBlockDetail = legacyExportProviderCount === 0
@@ -269,208 +239,172 @@ export default async function Page({
     ? { tone: 'gold' as const, label: `system v${state.systemDefault.version}` }
     : state.source === 'user_override' && state.version != null
       ? { tone: 'ok' as const, label: `custom v${state.version}` }
-      : { tone: 'warn' as const, label: 'built-in fallback' };
+      : { tone: 'warn' as const, label: 'default settings' };
+  // A single quiet "use system default" affordance is offered only when a system
+  // default exists and is not already the active source (replaces the deleted
+  // provenance ladder cards).
+  const offerSystemDefault = hasSystemDefault && state.source !== 'system_default';
 
   return (
-    <div className="wtc-stack">
+    <div className="wtc-stack tset-page">
       <div className="wtc-spread">
         <SectionHeader kicker={`${meta.name} - Settings`} title="Configuration" />
         <StatusPill tone={effectiveStatus.tone}>{effectiveStatus.label}</StatusPill>
       </div>
       <BotSubNav bot={bot} active="settings" />
 
-      <BotSetupControlCenter
-        productCode={meta.code}
-        bot={bot}
-        mode="settings"
-        sourceLabel={sourceLabel}
-        source={state.source}
-        canCustomize={canCustomize}
-        hasSystemDefault={hasSystemDefault}
-        configMetrics={configReview.metrics}
-        exchangeKeyState={readiness.exchangeKeyState}
-        exchangeKeyCount={exchangeKeys.length}
-        legacyProviderState={readiness.providerPubIdState}
-        providerAccountCount={legacyAccounts.length}
-        hasConfig={state.source !== 'built_in'}
-        activeIssue={configError ?? undefined}
-        legacyStageCapacityIssue={legacyStageCapacityIssue}
-      />
+      {/* One quiet storage line. The "nothing is pushed to a live exchange"
+          disclaimer lives ONLY on the save bar now (it was repeated 5+ times). */}
+      {state.mode === 'postgres' ? (
+        <div className="wtc-spread" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'baseline' }}>
+          <p className="tset-source-note">
+            Settings in use: {sourceLabel}. Saved to your account — each save appends an immutable, versioned profile.
+          </p>
+          {offerSystemDefault && (
+            <form action={useSystemDefaultAction}>
+              <CsrfField />
+              <input type="hidden" name="bot" value={bot} />
+              <button className={buttonClasses('ghost')} type="submit" style={{ fontSize: 13 }}>Use system default</button>
+            </form>
+          )}
+        </div>
+      ) : (
+        <RiskWarningBanner
+          severity="warning"
+          title="In-memory storage (dev)"
+          detail="Demo mode - saves are not persisted. Set DATABASE_URL to store config + version history in Postgres."
+        />
+      )}
 
-      <BotSettingsQuickPath
-        productCode={meta.code}
-        bot={bot}
-        source={state.source}
-        sourceLabel={sourceLabel}
-        canCustomize={canCustomize}
-        hasSystemDefault={hasSystemDefault}
-        customVersionCount={state.versions.length}
-        tortilaRows={tortilaRows}
-        tortilaPortfolioCaps={tortilaPortfolioCaps}
-        legacyRows={legacyRows}
-        legacyStages={legacyStages}
-        exchangeKeyCount={exchangeKeys.length}
-        legacyProviderAccountCount={legacyAccounts.length}
-        exportBlockedByProviderMapping={exportBlockedByProviderMapping}
-      />
+      {/* Real source risk signal is never hidden behind a healthy card. */}
+      {state.sourceIssue && (
+        <RiskWarningBanner
+          severity={state.sourceIssue.kind}
+          title={state.sourceIssue.title}
+          detail={state.sourceIssue.detail}
+        />
+      )}
 
-      <BotReadinessMap
-        title="Settings readiness map"
-        copy="Use this map before editing: it separates saved defaults, personal overrides, runtime evidence, and disabled live actions."
-        items={settingsReadiness}
-      />
-
-      <BotContinuityPanel
-        productCode={meta.code}
-        adapterMode={legacyRead?.adapterMode ?? 'real'}
-        health={settingsContinuityHealth}
-        dataRows={settingsContinuityRows}
-        dataRowsLabel="settings evidence rows"
-        dataRowsDetail="Settings evidence rows are WTC-side config review facts plus safe key/pub_id counts. Runtime proof is not fetched here unless an existing Legacy snapshot read is already loaded."
-        configSourceLabel={sourceLabel}
-        connectionLabel={settingsConnectionLabel}
-        title="Settings continuity monitor"
-      />
-
-      <div className="wtc-row" style={{ marginTop: -4 }}>
-        {state.mode === 'postgres' ? (
-          <StatusPill tone="ok">storage: Postgres</StatusPill>
-        ) : (
-          <>
-            <StatusPill tone="warn">storage: in-memory (dev)</StatusPill>
-            <span className="wtc-dim" style={{ fontSize: 12 }}>Demo mode - saves are not persisted. Set DATABASE_URL to store config + version history in Postgres.</span>
-          </>
-        )}
-      </div>
       {configError && (
         <RiskWarningBanner
           severity="error"
           title={configError.title}
-          detail={`${configError.detail} Active source remains ${effectiveStatus.label}; this failed draft was not saved and was not applied to the live bot.`}
+          detail={`${configError.detail} Settings in use remain ${effectiveStatus.label}; this failed draft was not saved.`}
         />
       )}
       {sp.err === 'locked' && (
         <RiskWarningBanner
           severity="error"
           title="Customization is locked"
-          detail="The current WTC system default does not allow user overrides. Use the inherited default until WTC reopens customization."
+          detail="The current WTC system default does not allow user overrides. Use the default settings until WTC reopens customization."
         />
       )}
       {sp.err === 'system-default' && (
         <RiskWarningBanner
           severity="error"
           title="System default is unavailable"
-          detail="No published system default is available for this bot yet, so WTC keeps showing the built-in fallback or your custom profile."
+          detail="No published system default is available for this bot yet, so WTC keeps showing the default settings or your custom profile."
         />
       )}
 
-      <Card title="Configuration source">
-        <div className="wtc-grid wtc-grid-3">
-          <MetricCard label="Resolved source" value={sourceLabel} sub={state.mode === 'postgres' ? 'Postgres-backed' : 'demo/session-backed'} tone={sourceTone === 'ok' ? 'up' : undefined} />
-          <MetricCard
-            label={meta.code === 'legacy_bot' ? 'Provider mapping' : 'Exchange connection'}
-            value={meta.code === 'legacy_bot' ? legacyAccounts.length : exchangeKeys.length}
-            sub={meta.code === 'legacy_bot' ? pubIdSummary(legacyAccounts.length) : 'encrypted keys saved; live ping disabled'}
+      {/* THE EDITOR — first thing the user sees. Save contract unchanged:
+          <form id="custom-settings" action={saveBotConfigAction}> with CsrfField,
+          hidden bot, and the exact same input name attributes. */}
+      <Card title={`${meta.name} configuration`}>
+        {!canCustomize && (
+          <RiskWarningBanner
+            severity="warning"
+            title="Custom settings are locked"
+            detail="You can inspect the resolved WTC default, but custom saves and reference profiles are disabled while this system default is locked."
           />
-          <MetricCard label="Save behavior" value="WTC version only" sub="no live-control adapter actions" />
-        </div>
-        <p className="wtc-muted" style={{ fontSize: 13, lineHeight: 1.6, margin: '12px 0 0' }}>
-          {sourceDetail}
-        </p>
-        {state.sourceIssue && (
-          <div style={{ marginTop: 12 }}>
-            <RiskWarningBanner
-              severity={state.sourceIssue.kind}
-              title={state.sourceIssue.title}
-              detail={state.sourceIssue.detail}
-            />
-          </div>
         )}
-        {meta.code === 'legacy_bot' && legacyAccounts.length === 0 && (
-          <div style={{ marginTop: 12 }}>
-            <RiskWarningBanner
-              severity="warning"
-              title="No provider pub_id mapped"
-              detail="Runtime balances, slots, and provider statistics must stay treated as unavailable until one active Legacy pub_id is mapped to this WTC bot instance."
+        <form id="custom-settings" action={saveBotConfigAction} className="wtc-stack" style={{ gap: 16 }}>
+          <CsrfField />
+          <input type="hidden" name="bot" value={bot} />
+          <label className="wtc-stack" style={{ gap: 4, maxWidth: 360 }}>
+            <span style={{ fontSize: 13 }}>Strategy mode</span>
+            <select className="wtc-input" name="operationMode" defaultValue={cur.operationMode != null ? String(cur.operationMode) : defaults.operationMode}>
+              {BOT_OPERATION_MODES.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
+            <span className="wtc-dim" style={{ fontSize: 11 }}>
+              {modeMeta.hint}
+            </span>
+          </label>
+          {meta.code === 'tortila_bot' && (
+            <TortilaCoinConfigEditor
+              rows={tortilaRows}
+              portfolioCaps={tortilaPortfolioCaps}
+              canCustomize={canCustomize}
+              saveIssue={configError ?? undefined}
             />
-          </div>
-        )}
-        {meta.code === 'legacy_bot' && legacyRead?.config.issue && (
-          <div style={{ marginTop: 12 }}>
-            <RiskWarningBanner
-              severity={legacyRead.config.issue.kind === 'blocked' ? 'error' : 'warning'}
-              title={legacyRead.config.issue.title}
-              detail={legacyRead.config.issue.detail}
+          )}
+          {meta.code === 'legacy_bot' && (
+            <LegacyAveragingConfigTable
+              rows={legacyRows}
+              stages={legacyStages}
+              providerAccountCount={legacyAccounts.length}
+              sourceLabel={sourceLabel}
+              sourceDetail={sourceDetail}
+              saveIssue={configError?.target === 'legacy-row' || configError?.target === 'legacy-stage' ? configError : undefined}
             />
+          )}
+          {fields.length > 0 && (
+            <details className="tset-caps">
+              <summary className="tset-caps-summary">
+                <span>Advanced</span>
+                <span className="tset-caps-hint">leverage and compatibility fields</span>
+              </summary>
+              <div className="tset-caps-body">
+                <div className="wtc-grid wtc-grid-2">
+                  {fields.map((f) => (
+                    <label key={f.name} className="wtc-stack" style={{ gap: 4 }}>
+                      <span style={{ fontSize: 13 }}>{f.label}</span>
+                      {f.type === 'select' ? (
+                        <select className="wtc-input" name={f.name} defaultValue={cur[f.name] != null ? String(cur[f.name]) : defaults[f.name]}>
+                          {f.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                      ) : (
+                        <input
+                          className="wtc-input"
+                          name={f.name}
+                          type={f.type}
+                          step={f.step}
+                          placeholder={f.placeholder}
+                          defaultValue={cur[f.name] != null ? String(cur[f.name]) : defaults[f.name]}
+                        />
+                      )}
+                      <span className="wtc-dim" style={{ fontSize: 11 }}>{f.hint}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </details>
+          )}
+          <div className="tset-savebar">
+            <p className="tset-savebar-note">
+              Saving appends a versioned profile to your account. Nothing is pushed to a live exchange or bot.
+            </p>
+            <button className={buttonClasses('primary')} type="submit" disabled={!canCustomize}>Save custom settings</button>
           </div>
-        )}
+        </form>
       </Card>
 
-      <Card title="Settings source">
-        <div className="wtc-grid wtc-grid-2">
-          <section className="wtc-stack" style={{ gap: 10, border: '1px solid var(--stroke)', borderRadius: 8, padding: 14, background: 'rgba(255,255,255,0.025)' }}>
-            <div className="wtc-spread" style={{ gap: 8, flexWrap: 'wrap' }}>
-              <h3 style={{ margin: 0, fontSize: 16 }}>{hasSystemDefault ? 'Use system default' : 'Built-in fallback'}</h3>
-              <StatusPill tone={state.source === 'system_default' ? 'ok' : state.source === 'built_in' ? 'warn' : 'neutral'}>
-                {state.source === 'system_default' ? 'active' : state.source === 'built_in' ? 'fallback active' : 'available'}
-              </StatusPill>
-            </div>
-            <p className="wtc-dim" style={{ margin: 0, fontSize: 12, lineHeight: 1.6 }}>
-              {hasSystemDefault
-                ? 'Inherit the latest published WTC system default for this bot. WTC may update this default; your saved custom versions stay in history but are not the active source while this is selected. No live bot is changed.'
-                : 'No system default is published yet. WTC is showing safe built-in defaults until an admin publishes a system default.'}
-            </p>
-            {state.systemDefault && (
-              <div className="wtc-card-row"><span className="k">Published default</span><span className="v">{state.systemDefault.label} v{state.systemDefault.version}</span></div>
-            )}
-            {hasSystemDefault && state.source !== 'system_default' && (
-              <form action={useSystemDefaultAction}>
-                <CsrfField />
-                <input type="hidden" name="bot" value={bot} />
-                <button className={buttonClasses('secondary')} type="submit">Use system default</button>
-              </form>
-            )}
-          </section>
-          <section className="wtc-stack" style={{ gap: 10, border: '1px solid var(--stroke)', borderRadius: 8, padding: 14, background: 'rgba(255,255,255,0.025)' }}>
-            <div className="wtc-spread" style={{ gap: 8, flexWrap: 'wrap' }}>
-              <h3 style={{ margin: 0, fontSize: 16 }}>Customize my settings</h3>
-              <StatusPill tone={state.source === 'user_override' ? 'ok' : canCustomize ? 'neutral' : 'bad'}>
-                {state.source === 'user_override' ? 'active' : canCustomize ? 'ready' : 'locked'}
-              </StatusPill>
-            </div>
-            <p className="wtc-dim" style={{ margin: 0, fontSize: 12, lineHeight: 1.6 }}>
-              Create or continue a user-owned WTC config version. Start from the current resolved default, then save your own profile. It is not pushed to the live bot.
-            </p>
-            <div className="wtc-card-row"><span className="k">Custom history</span><span className="v">{state.versions.length} saved version{state.versions.length === 1 ? '' : 's'}</span></div>
-            {canCustomize ? (
-              <Link href="#custom-settings" className={buttonClasses(state.source === 'user_override' ? 'secondary' : 'primary')}>
-                {state.source === 'user_override' ? 'Continue editing custom settings' : 'Customize from this default'}
-              </Link>
-            ) : (
-              <button className={buttonClasses('ghost')} type="button" disabled title="Customization is locked for WTC review">
-                Customization locked
-              </button>
-            )}
-          </section>
-        </div>
-        <p className="wtc-muted" style={{ fontSize: 13, lineHeight: 1.6, margin: '12px 0 0' }}>
-          Tortila exchange keys are separate from settings source. Legacy provider pub_id mappings, balances, slots, orders, and runtime snapshots are read-only evidence, not settings source.
-        </p>
-      </Card>
-
-      <BotConfigReviewPanel review={configReview} />
-
-      <BotOperationMapPanel
-        productCode={meta.code}
-        sourceLabel={sourceLabel}
-        configMetrics={configReview.metrics}
-        runtimeSummary={meta.code === 'legacy_bot' ? pubIdSummary(legacyAccounts.length) : `${exchangeKeys.length} encrypted key metadata record${exchangeKeys.length === 1 ? '' : 's'}`}
-        statisticsSummary={meta.code === 'legacy_bot' ? 'provider-scoped snapshots only after pub_id mapping' : 'journal snapshots, positions, trades, equity, and warnings'}
-        settingsHref={`/app/bots/${bot}/settings#custom-settings`}
-        statisticsHref={`/app/bots/statistics?bot=${bot}`}
-        dashboardHref={`/app/bots/${bot}`}
-        title="How this bot will operate"
-      />
+      {meta.code === 'legacy_bot' && legacyAccounts.length === 0 && (
+        <RiskWarningBanner
+          severity="warning"
+          title="No provider pub_id mapped"
+          detail="Runtime balances, slots, and provider statistics must stay treated as unavailable until one active Legacy pub_id is mapped to this WTC bot instance."
+        />
+      )}
+      {meta.code === 'legacy_bot' && legacyRead?.config.issue && (
+        <RiskWarningBanner
+          severity={legacyRead.config.issue.kind === 'blocked' ? 'error' : 'warning'}
+          title={legacyRead.config.issue.title}
+          detail={legacyRead.config.issue.detail}
+        />
+      )}
 
       {meta.code === 'legacy_bot' && legacyLiveConfig && (legacyAccounts.length > 0 || hasLegacySnapshotRows || hasLegacySnapshotStages) && (
         <Card title="Provider runtime snapshot">
@@ -485,16 +419,6 @@ export default async function Page({
           </p>
         </Card>
       )}
-
-      <div className="wtc-grid wtc-grid-3">
-        <MetricCard label="Strategy mode" value={modeMeta.label} sub={modeMeta.hint} tone={currentMode === 'auto' ? 'up' : undefined} />
-        <MetricCard label="Config source" value={sourceLabel} sub={state.version != null ? `user stream v${state.version}` : 'no user stream'} />
-        <MetricCard
-          label={meta.code === 'legacy_bot' ? 'Provider pub_id mappings' : 'Reference profiles'}
-          value={meta.code === 'legacy_bot' ? legacyAccounts.length : presets.length}
-          sub={meta.code === 'legacy_bot' ? `${pubIdSummary(legacyAccounts.length)} / ${legacyRows.length} symbol rows` : 'one-click baselines'}
-        />
-      </div>
 
       {meta.code === 'legacy_bot' && legacyAccounts.length > 0 && (
         <Card title="Legacy provider accounts">
@@ -546,6 +470,30 @@ export default async function Page({
         </Card>
       )}
 
+      <Card title="Reference profiles">
+        <p className="wtc-muted" style={{ fontSize: 13, marginTop: 0 }}>
+          One-click baselines. Applying a profile saves it as a new custom version you can then edit above.
+        </p>
+        <div className="wtc-grid wtc-grid-3">
+          {presets.map((preset) => (
+            <form key={preset.id} action={applyBotPresetAction} className="wtc-card wtc-stack" style={{ gap: 10 }}>
+              <CsrfField />
+              <input type="hidden" name="bot" value={bot} />
+              <input type="hidden" name="presetId" value={preset.id} />
+              <div className="wtc-spread">
+                <h3 style={{ margin: 0, fontSize: 16 }}>{preset.name}</h3>
+                <StatusPill tone={preset.mode === 'auto' ? 'ok' : 'neutral'}>{preset.mode}</StatusPill>
+              </div>
+              <p className="wtc-dim" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>{preset.description}</p>
+              <ul className="wtc-dim" style={{ margin: 0, paddingLeft: 18, fontSize: 12, lineHeight: 1.7 }}>
+                {preset.summary.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+              <button className={buttonClasses(preset.mode === 'auto' ? 'primary' : 'secondary')} type="submit" disabled={!canCustomize}>Save as custom profile</button>
+            </form>
+          ))}
+        </div>
+      </Card>
+
       <Card title="Export current reference config">
         <div className="wtc-spread" style={{ flexWrap: 'wrap' }}>
           <p className="wtc-muted" style={{ margin: 0, maxWidth: 720 }}>
@@ -568,100 +516,6 @@ export default async function Page({
             />
           </div>
         )}
-      </Card>
-
-      <Card title="Reference profiles">
-        <p className="wtc-muted" style={{ fontSize: 13, marginTop: 0 }}>
-          Use these to switch quickly between manual review and automatic reference intent. Applying a profile only saves a user-owned WTC config version; it does not touch a live bot.
-        </p>
-        <div className="wtc-grid wtc-grid-3">
-          {presets.map((preset) => (
-            <form key={preset.id} action={applyBotPresetAction} className="wtc-card wtc-stack" style={{ gap: 10 }}>
-              <CsrfField />
-              <input type="hidden" name="bot" value={bot} />
-              <input type="hidden" name="presetId" value={preset.id} />
-              <div className="wtc-spread">
-                <h3 style={{ margin: 0, fontSize: 16 }}>{preset.name}</h3>
-                <StatusPill tone={preset.mode === 'auto' ? 'ok' : 'neutral'}>{preset.mode}</StatusPill>
-              </div>
-              <p className="wtc-dim" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>{preset.description}</p>
-              <ul className="wtc-dim" style={{ margin: 0, paddingLeft: 18, fontSize: 12, lineHeight: 1.7 }}>
-                {preset.summary.map((item) => <li key={item}>{item}</li>)}
-              </ul>
-              <button className={buttonClasses(preset.mode === 'auto' ? 'primary' : 'secondary')} type="submit" disabled={!canCustomize}>Save as custom profile</button>
-            </form>
-          ))}
-        </div>
-      </Card>
-
-      <Card title={`${meta.name} configuration`}>
-        {!canCustomize && (
-          <RiskWarningBanner
-            severity="warning"
-            title="Custom settings are locked"
-            detail="You can inspect the resolved WTC default, but custom saves and reference profiles are disabled while this system default is locked."
-          />
-        )}
-        <form id="custom-settings" action={saveBotConfigAction} className="wtc-stack" style={{ gap: 14 }}>
-          <CsrfField />
-          <input type="hidden" name="bot" value={bot} />
-          <label className="wtc-stack" style={{ gap: 4 }}>
-            <span style={{ fontSize: 13 }}>Strategy mode</span>
-            <select className="wtc-input" name="operationMode" defaultValue={cur.operationMode != null ? String(cur.operationMode) : defaults.operationMode}>
-              {BOT_OPERATION_MODES.map((m) => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </select>
-            <span className="wtc-dim" style={{ fontSize: 11 }}>
-              {modeMeta.hint}
-            </span>
-          </label>
-          {meta.code === 'tortila_bot' && (
-            <TortilaSymbolConfigTable
-              rows={tortilaRows}
-              portfolioCaps={tortilaPortfolioCaps}
-              sourceLabel={sourceLabel}
-              sourceDetail="Each coin card edits a WTC reference profile. Live exchange apply and connection testing remain disabled until the audited adapter exists."
-              saveIssue={configError ?? undefined}
-            />
-          )}
-          {meta.code === 'legacy_bot' && (
-            <LegacyAveragingConfigTable
-              rows={legacyRows}
-              stages={legacyStages}
-              providerAccountCount={legacyAccounts.length}
-              sourceLabel={sourceLabel}
-              sourceDetail={sourceDetail}
-              saveIssue={configError?.target === 'legacy-row' || configError?.target === 'legacy-stage' ? configError : undefined}
-            />
-          )}
-          <div className="wtc-grid wtc-grid-2">
-            {fields.map((f) => (
-              <label key={f.name} className="wtc-stack" style={{ gap: 4 }}>
-                <span style={{ fontSize: 13 }}>{f.label}</span>
-                {f.type === 'select' ? (
-                  <select className="wtc-input" name={f.name} defaultValue={cur[f.name] != null ? String(cur[f.name]) : defaults[f.name]}>
-                    {f.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
-                ) : (
-                  <input
-                    className="wtc-input"
-                    name={f.name}
-                    type={f.type}
-                    step={f.step}
-                    placeholder={f.placeholder}
-                    defaultValue={cur[f.name] != null ? String(cur[f.name]) : defaults[f.name]}
-                  />
-                )}
-                <span className="wtc-dim" style={{ fontSize: 11 }}>{f.hint}</span>
-              </label>
-            ))}
-          </div>
-          <div className="wtc-row">
-            <button className={buttonClasses('primary')} type="submit" disabled={!canCustomize}>Save custom settings</button>
-            <span className="wtc-dim" style={{ fontSize: 12 }}>Saving appends a user-owned versioned strategy profile.</span>
-          </div>
-        </form>
       </Card>
 
       <Card title="Version history">

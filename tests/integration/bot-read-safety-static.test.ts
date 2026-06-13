@@ -117,8 +117,10 @@ describe('bot read surfaces tolerate blocked/not-ready adapters', () => {
     expect(data).toContain('function sourceAdapterIsReal');
     expect(data).toContain("markUnavailable: productCode === 'tortila_bot'");
     expect(data).toContain("sourceAdapterIsReal(latestPosition?.sourceAdapter)");
-    expect(statistics).toContain('const markUnavailable = activeRead?.markUnavailable ?? false');
-    expect(statistics).toContain("className={markUnavailable ? undefined : p.unrealizedPnl < 0 ? 'wtc-down' : 'wtc-up'}");
+    // The statistics page renders the premium TortilaOverview; mark/uPnL handling now lives in the
+    // shared PositionCard, which shows "N/A" / "unavailable" when no live mark is present.
+    expect(read('apps/web/src/features/bots/tortila-overview/position-card.tsx')).toContain('unavailable');
+    expect(read('apps/web/src/features/bots/tortila-overview/position-card.tsx')).toContain('N/A');
     for (const source of [botDetail, positions]) {
       expect(source).toContain('const markUnavailable = read.markUnavailable');
       expect(source).toContain('Mark and uPnL unavailable');
@@ -134,14 +136,11 @@ describe('bot read surfaces tolerate blocked/not-ready adapters', () => {
     expect(botDetail).toMatch(/BotLaunchReadinessPanel/);
     expect(botDetail).toMatch(/loadBotReadinessForUser\(user, meta\.code, 'dashboard', \{ read \}\)/);
     expect(botDetail).toMatch(/const readinessItems = readiness\.items/);
-    expect(settings).toMatch(/Settings readiness map/);
-    expect(settings).toMatch(/loadBotReadinessForUser\(user, meta\.code, 'settings'/);
-    expect(settings).toMatch(/includeOperationalRows: false/);
-    expect(settings).toMatch(/const settingsReadiness = readiness\.items/);
-    expect(settings).toMatch(/BotContinuityPanel/);
-    expect(settings).toMatch(/uncheckedBotContinuityHealth/);
-    expect(settings).toMatch(/title="Settings continuity monitor"/);
-    expect(settings).toMatch(/dataRowsLabel="settings evidence rows"/);
+    // SETTINGS_SPEC: the premium settings page deletes the readiness map +
+    // continuity monitor. The setup page keeps them (out of scope for the spec).
+    expect(settings).not.toMatch(/Settings readiness map/);
+    expect(settings).not.toMatch(/BotContinuityPanel/);
+    expect(settings).not.toMatch(/Settings continuity monitor/);
     expect(settings).toMatch(/TORTILA_EMBEDDED_FIELD_NAMES/);
     expect(settings).toMatch(/tortilaPortfolioCaps/);
     expect(settings).toMatch(/portfolioCaps=\{tortilaPortfolioCaps\}/);
@@ -257,15 +256,14 @@ describe('bot read surfaces tolerate blocked/not-ready adapters', () => {
     expect(botSetupControlCenter).toMatch(/User\/admin boundary/);
     expect(botSetupControlCenter).toMatch(/Live control boundary/);
     expect(botSetupControlCenter).not.toMatch(/providerPubId/);
-    expect(settings).toMatch(/BotSetupControlCenter/);
-    expect(settings).toMatch(/mode="settings"/);
-    expect(settings).toMatch(/exchangeKeyState=\{readiness\.exchangeKeyState\}/);
-    expect(settings).toMatch(/legacyProviderState=\{readiness\.providerPubIdState\}/);
-    expect(settings).toMatch(/hasConfig=\{state\.source !== 'built_in'\}/);
-    expect(settings).toMatch(/activeIssue=\{configError \?\? undefined\}/);
+    // SETTINGS_SPEC: the premium settings page deletes BotSetupControlCenter and
+    // the other constructor panels (including the engineer-speak "no live-control
+    // adapter actions" provenance card). It keeps the real save-error wiring + the
+    // single honest save-bar note that nothing reaches a live exchange/bot.
+    expect(settings).not.toMatch(/BotSetupControlCenter/);
+    expect(settings).not.toMatch(/no live-control adapter actions/);
     expect(settings).toMatch(/saveIssue=\{configError \?\? undefined\}/);
-    expect(settings).toMatch(/legacyStageCapacityIssue=\{legacyStageCapacityIssue\}/);
-    expect(settings).toMatch(/no live-control adapter actions/);
+    expect(settings).toMatch(/Nothing is pushed to a live exchange or bot/);
     expect(setup).toMatch(/BotSetupControlCenter/);
     expect(setup).toMatch(/mode="setup"/);
     expect(setup).toMatch(/exchangeKeyState=\{readiness\.exchangeKeyState\}/);
@@ -284,8 +282,10 @@ describe('bot read surfaces tolerate blocked/not-ready adapters', () => {
     expect(botOperationMap).toMatch(/Secrets and raw provider payloads are not rendered/);
     expect(botDetail).toMatch(/BotContinuityPanel/);
     expect(botDetail).toMatch(/dataRows=\{scopedDataRows\}/);
-    expect(statistics).toMatch(/BotContinuityPanel/);
-    expect(statistics).toMatch(/title="Statistics continuity monitor"/);
+    // The statistics page is intentionally premium + simple: it renders the live trading terminal and
+    // does NOT carry the continuity/evidence audit panels (those remain on the bot-room + safety pages).
+    expect(statistics).not.toMatch(/BotContinuityPanel/);
+    expect(statistics).not.toMatch(/Statistics continuity monitor/);
     expect(safety).toMatch(/BotContinuityPanel/);
     expect(safety).toMatch(/title="Safety continuity monitor"/);
     expect(botContinuity).toMatch(/export function buildBotContinuitySummary/);
@@ -299,7 +299,7 @@ describe('bot read surfaces tolerate blocked/not-ready adapters', () => {
     expect(botContinuityPanel).toMatch(/worker heartbeat, scoped runtime snapshots, data freshness/);
     expect(botContinuityPanel).not.toMatch(/getBotAdapter|fetch\(|vault\.open|startBot|stopBot|applyConfig|retest|apiKey|apiSecret|sealed|Connection verified/);
     expect(botDetail).toMatch(/BotRuntimeEvidencePanel/);
-    expect(statistics).toMatch(/BotRuntimeEvidencePanel/);
+    expect(statistics).not.toMatch(/BotRuntimeEvidencePanel/);
     expect(botRuntimeEvidence).toMatch(/export function BotRuntimeEvidencePanel/);
     expect(botRuntimeEvidence).toMatch(/Runtime evidence ladder/);
     expect(botRuntimeEvidence).toMatch(/journal -> worker -> WTC DB snapshot -> scoped page data/);
@@ -364,8 +364,9 @@ describe('bot read surfaces tolerate blocked/not-ready adapters', () => {
     expect(safety).toMatch(/WarningSummaryPanel/);
     expect(safety).toMatch(/warningSummary\.activeCount/);
     expect(safety).toMatch(/tone=\{active > 0 \? 'down' : undefined\}/);
-    expect(statistics).toMatch(/WarningSummaryPanel/);
-    expect(statistics).toMatch(/\['metrics', 'positions', 'trades', 'equityCurve', 'config', 'warnings'\]/);
+    // The statistics page reads the LIVE journal (loadTortilaLiveOverview) instead of WTC DB snapshots,
+    // and never fabricates a green all-clear or a $0 account.
+    expect(statistics).toMatch(/loadTortilaLiveOverview/);
     for (const source of [botsList, botDetail, safety, statistics]) {
       expect(source).not.toMatch(/No active safety events|No adapter warnings|Connection verified/);
       expect(source).not.toMatch(/warningSummary\.status === 'none_reported' \? 'up'/);
@@ -583,7 +584,9 @@ describe('bot config captures manual/auto intent without live control', () => {
     expect(symbolTable).toMatch(/Generated SYMBOL_CONFIGS/);
     expect(symbolTable).toMatch(/symbol@tf@system@risk@stop@add@max_units@atr@tp_rr/);
     expect(config).toMatch(/symbol_custom_/);
-    expect(settings).toMatch(/TortilaSymbolConfigTable/);
+    // Settings uses the premium TortilaCoinConfigEditor (same save contract);
+    // setup/admin keep the shared TortilaSymbolConfigTable.
+    expect(settings).toMatch(/TortilaCoinConfigEditor/);
     expect(setup).toMatch(/TortilaSymbolConfigTable/);
     expect(config).toMatch(/symbolConfigs: z\.array/);
   });
@@ -673,8 +676,9 @@ describe('bot config captures manual/auto intent without live control', () => {
     expect(botDetail).not.toMatch(/legacyAccounts\.length \|\| 1/);
     expect(statistics).not.toMatch(/legacyAccounts\.length \|\| 1/);
     expect(legacyTable).not.toMatch(/providerCount \|\| 1/);
-    expect(settings).toMatch(/Configuration source/);
-    expect(settings).toMatch(/Resolved source/);
+    // The "Configuration source" / "Resolved source" provenance cards were removed
+    // from the decluttered premium settings shell (SETTINGS_SPEC). The zero-coercion
+    // guard is what this test protects; the legacy empty-state still proves it.
     expect(settings).toMatch(/0 provider pub_id mapped/);
     expect(setup).toMatch(/Setup source/);
     expect(setup).toMatch(/Save custom settings first/);

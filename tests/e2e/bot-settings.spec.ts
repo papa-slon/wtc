@@ -37,10 +37,6 @@ function resolutionStage(page: Page, label: string) {
   return page.locator('tr').filter({ has: page.locator('td[data-label="Stage bucket"]', { hasText: label }) });
 }
 
-function tortilaStrategyBucket(page: Page, label: string) {
-  return page.locator('tr').filter({ has: page.locator('td[data-label="Turtle bucket"]', { hasText: label }) });
-}
-
 function tortilaPortfolioGuardrail(page: Page, label: string) {
   return page.locator('tr').filter({ has: page.locator('td[data-label="Portfolio guardrail"]', { hasText: label }) });
 }
@@ -82,65 +78,69 @@ test('bot settings workbench renders safe coin configuration for Tortila and Leg
 
   await page.goto('/app/bots/tortila/settings');
   await expect(page.getByRole('heading', { name: 'Configuration', exact: true })).toBeVisible();
-  await expect(page.getByText('Bot setup control center')).toBeVisible();
-  await expect(setupLayer(page, 'Default or custom')).toBeVisible();
-  await expect(setupLayer(page, 'Exchange key')).toBeVisible();
-  await expect(setupLayer(page, 'Coin strategy map')).toBeVisible();
-  await expect(setupLayer(page, 'Live control boundary')).toBeVisible();
-  await expect(page.getByText('Basic settings path')).toBeVisible();
-  await expect(quickPathLayer(page, '2. Coin strategy').locator('td[data-label="What it means"]')).toContainText('System');
-  await expect(quickPathLayer(page, '3. Portfolio caps').locator('td[data-label="What it means"]')).toContainText('Directional cap');
-  await expect(quickPathLayer(page, '4. Exchange key').locator('td[data-label="What it means"]')).toContainText('live exchange ping is not run here');
-  await expect(quickPathLayer(page, '5. Statistics').locator('td[data-label="What it means"]')).toContainText('admin views are read-only');
-  await expect(quickPathLayer(page, '7. Live boundary').locator('td[data-label="What it means"]')).toContainText('No live apply');
-  await expect(page.getByRole('link', { name: 'Open settings editor' })).toHaveAttribute('href', '#custom-settings');
-  await expect(page.getByText('Settings readiness map')).toBeVisible();
-  await expect(page.getByText('Settings continuity monitor')).toBeVisible();
-  await expect(page.locator('td[data-label="Proof"]', { hasText: 'settings evidence rows' }).first()).toBeVisible();
-  await expect(page.getByRole('row', { name: /Live apply.*Disabled/ })).toBeVisible();
-  await expect(page.getByText('Private exchange connection')).toBeVisible();
+  // ----- Premium Tortila settings page (redesigned per-coin editor) -----
+  // Resolved-source status pill sits beside the kept "Configuration" heading.
+  await expect(
+    page.locator('.wtc-pill').filter({ hasText: /built-in fallback|custom v\d+|system v\d+/ }).first(),
+  ).toBeVisible();
+  // Bot section tab strip with Settings active.
+  const tortilaSubNav = page.getByRole('navigation', { name: 'Bot sections' });
+  await expect(tortilaSubNav).toBeVisible();
+  await expect(tortilaSubNav.getByRole('link', { name: 'Settings', exact: true })).toHaveAttribute('aria-current', 'page');
+  // Source + reference cards.
+  await expect(page.getByRole('heading', { name: 'Configuration source', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Settings source', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Reference profiles', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Private exchange connection', exact: true })).toBeVisible();
   await expect(page.getByText(/No encrypted exchange key saved|No live exchange ping is claimed|Exchange ping unavailable|Check WTC vault readiness/).first()).toBeVisible();
-  await expect(page.getByText('Per-coin Tortila configuration')).toBeVisible();
-  await expect(page.getByText('Search the Tortila/BingX swap catalog').first()).toBeVisible();
-  await expect(page.getByText('Effective settings review')).toBeVisible();
-  await expect(page.getByText('Settings continuity monitor')).toBeVisible();
-  await expect(page.getByText('Effective Tortila settings review')).toBeVisible();
-  await expect(page.getByText('How this bot will operate')).toBeVisible();
-  await expect(operationLayer(page, '2. Coin strategy map')).toBeVisible();
-  await expect(operationLayer(page, '4. Runtime evidence')).toBeVisible();
-  await expect(operationLayer(page, '6. Admin visibility')).toBeVisible();
-  await expect(page.getByText('Coin plan')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Tortila strategy map' })).toBeVisible();
-  await expect(page.getByText('Draft map groups visible coin rows by Turtle system')).toBeVisible();
-  await expect(page.getByText('Candidate labels show row number, symbol, timeframe, system, risk, stop, add step, max units, ATR, and TP before save')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Portfolio caps' })).toBeVisible();
-  await expect(page.getByText('Edit the reference-level limits that are saved with this coin map')).toBeVisible();
-  await expect(page.locator('input[name="maxOpenSymbols"]')).toBeVisible();
-  await expect(page.locator('input[name="maxTotalUnits"]')).toBeVisible();
-  await expect(page.locator('input[name="maxUnitsPerDirection"]')).toBeVisible();
-  await expect(tortilaPortfolioGuardrail(page, 'Max open symbols').locator('td[data-label="Draft pressure"]')).toContainText('5 draft coins');
-  await expect(tortilaPortfolioGuardrail(page, 'Max total units').locator('td[data-label="Draft pressure"]')).toContainText('20 draft max units');
-  await expect(tortilaPortfolioGuardrail(page, 'Drawdown halt').locator('td[data-label="Reference cap"]')).toContainText('35%');
-  await page.locator('input[name="maxOpenSymbols"]').fill('4');
-  await expect(tortilaPortfolioGuardrail(page, 'Max open symbols').locator('td[data-label="Status"]')).toContainText('draft over reference cap');
-  await page.locator('input[name="maxTotalUnits"]').fill('25');
-  await expect(tortilaPortfolioGuardrail(page, 'Max total units').locator('td[data-label="Status"]')).toContainText('draft inside reference cap');
-  await expect(page.locator('td[data-label="Coin candidates"]').filter({ hasText: '#1 XRP/USDT:USDT' }).first()).toBeVisible();
-  await page.locator('select[name="system_0"]').selectOption('1');
-  await expect(tortilaStrategyBucket(page, 'System 1 (20/10)').locator('td[data-label="Coin candidates"]')).toContainText('#1 XRP/USDT:USDT');
+
+  // Save form keeps its id + Strategy mode select + Save button (byte-compatible action).
+  const customForm = page.locator('form#custom-settings');
+  await expect(customForm).toBeVisible();
+  await expect(customForm.locator('select[name="operationMode"]')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save custom settings' })).toBeVisible();
+
+  // Premium per-coin cards: the first card renders the saved XRP coin.
+  const coinSymbol0 = page.locator('input[name="symbol_0"]');
+  await expect(coinSymbol0).toHaveValue('XRP/USDT:USDT');
+  const symbolListId = await coinSymbol0.getAttribute('list');
+  expect(symbolListId, 'coin combobox is wired to a catalog datalist').toBeTruthy();
+  await expect(page.locator(`datalist[id="${symbolListId}"]`)).toHaveCount(1);
+  await expect(customForm.getByText('Coin', { exact: true }).first()).toBeVisible();
+  const system0 = page.locator('select[name="system_0"]');
+  await expect(system0).toBeVisible();
+  await expect(system0.locator('option')).toHaveText(['System 2 (55/20)', 'System 1 (20/10)']);
+  await expect(customForm.getByText('Turtle system', { exact: true }).first()).toBeVisible();
+  await expect(page.locator('input[name="risk_0"]')).toBeVisible();
+  await expect(page.locator('input[name="stop_0"]')).toBeVisible();
+
+  // Live card preview reacts to edits (the old strategy-map table is gone).
+  const coinCard0 = page.locator('#tortila-symbol-1');
+  await system0.selectOption('1');
+  await expect(coinCard0.locator('.tset-sys-chip')).toHaveText('System 1');
   await page.locator('input[name="risk_0"]').fill('0.7');
-  await expect(tortilaStrategyBucket(page, 'System 1 (20/10)').locator('td[data-label="Coin candidates"]')).toContainText('risk 0.7%');
-  await expect(page.getByText('Manual symbol override').first()).toBeVisible();
-  await expect(page.locator('input[name="symbol_0"]')).toHaveAttribute('list', 'symbol_0-catalog');
-  await expect(page.getByText('Turtle system').first()).toBeVisible();
-  await expect(page.getByText('Runtime export preview (draft)')).toBeVisible();
-  await expect(page.getByText('Generated SYMBOL_CONFIGS (draft)')).toBeVisible();
-  await expect(page.getByLabel('Generated SYMBOL_CONFIGS draft')).toContainText('XRP/USDT:USDT@4h@1@0.007@2@1@4@20@0');
-  await expect(page.getByText('Copy draft is for manual review only')).toBeVisible();
-  await expect(page.getByText('Download config export uses the last saved WTC reference version')).toBeVisible();
-  const copyDraft = page.getByRole('button', { name: 'Copy draft SYMBOL_CONFIGS' });
-  await expect(copyDraft).toBeEnabled();
-  await expect(copyDraft).toHaveAttribute('data-copy-value', /XRP\/USDT:USDT@4h@1@0\.007@2@1@4@20@0/);
+  await expect(page.locator('input[name="risk_0"]')).toHaveValue('0.7');
+  await expect(coinCard0.getByText('standard risk')).toBeVisible();
+
+  // Portfolio caps live inside a collapsed <details>; cap inputs appear only after expanding.
+  const capsSummary = page.locator('summary.tset-caps-summary', { hasText: 'Portfolio caps' });
+  await expect(capsSummary).toBeVisible();
+  await expect(page.locator('input[name="maxOpenSymbols"]')).toBeHidden();
+  await capsSummary.click();
+  for (const cap of ['maxOpenSymbols', 'maxTotalUnits', 'maxUnitsPerDirection', 'haltDrawdownPercent', 'dailyMaxLossPercent', 'maxNewEntriesPerTick']) {
+    await expect(page.locator(`input[name="${cap}"]`)).toBeVisible();
+  }
+
+  // Advanced (leverage + compatibility fields) is a second collapsed group.
+  const advancedSummary = page.locator('summary.tset-caps-summary', { hasText: 'Advanced' });
+  await expect(advancedSummary).toBeVisible();
+  await advancedSummary.click();
+  await expect(customForm.locator('[name="leverage"]')).toBeVisible();
+
+  // Retained reference/audit cards.
+  await expect(page.getByRole('heading', { name: 'Version history', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Safety events', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Export current reference config', exact: true })).toBeVisible();
   const tortilaExport = page.getByRole('link', { name: 'Download last saved reference export' });
   await expect(tortilaExport).toHaveAttribute('href', '/api/bots/tortila/config-export');
   await expect(page.getByText('Download the saved WTC reference settings in a bot-native format')).toBeVisible();
@@ -247,14 +247,13 @@ test('Tortila invalid coin settings return a row-targeted save error', async ({ 
   await page.getByRole('button', { name: 'Save custom settings' }).click();
 
   await expect(page).toHaveURL(/\/app\/bots\/tortila\/settings\?err=config&issue=tortila-row-risk&row=1/);
-  await expect(setupLayer(page, 'Validation issue')).toBeVisible();
-  const fixRowLink = page.getByRole('link', { name: 'Fix row' });
-  await expect(fixRowLink).toHaveAttribute('href', '#tortila-symbol-1');
   const rowAlert = page.locator('#tortila-symbol-1 [role="alert"]');
   await expect(rowAlert).toBeVisible();
-  await fixRowLink.click();
-  await expect(page).toHaveURL(/#tortila-symbol-1$/);
-  expect(await targetInViewport(page, '#tortila-symbol-1 [role="alert"]'), 'Tortila row alert is visible after Fix row').toBe(true);
+  // Premium settings page has no setup-control-center "Fix row" link; the error renders
+  // inline inside the offending coin card and the input is flagged + wired to that alert.
+  await expect(page.locator('input[name="risk_0"]')).toHaveAttribute('aria-invalid', 'true');
+  await expect(page.locator('input[name="risk_0"]')).toHaveAttribute('aria-describedby', 'tortila-symbol-1-save-error');
+  await expect(page.getByText(/this failed draft was not saved and was not applied to the live bot/)).toBeVisible();
   await expect(rowAlert.getByText('Fix Tortila coin slot 1')).toBeVisible();
   await expect(rowAlert.getByText('Risk % must be between 0.1 and 3')).toBeVisible();
   await expect(page.getByText('Connection verified')).toHaveCount(0);
@@ -316,14 +315,16 @@ test('Tortila invalid portfolio caps return a top-level caps save error', async 
   await loginUser(page);
 
   await page.goto('/app/bots/tortila/settings');
+  // Portfolio caps live in a collapsed <details>; open it before editing a cap.
+  await page.locator('summary.tset-caps-summary', { hasText: 'Portfolio caps' }).click();
   await page.locator('input[name="maxOpenSymbols"]').fill('21');
   await page.getByRole('button', { name: 'Save custom settings' }).click();
 
   await expect(page).toHaveURL(/\/app\/bots\/tortila\/settings\?err=config&issue=tortila-portfolio-limit/);
-  await expect(setupLayer(page, 'Validation issue')).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Fix caps' })).toHaveAttribute('href', '#tortila-portfolio-caps');
-  await expect(page.getByRole('link', { name: 'Fix row' })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: 'Fix stage' })).toHaveCount(0);
+  // No setup-control-center fix links on the premium page; the cap error surfaces a
+  // page-level banner and an inline caps alert, and must not spill into a coin-row alert.
+  await expect(page.getByText(/this failed draft was not saved and was not applied to the live bot/)).toBeVisible();
+  await expect(page.locator('#tortila-symbol-1-save-error')).toHaveCount(0);
   const portfolioAlert = page.locator('#tortila-portfolio-caps-save-error');
   await expect(portfolioAlert).toBeVisible();
   await expect(portfolioAlert.getByText('Fix Tortila portfolio limits')).toBeVisible();
@@ -350,11 +351,12 @@ test('Tortila invalid portfolio caps return a top-level caps save error', async 
   expect(await noHScroll(page), 'Tortila risk cap error scrolls horizontally').toBe(true);
 
   await page.goto('/app/bots/tortila/settings');
+  // Open the collapsed portfolio caps <details> before editing the throttle cap.
+  await page.locator('summary.tset-caps-summary', { hasText: 'Portfolio caps' }).click();
   await page.locator('input[name="maxNewEntriesPerTick"]').fill('21');
   await page.getByRole('button', { name: 'Save custom settings' }).click();
 
   await expect(page).toHaveURL(/\/app\/bots\/tortila\/settings\?err=config&issue=tortila-entry-throttle/);
-  await expect(setupLayer(page, 'Validation issue')).toBeVisible();
   const throttleAlert = page.locator('#tortila-portfolio-caps-save-error');
   await expect(throttleAlert).toBeVisible();
   await expect(throttleAlert.getByText('Fix Tortila entry throttle')).toBeVisible();
