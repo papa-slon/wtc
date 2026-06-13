@@ -6,56 +6,79 @@ const ROOT = process.cwd();
 const read = (rel: string): string => readFileSync(resolve(ROOT, rel), 'utf8');
 
 const statsPage = read('apps/web/src/app/(app)/app/bots/statistics/page.tsx');
-const statsPanels = read('apps/web/src/features/bots/statistics-panels.tsx');
-const statsCommandCenter = read('apps/web/src/features/bots/BotStatisticsCommandCenter.tsx');
-const runtimeEvidence = read('apps/web/src/features/bots/BotRuntimeEvidencePanel.tsx');
+const overviewData = read('apps/web/src/features/bots/tortila-overview-data.ts');
+const overviewIndex = read('apps/web/src/features/bots/tortila-overview/index.tsx');
 const journalPage = read('apps/web/src/app/(app)/app/bots/[bot]/journal/page.tsx');
 const journalFeature = read('apps/web/src/features/bots/journal.ts');
 const subnav = read('apps/web/src/components/BotSubNav.tsx');
 const botsList = read('apps/web/src/app/(app)/app/bots/page.tsx');
 
-describe('bot statistics surface', () => {
-  it('ships a shared statistics page with bot selector and safe per-strategy copy', () => {
+describe('bot statistics surface (premium + simple)', () => {
+  it('ships a clean premium statistics page with a bot selector', () => {
     expect(statsPage).toMatch(/Trading bot performance/);
     expect(statsPage).toMatch(/BOT_LIST\.map/);
-    expect(statsPage).toMatch(/Different strategies are not blended into one fake win rate/);
-    expect(statsPage).toMatch(/Portfolio snapshot/);
-    expect(statsPage).toMatch(/bots with metrics/);
-    expect(statsPage).toMatch(/partialMoney/);
-    expect(statsPage).toMatch(/BotJournalPanels/);
-    expect(statsPage).toMatch(/BotOperationMapPanel/);
-    expect(statsPage).toMatch(/Statistics operation map/);
-    expect(statsPage).toMatch(/BotRuntimeEvidencePanel/);
-    expect(statsPage).toMatch(/Statistics evidence ladder/);
-    expect(statsPage).toMatch(/BotStatisticsCommandCenter/);
-    expect(statsCommandCenter).toMatch(/Statistics command center/);
-    expect(statsPage).toMatch(/operationReview\.metrics/);
+    expect(statsPage).toMatch(/\/app\/bots\/statistics\?bot=\$\{bot\.slug\}/);
+    // Premium Tortila terminal is rendered, not the old audit panels.
+    expect(statsPage).toMatch(/import \{ TortilaOverview \} from '@\/features\/bots\/tortila-overview'/);
+    expect(statsPage).toMatch(/<TortilaOverview/);
   });
 
-  it('uses safe read models and never direct adapter calls', () => {
-    expect(statsPage).toMatch(/loadBotReadModel/);
+  it('removes the cluttered audit panels entirely (continuity / operation map / evidence ladder / command center)', () => {
+    expect(statsPage).not.toMatch(/BotContinuityPanel/);
+    expect(statsPage).not.toMatch(/BotOperationMapPanel/);
+    expect(statsPage).not.toMatch(/BotRuntimeEvidencePanel/);
+    expect(statsPage).not.toMatch(/BotStatisticsCommandCenter/);
+    expect(statsPage).not.toMatch(/Statistics continuity monitor/);
+    expect(statsPage).not.toMatch(/Statistics operation map/);
+    expect(statsPage).not.toMatch(/Statistics evidence ladder/);
+    expect(statsPage).not.toMatch(/Statistics command center/);
+    expect(statsPage).not.toMatch(/workerHeartbeatStatus/);
+    expect(statsPage).not.toMatch(/loadBotReadinessForUser/);
+  });
+
+  it('reads LIVE data from the journal (not stale WTC DB snapshots) and never fabricates $0', () => {
+    expect(statsPage).toMatch(/loadTortilaLiveOverview/);
+    // The page itself never calls the adapter factory or fetch directly (token stays server-side in the loader).
     expect(statsPage).not.toMatch(/getBotAdapter/);
-    expect(statsPage).toMatch(/No bot metrics available/);
-    expect(statsPage).toMatch(/legacyLiveConfig/);
-    expect(statsPage).toMatch(/LegacyOperationsPanel/);
-    expect(statsPage).toMatch(/loadBotConfig/);
-    expect(statsPage).toMatch(/buildBotConfigReview/);
+    expect(statsPage).not.toMatch(/fetch\(/);
+    // Honest empty-data guard: an all-zero journal payload is reported as `empty`, not a live $0 account.
+    expect(overviewData).toMatch(/status: 'empty'/);
+    expect(overviewData).toMatch(/no equity, trades, or open positions/);
+    expect(overviewData).toMatch(/createHttpTortilaAdapter/);
+    expect(overviewData).toMatch(/walletEquity > 0 \|\| trades\.length > 0 \|\| positions\.length > 0/);
   });
 
-  it('uses the shared warning summary state instead of raw empty warning claims', () => {
-    expect(statsPage).toMatch(/WarningSummaryPanel/);
-    expect(statsPage).toMatch(/Risk and status notes/);
-    expect(statsPage).toMatch(/\['metrics', 'positions', 'trades', 'equityCurve', 'config', 'warnings'\]/);
-    expect(statsPage).toMatch(/Warning state unavailable/);
-    expect(statsPage).toMatch(/Bot room links and limitations/);
-    expect(statsPage).not.toMatch(/No adapter warnings/);
+  it('shows exactly one mode chip and one health chip — no evidence ladder of statuses', () => {
+    expect(statsPage).toMatch(/liveHealthChip/);
+    expect(statsPage).toMatch(/StatusPill/);
+    // Single mode label derived from the journal demo/live flag.
+    expect(statsPage).toMatch(/live\.mode === 'live'/);
   });
 
-  it('renders responsive tables with data labels and an honest no-equity state', () => {
-    expect(statsPage).toMatch(/wtc-table-wrap/);
-    expect(statsPage).toMatch(/data-label="Symbol"/);
-    expect(statsPage).toMatch(/No equity curve available/);
-    expect(statsPage).toMatch(/does not expose enough equity history/);
+  it('renders an honest not-configured / unreachable / empty state instead of stale positions', () => {
+    expect(statsPage).toMatch(/Live data unavailable/);
+    expect(statsPage).toMatch(/No live numbers to show/);
+    expect(statsPage).toMatch(/never fabricates a \$0 account or stale positions/);
+  });
+
+  it('has no fake action buttons — only read-only navigation links', () => {
+    expect(statsPage).not.toMatch(/type="submit"/);
+    expect(statsPage).not.toMatch(/Start bot|Stop bot|startBot|stopBot|applyConfig/);
+    expect(statsPage).toMatch(/Settings/);
+    expect(statsPage).toMatch(/Backtester/);
+  });
+
+  it('renders the full premium dashboard section family from TortilaOverview', () => {
+    for (const sym of ['Sparkline', 'EquityChart', 'DrawdownChart', 'PositionCard', 'SymbolContribution', 'MonthlyBars', 'CalendarHeatmap', 'DistributionChart', 'ActivityFeed']) {
+      expect(overviewIndex).toContain(sym);
+    }
+    expect(overviewIndex).toMatch(/Costs and tracking/);
+  });
+
+  it('keeps a Legacy tab that shows a premium-pending placeholder, not the old Codex panels', () => {
+    expect(statsPage).toMatch(/Premium view pending data source/);
+    expect(statsPage).not.toMatch(/LegacyOperationsPanel/);
+    expect(statsPage).not.toMatch(/Legacy statistics cockpit/);
   });
 
   it('is linked from the bot list and bot subnav', () => {
@@ -66,62 +89,7 @@ describe('bot statistics surface', () => {
     expect(subnav).toMatch(/\/app\/bots\/statistics\?bot=\$\{bot\}/);
   });
 
-  it('adds journal-grade panels without fabricating unavailable data', () => {
-    expect(statsPanels).toMatch(/Returns matrix/);
-    expect(statsPanels).toMatch(/Risk diagnostics/);
-    expect(statsPanels).toMatch(/Trade quality/);
-    expect(statsPanels).toMatch(/Symbol contribution/);
-    expect(statsPanels).toMatch(/Daily PnL heatmap/);
-    expect(statsPanels).toMatch(/PnL distribution/);
-    expect(statsPanels).toMatch(/Exit reasons/);
-    expect(statsPanels).toMatch(/Open risk exposure/);
-    expect(statsPanels).toMatch(/Activity feed/);
-    expect(statsPanels).toMatch(/filterZeroEquity/);
-    expect(statsPanels).toMatch(/No monthly return data/);
-    expect(statsPanels).toMatch(/No exit-reason data/);
-  });
-
-  it('renders Legacy operational statistics from safe pub_id snapshots', () => {
-    expect(statsPage).toMatch(/liveConfig=\{legacyLiveConfig\}/);
-    expect(statsPage).toMatch(/Wallet balance snapshot/);
-    expect(statsPage).toMatch(/Active orders/);
-    expect(statsPanels).toMatch(/Provider accounts/);
-    expect(statsPanels).toMatch(/Active slots/);
-    expect(statsPanels).toMatch(/Active order coverage/);
-    expect(statsPanels).toMatch(/Provider runtime snapshot unavailable/);
-    expect(statsPanels).toMatch(/DB snapshot evidence/);
-    expect(statsPanels).not.toMatch(/DB live-read/);
-    expect(statsPanels).not.toMatch(/live reads blocked/);
-  });
-
-  it('renders a runtime evidence ladder for statistics source clarity', () => {
-    expect(runtimeEvidence).toMatch(/Runtime evidence ladder/);
-    expect(runtimeEvidence).toMatch(/Journal health/);
-    expect(runtimeEvidence).toMatch(/WTC worker check/);
-    expect(runtimeEvidence).toMatch(/WTC DB snapshot/);
-    expect(runtimeEvidence).toMatch(/Scoped page data/);
-    expect(runtimeEvidence).toMatch(/equitySamples/);
-    expect(runtimeEvidence).toMatch(/provider secrets, and raw provider payloads are not rendered/);
-    expect(runtimeEvidence).not.toMatch(/getBotAdapter|fetch\(|vault\.open|startBot|stopBot|applyConfig|retest|apiKey|apiSecret|sealed|Connection verified/);
-  });
-
-  it('renders a statistics command center that links performance, settings, admin mirror, and live boundary', () => {
-    expect(statsCommandCenter).toMatch(/export function BotStatisticsCommandCenter/);
-    expect(statsCommandCenter).toMatch(/Statistics command center/);
-    expect(statsCommandCenter).toMatch(/1\. Data scope/);
-    expect(statsCommandCenter).toMatch(/2\. Performance/);
-    expect(statsCommandCenter).toMatch(/3\. Risk/);
-    expect(statsCommandCenter).toMatch(/4\. Settings link/);
-    expect(statsCommandCenter).toMatch(/5\. Admin mirror/);
-    expect(statsCommandCenter).toMatch(/6\. Live boundary/);
-    expect(statsCommandCenter).toMatch(/Admins can inspect this user-scoped settings and statistics model/);
-    expect(statsCommandCenter).toMatch(/does not run exchange pings, provider probes, live config apply, position actions, or runtime start\/stop/);
-    expect(statsCommandCenter).toMatch(/\/app\/bots\/\$\{props\.bot\}\/settings/);
-    expect(statsCommandCenter).toMatch(/\/app\/bots\/\$\{props\.bot\}\/safety/);
-    expect(statsCommandCenter).not.toMatch(/getBotAdapter|fetch\(|vault\.open|startBot|stopBot|applyConfig|retest|apiKey|apiSecret|sealed|Connection verified|type="submit"/);
-  });
-
-  it('adds a DB-first trade journal review surface without mutating imported trades', () => {
+  it('keeps the DB-first trade review journal surface intact (unrelated page)', () => {
     expect(journalPage).toMatch(/Trade review journal/);
     expect(journalPage).toMatch(/Review queue/);
     expect(journalPage).toMatch(/Save review/);

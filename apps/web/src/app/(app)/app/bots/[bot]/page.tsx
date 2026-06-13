@@ -3,8 +3,8 @@ import { notFound } from 'next/navigation';
 import { requireUser } from '@/lib/session';
 import { botAccessForUser, reasonLabel } from '@/lib/access';
 import type { BotProductCode } from '@wtc/bot-adapters';
-import { Card, SectionHeader, StatusPill, MetricCard, MetricValue, RiskWarningBanner, EmptyState, buttonClasses } from '@wtc/ui';
-import { fmtMoney, fmtPf, fmtNum } from '@/lib/format';
+import { Card, SectionHeader, StatusPill, MetricCard, RiskWarningBanner, EmptyState, buttonClasses } from '@wtc/ui';
+import { fmtMoney, fmtNum } from '@/lib/format';
 import { BotSubNav } from '@/components/BotSubNav';
 import { BotReadinessMap } from '@/features/bots/BotReadinessMap';
 import { BotOperationMapPanel } from '@/features/bots/BotOperationMapPanel';
@@ -26,6 +26,8 @@ import {
   loadBotConfig,
   tortilaSymbolConfigsFromConfig,
 } from '@/features/bots/config';
+import { TortilaOverview } from '@/features/bots/tortila-overview';
+import { loadTortilaOverviewPayload } from '@/features/bots/tortila-overview-data';
 
 const MAP: Record<string, { code: BotProductCode; name: string }> = {
   tortila: { code: 'tortila_bot', name: 'Tortila Bot' },
@@ -116,9 +118,15 @@ export default async function BotDetailPage({ params }: { params: Promise<{ bot:
 
   const caps = BOT_CAPS[meta.code];
   const backtester = backtesterPill(meta.code === 'tortila_bot' ? 'tortila' : 'legacy');
-  const [read, wtcConfig] = await Promise.all([
-    loadBotReadModelForUser(user.id, meta.code, ['metrics', 'positions', 'trades', 'config', 'warnings']),
+  const [read, wtcConfig, tortilaJournalPayload] = await Promise.all([
+    // The Tortila overview adds an equityCurve read on top of the canonical parts; legacy keeps the
+    // original 5-part request. Both branches go through the same loader so warning-summary scoping
+    // and the bot-read-safety-static contract stay identical to the existing baseline.
+    meta.code === 'tortila_bot'
+      ? loadBotReadModelForUser(user.id, meta.code, ['metrics', 'positions', 'trades', 'equityCurve', 'config', 'warnings'])
+      : loadBotReadModelForUser(user.id, meta.code, ['metrics', 'positions', 'trades', 'config', 'warnings']),
     loadBotConfig(user.id, meta.code),
+    meta.code === 'tortila_bot' ? loadTortilaOverviewPayload() : Promise.resolve(null),
   ]);
   const readiness = await loadBotReadinessForUser(user, meta.code, 'dashboard', { read });
   const { health } = read;
@@ -244,82 +252,101 @@ export default async function BotDetailPage({ params }: { params: Promise<{ bot:
         />
       )}
 
-      {metrics ? (
-        meta.code === 'legacy_bot' ? (
-          <div className="wtc-grid wtc-grid-4">
-            <MetricCard label="Wallet balance snapshot" value={fmtMoney(metrics.walletEquity)} sub={providerPubIdSummary(legacyAccounts.length)} />
-            <MetricCard label="Configured symbols" value={legacyRows.length} sub={`${legacyRsiRows} RSI / ${legacyCciRows} CCI`} />
-            <MetricCard label="Active slots" value={legacySlots.length || positions.length} sub={`${legacyStageCapacity} stage capacity`} />
-            <MetricCard label="Active orders" value={legacyOrders.length || '-'} sub="BUY / averaging / TP coverage" />
+      {meta.code === 'tortila_bot' && tortilaJournalPayload ? (
+        <TortilaOverview
+          metrics={metrics}
+          positions={positions}
+          trades={trades}
+          equityCurve={read.equityCurve.data ?? []}
+          payload={tortilaJournalPayload}
+          mode={(config?.mode === 'live' || config?.mode === 'demo' ? config.mode : 'unknown')}
+          atAth={metrics?.currentDrawdownPct !== null && metrics?.currentDrawdownPct !== undefined && metrics.currentDrawdownPct < 1e-6}
+          startDateIso={
+            tortilaJournalPayload.advanced.data?.drawdown.max_dd_start
+            ?? (read.equityCurve.data?.[0]?.t ? new Date(read.equityCurve.data[0].t).toISOString() : null)
+          }
+          todayPnl={(() => {
+            const start = new Date();
+            start.setUTCHours(0, 0, 0, 0);
+            const startMs = start.getTime();
+            return trades
+              .filter((t) => t.closedAt !== null && t.closedAt >= startMs)
+              .reduce((sum, t) => sum + (t.realizedPnl + t.funding - t.fee), 0);
+          })()}
+          pnlPctSinceStart={metrics?.roiPctSinceStart ?? 0}
+          feesTotal={metrics?.feesTotal ?? 0}
+          fundingTotal={metrics?.fundingTotal ?? 0}
+          netPnl={metrics?.netPnlWithFees ?? 0}
+        />
+      ) : null}
+
+      {meta.code === 'legacy_bot' && (
+        <>
+          {metrics ? (
+            <div className="wtc-grid wtc-grid-4">
+              <MetricCard label="Wallet balance snapshot" value={fmtMoney(metrics.walletEquity)} sub={providerPubIdSummary(legacyAccounts.length)} />
+              <MetricCard label="Configured symbols" value={legacyRows.length} sub={`${legacyRsiRows} RSI / ${legacyCciRows} CCI`} />
+              <MetricCard label="Active slots" value={legacySlots.length || positions.length} sub={`${legacyStageCapacity} stage capacity`} />
+              <MetricCard label="Active orders" value={legacyOrders.length || '-'} sub="BUY / averaging / TP coverage" />
+            </div>
+          ) : (
+            <Card title="Metrics unavailable">
+              <EmptyState title="No metrics available from this adapter" hint="The page stays up and shows the blocker instead of fabricating zeros or crashing." />
+            </Card>
+          )}
+
+          <div className="wtc-grid wtc-grid-2">
+            <Card title="Open positions">
+              <ReadIssueBanner issue={read.positions.issue} />
+              {positions.length === 0 ? (
+                <EmptyState title="No open positions" />
+              ) : (
+                <div className="wtc-table-wrap">
+                  <table className="wtc-table">
+                    <thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Mark</th><th>uPnL</th></tr></thead>
+                    <tbody>
+                      {positions.map((p, i) => (
+                        <tr key={i}>
+                          <td data-label="Symbol">{p.symbol}</td>
+                          <td data-label="Side">{p.side}</td>
+                          <td data-label="Qty">{fmtNum(p.qty)}</td>
+                          <td data-label="Entry">{fmtNum(p.entryPrice)}</td>
+                          <td data-label="Mark">{markUnavailable ? 'N/A' : fmtNum(p.markPrice)}</td>
+                          <td data-label="uPnL" className={markUnavailable ? undefined : p.unrealizedPnl < 0 ? 'wtc-down' : 'wtc-up'}>{markUnavailable ? 'N/A' : fmtMoney(p.unrealizedPnl)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+            <Card title="Recent trades">
+              <ReadIssueBanner issue={read.trades.issue} />
+              {trades.filter((t) => t.closedAt).length === 0 ? (
+                <EmptyState title="No closed trades" hint="Win rate / profit factor show dashes until real closed trades exist." />
+              ) : (
+                <div className="wtc-table-wrap">
+                  <table className="wtc-table">
+                    <thead><tr><th>Symbol</th><th>Side</th><th>Realized</th><th>Fee</th></tr></thead>
+                    <tbody>
+                      {trades.filter((t) => t.closedAt).slice(0, 8).map((t) => (
+                        <tr key={t.id}>
+                          <td data-label="Symbol">{t.symbol}</td>
+                          <td data-label="Side">{t.side}</td>
+                          <td data-label="Realized" className={t.realizedPnl >= 0 ? 'wtc-up' : 'wtc-down'}>{fmtMoney(t.realizedPnl)}</td>
+                          <td data-label="Fee">{fmtMoney(t.fee)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
           </div>
-        ) : (
-          <div className="wtc-grid wtc-grid-4">
-            <MetricCard label="Wallet equity" value={fmtMoney(metrics.walletEquity)} />
-            <MetricCard label="Closed PnL" value={fmtMoney(metrics.closedPnl)} tone={metrics.closedPnl >= 0 ? 'up' : 'down'} />
-            <MetricCard label="Unrealized PnL" value={markUnavailable ? 'N/A' : fmtMoney(metrics.unrealizedPnl)} tone={!markUnavailable && metrics.unrealizedPnl < 0 ? 'down' : undefined} />
-            <MetricCard label="ROI on margin" value={<MetricValue value={metrics.roiOnMarginPct} suffix="%" />} />
-            <MetricCard label="Win rate" value={<MetricValue value={metrics.winRatePct} suffix="%" />} sub={`${metrics.winCount}/${metrics.tradeCount} trades`} />
-            <MetricCard label="Profit factor" value={fmtPf(metrics.profitFactor)} />
-            <MetricCard label="Max drawdown" value={<MetricValue value={metrics.maxDrawdownPct} suffix="%" />} tone="down" />
-            <MetricCard label="Open risk (margin)" value={fmtMoney(metrics.openRisk)} />
-          </div>
-        )
-      ) : (
-        <Card title="Metrics unavailable">
-          <EmptyState title="No metrics available from this adapter" hint="The page stays up and shows the blocker instead of fabricating zeros or crashing." />
-        </Card>
+        </>
       )}
 
-      <div className="wtc-grid wtc-grid-2">
-        <Card title="Open positions">
-          <ReadIssueBanner issue={read.positions.issue} />
-          {positions.length === 0 ? (
-            <EmptyState title="No open positions" />
-          ) : (
-            <div className="wtc-table-wrap">
-              <table className="wtc-table">
-                <thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Mark</th><th>uPnL</th></tr></thead>
-                <tbody>
-                  {positions.map((p, i) => (
-                    <tr key={i}>
-                      <td data-label="Symbol">{p.symbol}</td>
-                      <td data-label="Side">{p.side}</td>
-                      <td data-label="Qty">{fmtNum(p.qty)}</td>
-                      <td data-label="Entry">{fmtNum(p.entryPrice)}</td>
-                      <td data-label="Mark">{markUnavailable ? 'N/A' : fmtNum(p.markPrice)}</td>
-                      <td data-label="uPnL" className={markUnavailable ? undefined : p.unrealizedPnl < 0 ? 'wtc-down' : 'wtc-up'}>{markUnavailable ? 'N/A' : fmtMoney(p.unrealizedPnl)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
-        <Card title="Recent trades">
-          <ReadIssueBanner issue={read.trades.issue} />
-          {trades.filter((t) => t.closedAt).length === 0 ? (
-            <EmptyState title="No closed trades" hint="Win rate / profit factor show dashes until real closed trades exist." />
-          ) : (
-            <div className="wtc-table-wrap">
-              <table className="wtc-table">
-                <thead><tr><th>Symbol</th><th>Side</th><th>Realized</th><th>Fee</th></tr></thead>
-                <tbody>
-                  {trades.filter((t) => t.closedAt).slice(0, 8).map((t) => (
-                    <tr key={t.id}>
-                      <td data-label="Symbol">{t.symbol}</td>
-                      <td data-label="Side">{t.side}</td>
-                      <td data-label="Realized" className={t.realizedPnl >= 0 ? 'wtc-up' : 'wtc-down'}>{fmtMoney(t.realizedPnl)}</td>
-                      <td data-label="Fee">{fmtMoney(t.fee)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
-      </div>
-
-      <Card title="Configuration & controls">
+      <Card title="Configuration">
         <div className="wtc-grid wtc-grid-3" style={{ marginBottom: 16 }}>
           <MetricCard label="WTC mode" value={modeLabel(wtcConfig.current?.operationMode)} sub={wtcConfig.sourceLabel} />
           <MetricCard label="Config storage" value={wtcConfig.mode === 'postgres' ? 'Postgres' : 'Demo'} sub={wtcConfig.mode === 'postgres' ? 'versioned/audited' : 'in-memory preview'} />
@@ -328,6 +355,9 @@ export default async function BotDetailPage({ params }: { params: Promise<{ bot:
         <div className="wtc-row" style={{ marginBottom: 16 }}>
           <Link href={`/app/bots/${bot}/settings`} className={buttonClasses('secondary')}>Configure bot</Link>
           <Link href={`/app/bots/${bot}/setup`} className={buttonClasses('ghost')}>Guided setup</Link>
+          {caps.hasBacktester && (
+            <Link href={`/app/bots/${bot}/backtester`} className={buttonClasses('ghost')}>Backtester</Link>
+          )}
         </div>
         {config ? (
           <ConfigSummary productCode={meta.code} runtimeConfig={runtimeConfig} referenceConfig={wtcConfig.current} referenceLabel={wtcConfig.sourceLabel} />
@@ -337,15 +367,8 @@ export default async function BotDetailPage({ params }: { params: Promise<{ bot:
             <EmptyState title="Runtime config read unavailable" hint="WTC settings remain available and versioned; live runtime config reads stay blocked until the adapter is verified." />
           </>
         )}
-        <div className="wtc-row" style={{ marginTop: 16 }}>
-          <button className={buttonClasses('ghost')} disabled title="Disabled: live control requires an audited adapter">Start bot (disabled)</button>
-          <button className={buttonClasses('ghost')} disabled title="Disabled: 'stop' never closes positions; requires audited adapter">Stop bot (disabled)</button>
-          {caps.hasBacktester && (
-            <Link href={`/app/bots/${bot}/backtester`} className={buttonClasses('secondary')}>Backtester</Link>
-          )}
-        </div>
         <p className="wtc-dim" style={{ fontSize: 12, marginTop: 10 }}>
-          This room is read-only monitoring. Start, stop, and live config apply are not available here.
+          Read-only monitoring. Start, stop, and live config apply require an audited adapter and are intentionally not exposed on this screen.
         </p>
       </Card>
 

@@ -117,8 +117,10 @@ describe('bot read surfaces tolerate blocked/not-ready adapters', () => {
     expect(data).toContain('function sourceAdapterIsReal');
     expect(data).toContain("markUnavailable: productCode === 'tortila_bot'");
     expect(data).toContain("sourceAdapterIsReal(latestPosition?.sourceAdapter)");
-    expect(statistics).toContain('const markUnavailable = activeRead?.markUnavailable ?? false');
-    expect(statistics).toContain("className={markUnavailable ? undefined : p.unrealizedPnl < 0 ? 'wtc-down' : 'wtc-up'}");
+    // The statistics page renders the premium TortilaOverview; mark/uPnL handling now lives in the
+    // shared PositionCard, which shows "N/A" / "unavailable" when no live mark is present.
+    expect(read('apps/web/src/features/bots/tortila-overview/position-card.tsx')).toContain('unavailable');
+    expect(read('apps/web/src/features/bots/tortila-overview/position-card.tsx')).toContain('N/A');
     for (const source of [botDetail, positions]) {
       expect(source).toContain('const markUnavailable = read.markUnavailable');
       expect(source).toContain('Mark and uPnL unavailable');
@@ -284,8 +286,10 @@ describe('bot read surfaces tolerate blocked/not-ready adapters', () => {
     expect(botOperationMap).toMatch(/Secrets and raw provider payloads are not rendered/);
     expect(botDetail).toMatch(/BotContinuityPanel/);
     expect(botDetail).toMatch(/dataRows=\{scopedDataRows\}/);
-    expect(statistics).toMatch(/BotContinuityPanel/);
-    expect(statistics).toMatch(/title="Statistics continuity monitor"/);
+    // The statistics page is intentionally premium + simple: it renders the live trading terminal and
+    // does NOT carry the continuity/evidence audit panels (those remain on the bot-room + safety pages).
+    expect(statistics).not.toMatch(/BotContinuityPanel/);
+    expect(statistics).not.toMatch(/Statistics continuity monitor/);
     expect(safety).toMatch(/BotContinuityPanel/);
     expect(safety).toMatch(/title="Safety continuity monitor"/);
     expect(botContinuity).toMatch(/export function buildBotContinuitySummary/);
@@ -299,7 +303,7 @@ describe('bot read surfaces tolerate blocked/not-ready adapters', () => {
     expect(botContinuityPanel).toMatch(/worker heartbeat, scoped runtime snapshots, data freshness/);
     expect(botContinuityPanel).not.toMatch(/getBotAdapter|fetch\(|vault\.open|startBot|stopBot|applyConfig|retest|apiKey|apiSecret|sealed|Connection verified/);
     expect(botDetail).toMatch(/BotRuntimeEvidencePanel/);
-    expect(statistics).toMatch(/BotRuntimeEvidencePanel/);
+    expect(statistics).not.toMatch(/BotRuntimeEvidencePanel/);
     expect(botRuntimeEvidence).toMatch(/export function BotRuntimeEvidencePanel/);
     expect(botRuntimeEvidence).toMatch(/Runtime evidence ladder/);
     expect(botRuntimeEvidence).toMatch(/journal -> worker -> WTC DB snapshot -> scoped page data/);
@@ -364,8 +368,9 @@ describe('bot read surfaces tolerate blocked/not-ready adapters', () => {
     expect(safety).toMatch(/WarningSummaryPanel/);
     expect(safety).toMatch(/warningSummary\.activeCount/);
     expect(safety).toMatch(/tone=\{active > 0 \? 'down' : undefined\}/);
-    expect(statistics).toMatch(/WarningSummaryPanel/);
-    expect(statistics).toMatch(/\['metrics', 'positions', 'trades', 'equityCurve', 'config', 'warnings'\]/);
+    // The statistics page reads the LIVE journal (loadTortilaLiveOverview) instead of WTC DB snapshots,
+    // and never fabricates a green all-clear or a $0 account.
+    expect(statistics).toMatch(/loadTortilaLiveOverview/);
     for (const source of [botsList, botDetail, safety, statistics]) {
       expect(source).not.toMatch(/No active safety events|No adapter warnings|Connection verified/);
       expect(source).not.toMatch(/warningSummary\.status === 'none_reported' \? 'up'/);

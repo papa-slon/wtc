@@ -6,52 +6,42 @@ const ROOT = process.cwd();
 const read = (rel: string): string => readFileSync(resolve(ROOT, rel), 'utf8');
 
 const userStatsPage = read('apps/web/src/app/(app)/app/bots/statistics/page.tsx');
-const statsCommandCenter = read('apps/web/src/features/bots/BotStatisticsCommandCenter.tsx');
-const statsPanels = read('apps/web/src/features/bots/statistics-panels.tsx');
+const overviewData = read('apps/web/src/features/bots/tortila-overview-data.ts');
 const adminUserBots = read('apps/web/src/app/admin/users/[userId]/bots/page.tsx');
 
 describe('bot statistics completion clarity', () => {
-  it('promotes aggregate worker heartbeat into the user statistics command center', () => {
-    expect(userStatsPage).toMatch(/loadBotReadinessForUser\(user, active\.code, 'dashboard', \{ read: activeRead \}\)/);
-    expect(userStatsPage).toMatch(/workerHeartbeatStatus/);
-    expect(userStatsPage).toMatch(/workerHeartbeatLabel=\{workerHeartbeat\.label\}/);
-    expect(userStatsPage).toMatch(/workerHeartbeatDetail=\{workerHeartbeat\.detail\}/);
-    expect(statsCommandCenter).toMatch(/Worker heartbeat/);
-    expect(statsCommandCenter).toMatch(/0\. Worker heartbeat/);
-    expect(statsCommandCenter).toMatch(/target='worker'/);
-    expect(statsCommandCenter).toMatch(/Statistics are not treated as green unless/);
+  it('user statistics page is the live premium terminal, free of the old audit machinery', () => {
+    // The cluttered worker-heartbeat / readiness / command-center machinery is gone from this page.
+    expect(userStatsPage).not.toMatch(/loadBotReadinessForUser/);
+    expect(userStatsPage).not.toMatch(/workerHeartbeatStatus/);
+    expect(userStatsPage).not.toMatch(/BotStatisticsCommandCenter/);
+    expect(userStatsPage).not.toMatch(/Worker heartbeat/);
+    // It reads live journal data and renders the premium overview.
+    expect(userStatsPage).toMatch(/loadTortilaLiveOverview/);
+    expect(userStatsPage).toMatch(/<TortilaOverview/);
   });
 
-  it('renders Legacy operational completion without fabricating performance history', () => {
-    expect(statsPanels).toMatch(/Legacy statistics cockpit/);
-    expect(statsPanels).toMatch(/Stage utilization/);
-    expect(statsPanels).toMatch(/Active triggers/);
-    expect(statsPanels).toMatch(/Order-symbol coverage/);
-    expect(statsPanels).toMatch(/Closed-trade history/);
-    expect(statsPanels).toMatch(/Source-proof gate/);
-    expect(statsPanels).toMatch(/sourceProofStatusLabel/);
-    expect(statsPanels).toMatch(/sourceProofMissingSummary/);
-    expect(statsPanels).toMatch(/pending import/);
-    expect(statsPanels).toMatch(/Legacy source proof blocked/);
-    expect(statsPanels).toMatch(/no durable Legacy closed-trade source is proven/);
-    expect(statsPanels).toMatch(/Win rate, profit factor, realized PnL, and attribution stay hidden/);
-    expect(statsPanels).toMatch(/Stage utilization by trigger/);
-    expect(userStatsPage).toMatch(/closedTradeCount=\{trades\.filter/);
-    expect(userStatsPage).toMatch(/legacyClosedTradeSourceProof/);
-    expect(userStatsPage).toMatch(/closedTradeSourceProof=\{legacyClosedTradeSourceProof\}/);
+  it('the deleted noise-panel component files are actually removed', () => {
+    expect(() => read('apps/web/src/features/bots/BotStatisticsCommandCenter.tsx')).toThrow();
+    expect(() => read('apps/web/src/features/bots/statistics-panels.tsx')).toThrow();
   });
 
-  it('renders Tortila journal confidence without treating live marks as proof', () => {
-    expect(statsPanels).toMatch(/Tortila journal confidence/);
-    expect(statsPanels).toMatch(/Journal trades/);
-    expect(statsPanels).toMatch(/persisted closed-trade rows/);
-    expect(statsPanels).toMatch(/Persisted journal source/);
-    expect(statsPanels).toMatch(/computed only from persisted WTC journal snapshots/);
-    expect(statsPanels).toMatch(/does not call \/api\/marks/);
-    expect(statsPanels).toMatch(/Health alone is not treated as performance proof/);
+  it('Legacy tab renders a premium-pending placeholder without fabricating performance history', () => {
+    expect(userStatsPage).toMatch(/Premium view pending data source/);
+    expect(userStatsPage).toMatch(/No fabricated metrics are shown/);
+    expect(userStatsPage).not.toMatch(/Legacy statistics cockpit/);
+    expect(userStatsPage).not.toMatch(/Stage utilization/);
   });
 
-  it('mirrors completion clarity into selected-user admin drilldown', () => {
+  it('Tortila live read never treats an empty journal as a real $0 account', () => {
+    expect(overviewData).toMatch(/HONEST EMPTY GUARD/);
+    expect(overviewData).toMatch(/status: 'empty'/);
+    expect(overviewData).toMatch(/Live numbers are hidden rather than shown as a fabricated \$0 account/);
+    // walletEquity is mapped from /api/summary last_equity by the HTTP adapter — the live read uses it.
+    expect(overviewData).toMatch(/adapter\.getMetrics\('tortila_bot'\)/);
+  });
+
+  it('mirrors completion clarity into selected-user admin drilldown (unchanged admin surface)', () => {
     expect(adminUserBots).toMatch(/adminStatisticsCoverageRows/);
     expect(adminUserBots).toMatch(/statistics coverage matrix/);
     expect(adminUserBots).toMatch(/Aggregate worker precheck/);
@@ -59,30 +49,15 @@ describe('bot statistics completion clarity', () => {
     expect(adminUserBots).toMatch(/Operational coverage/);
     expect(adminUserBots).toMatch(/Journal import gate/);
     expect(adminUserBots).toMatch(/tortilaJournalImportGate/);
-    expect(adminUserBots).toMatch(/journal evidence present/);
-    expect(adminUserBots).toMatch(/persisted user-instance journal rows/);
     expect(adminUserBots).toMatch(/No \/api\/marks live call is made by this admin view/);
-    expect(adminUserBots).toMatch(/keep journal worker monitoring/);
     expect(adminUserBots).toMatch(/Source-proof gate/);
-    expect(adminUserBots).toMatch(/sourceProofStatusLabel/);
-    expect(adminUserBots).toMatch(/sourceProofMissingSummary/);
-    expect(adminUserBots).toMatch(/sourceProofSourceLabel/);
-    expect(adminUserBots).toMatch(/Legacy closed-trade source proof is evaluated before importer work from/);
-    expect(adminUserBots).toMatch(/provide source-proof artifact/);
-    expect(adminUserBots).toMatch(/Closed-trade history/);
-    expect(adminUserBots).toMatch(/Analytics status/);
-    expect(adminUserBots).toMatch(/legacyPendingMetric/);
-    expect(adminUserBots).toMatch(/pending import/);
     expect(adminUserBots).toMatch(/Legacy PF, win rate, realized PnL, and attribution are not fabricated/);
   });
 
-  it('keeps the completion surfaces read-only and secret-free', () => {
-    for (const source of [userStatsPage, statsCommandCenter, statsPanels, adminUserBots]) {
-      expect(source).not.toMatch(/getBotAdapter|vault\.open|apiKey|apiSecret|sealed|Connection verified/);
-      expect(source).not.toMatch(/startBot|stopBot|applyConfig|type="submit" name="start"/);
-    }
+  it('keeps the user statistics surface read-only and secret-free', () => {
+    expect(userStatsPage).not.toMatch(/getBotAdapter|vault\.open|apiKey|apiSecret|sealed|Connection verified/);
+    expect(userStatsPage).not.toMatch(/startBot|stopBot|applyConfig|type="submit"/);
+    // The page delegates the live read to the loader; it must not fetch the token-bearing journal itself.
     expect(userStatsPage).not.toMatch(/fetch\(/);
-    expect(statsCommandCenter).not.toMatch(/fetch\(/);
-    expect(statsPanels).not.toMatch(/fetch\(/);
   });
 });

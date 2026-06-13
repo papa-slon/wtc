@@ -114,7 +114,7 @@ describe('two-bot continuity contract fixture', () => {
 
   it('locks the Legacy runtime-vs-performance boundary when runtime reads are ok', () => {
     const legacyLive = read('apps/worker/src/legacy-live.ts');
-    const statsPanels = read('apps/web/src/features/bots/statistics-panels.tsx');
+    const statsPage = read('apps/web/src/app/(app)/app/bots/statistics/page.tsx');
 
     expect(legacyLive).toContain("const warnings = ['no_trade_history']");
     expect(legacyLive).toContain("sourceAdapter: 'legacy-db'");
@@ -124,9 +124,11 @@ describe('two-bot continuity contract fixture', () => {
     expect(legacyLive).toContain('totalFeesUsd: undefined');
     expect(legacyLive).toContain('totalFundingUsd: undefined');
     expect(legacyLive).toContain('tradeCount: 0');
-    expect(statsPanels).toContain('PF, win rate, realized PnL pending');
-    expect(statsPanels).toContain('Legacy closed-trade history pending');
-    expect(statsPanels).toContain('Win rate, profit factor, realized PnL, and attribution stay hidden');
+    // The premium statistics page replaced the old Legacy cockpit with a premium-pending placeholder
+    // that still refuses to fabricate Legacy performance numbers.
+    expect(statsPage).toContain('Premium view pending data source');
+    expect(statsPage).toContain('No fabricated metrics are shown');
+    expect(statsPage).not.toMatch(/reconstructed PnL.*\$[0-9]/);
   });
 
   it('keeps the no-env fixture separate from provider probes, managed DB, and live adapters', () => {
