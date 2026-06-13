@@ -1,12 +1,12 @@
 import Link from 'next/link';
 import { Card, EmptyState, RiskWarningBanner, SectionHeader, StatusPill, buttonClasses, type Tone } from '@wtc/ui';
 import { botAccessForUser, reasonLabel } from '@/lib/access';
-import { requireUser } from '@/lib/session';
+import { requireUser, isAdmin } from '@/lib/session';
 import { BOT_CAPS, BOT_LIST, type BotMeta } from '@/features/bots/meta';
 import { TortilaOverview } from '@/features/bots/tortila-overview';
 import { loadTortilaLiveOverview, type TortilaLiveStatus } from '@/features/bots/tortila-overview-data';
 import { LegacyOverview, LEGACY_DCA_CAPS } from '@/features/bots/legacy-overview';
-import { loadLegacyLiveOverview } from '@/features/bots/legacy-overview-data';
+import { loadLegacyLiveOverview, loadLegacyAccounts } from '@/features/bots/legacy-overview-data';
 
 export const dynamic = 'force-dynamic';
 
@@ -101,13 +101,26 @@ async function TortilaPanel() {
   );
 }
 
-/** Legacy DCA premium panel: one mode chip, one health chip, then the
- *  reconstructed DCA dashboard. Reads the SAFE read-only journal shim — money
- *  figures are reconstructed from the closed-cycle order ladder, never faked. */
-async function LegacyPanel({ meta }: { meta: BotMeta }) {
-  const live = await loadLegacyLiveOverview();
+/** Mask a public account id for display (the shim never returns exchange keys). */
+function maskPubId(s: string): string {
+  return s.length > 12 ? `${s.slice(0, 8)}…${s.slice(-4)}` : s;
+}
+
+/** Legacy DCA premium panel: one mode chip, one health chip, an admin-only
+ *  account switcher, then the reconstructed DCA dashboard. Reads the SAFE
+ *  read-only journal shim — money figures are reconstructed, never faked. */
+async function LegacyPanel({ meta, admin, account }: { meta: BotMeta; admin: boolean; account?: string }) {
+  // RBAC: only an admin may scope to a specific account; a non-admin's `account`
+  // param is IGNORED (they see the current aggregate — no cross-tenant escalation).
+  // Per-user "only my accounts" scoping is a documented follow-on.
+  const effectiveAccount = admin ? account : undefined;
+  const [live, accountsRes] = await Promise.all([
+    loadLegacyLiveOverview(effectiveAccount),
+    admin ? loadLegacyAccounts() : Promise.resolve(null),
+  ]);
   const health = liveHealthChip(live.status);
   const modeLabel = live.mode === 'live' ? 'RECON · LIVE' : 'RECON · mode n/a';
+  const accounts = accountsRes?.accounts ?? [];
 
   return (
     <div className="wtc-stack">
@@ -115,11 +128,38 @@ async function LegacyPanel({ meta }: { meta: BotMeta }) {
         <div className="wtc-row" style={{ gap: 8, flexWrap: 'wrap' }}>
           <StatusPill tone="gold">{modeLabel}</StatusPill>
           <StatusPill tone={health.tone}>{health.label}</StatusPill>
+          {admin && (
+            <StatusPill tone="neutral">{effectiveAccount ? `account ${maskPubId(effectiveAccount)}` : 'all accounts'}</StatusPill>
+          )}
         </div>
         {live.status === 'live' && (
           <span className="wtc-dim" style={{ fontSize: 12 }}>Read-only · reconstructed · journal {live.baseUrl}</span>
         )}
       </div>
+
+      {admin && accounts.length > 0 && (
+        <div className="wtc-row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span className="wtc-dim" style={{ fontSize: 12 }}>Account (admin):</span>
+          <Link
+            href="/app/bots/statistics?bot=legacy"
+            aria-current={!effectiveAccount ? 'page' : undefined}
+            className={buttonClasses(!effectiveAccount ? 'secondary' : 'ghost')}
+          >
+            All ({accounts.length})
+          </Link>
+          {accounts.map((a) => (
+            <Link
+              key={a.pub_id}
+              href={`/app/bots/statistics?bot=legacy&account=${encodeURIComponent(a.pub_id)}`}
+              aria-current={effectiveAccount === a.pub_id ? 'page' : undefined}
+              className={buttonClasses(effectiveAccount === a.pub_id ? 'secondary' : 'ghost')}
+              title={`${a.market} · ${a.running ? 'running' : 'paused'}${a.quarantined ? ' · quarantined' : ''} · ${a.cycles} cycles · ${a.open_slots} open · ${a.symbols} symbols`}
+            >
+              {maskPubId(a.pub_id)}{a.quarantined ? ' ⚠' : ''}
+            </Link>
+          ))}
+        </div>
+      )}
 
       {live.status === 'live' ? (
         <LegacyOverview overview={live} caps={LEGACY_DCA_CAPS} />
@@ -149,11 +189,13 @@ async function LegacyPanel({ meta }: { meta: BotMeta }) {
 export default async function BotStatisticsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ bot?: string | string[] }>;
+  searchParams: Promise<{ bot?: string | string[]; account?: string | string[] }>;
 }) {
   const params = await searchParams;
   const selected = selectedBotSlug(params.bot);
   const user = await requireUser();
+  const admin = isAdmin(user);
+  const selectedAccount = Array.isArray(params.account) ? params.account[0] : params.account;
   const active = BOT_LIST.find((b) => b.slug === selected) ?? BOT_LIST[0]!;
   const access = await botAccessForUser(user, active.code);
   const caps = BOT_CAPS[active.code];
@@ -192,7 +234,7 @@ export default async function BotStatisticsPage({
       ) : active.code === 'tortila_bot' ? (
         <TortilaPanel />
       ) : (
-        <LegacyPanel meta={active} />
+        <LegacyPanel meta={active} admin={admin} account={selectedAccount} />
       )}
 
       {access.allowed && (

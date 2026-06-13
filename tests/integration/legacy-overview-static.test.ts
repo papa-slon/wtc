@@ -32,7 +32,7 @@ const stuckBag = read('apps/web/src/features/bots/legacy-overview/stuck-bag-card
 describe('Legacy premium overview: page wiring', () => {
   it('mounts <LegacyOverview> on the statistics page for legacy_bot via the live loader + caps', () => {
     expect(statsPage).toMatch(/import \{ LegacyOverview, LEGACY_DCA_CAPS \} from '@\/features\/bots\/legacy-overview'/);
-    expect(statsPage).toMatch(/import \{ loadLegacyLiveOverview \} from '@\/features\/bots\/legacy-overview-data'/);
+    expect(statsPage).toMatch(/import \{ loadLegacyLiveOverview, loadLegacyAccounts \} from '@\/features\/bots\/legacy-overview-data'/);
     expect(statsPage).toMatch(/<LegacyOverview overview=\{live\} caps=\{LEGACY_DCA_CAPS\}/);
     expect(statsPage).toMatch(/live\.status === 'live'/);
   });
@@ -171,5 +171,31 @@ describe('Legacy overview: stuck-bag card structurally omits mark / stop / price
     expect(stuckBag).toMatch(/averaged_entry_available/);
     expect(stuckBag).toMatch(/unavailable/);
     expect(stuckBag).toMatch(/averaging_depth/);
+  });
+});
+
+describe('Legacy account switcher: admin-gated, masked, no key leak', () => {
+  it('reader exposes getAccounts + per-account scoping (api_id), injection-encoded', () => {
+    expect(reader).toMatch(/getAccounts\(\)/);
+    expect(reader).toMatch(/function withAccount/);
+    expect(reader).toMatch(/api_id=\$\{encodeURIComponent\(accountId\)\}/);
+  });
+
+  it('loader scopes reads by accountId and lists accounts without throwing', () => {
+    expect(overviewData).toMatch(/loadLegacyAccounts/);
+    expect(overviewData).toMatch(/loadLegacyOverviewPayload\(accountId\)/);
+    expect(overviewData).toMatch(/reader\.getSummary\(accountId\)/);
+  });
+
+  it('page gates the account scope + selector to ADMINS only (a non-admin cannot scope)', () => {
+    expect(statsPage).toMatch(/isAdmin/);
+    expect(statsPage).toMatch(/const effectiveAccount = admin \? account : undefined/);
+    expect(statsPage).toMatch(/admin \? loadLegacyAccounts\(\) : Promise\.resolve\(null\)/);
+    expect(statsPage).toMatch(/admin && accounts\.length > 0/);
+  });
+
+  it('masks pub_id for display and never references exchange-key fields in the page', () => {
+    expect(statsPage).toMatch(/maskPubId/);
+    expect(statsPage).not.toMatch(/api_key|secret_key/);
   });
 });

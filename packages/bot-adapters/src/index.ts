@@ -127,4 +127,6 @@ export type {
   LegacyEquity,
   LegacyDepthDistribution,
   LegacyDepthBucket,
+  LegacyAccount,
+  LegacyAccounts,
 } from './legacy/legacy.shim.schemas.ts';

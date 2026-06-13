@@ -40,6 +40,8 @@ export type LegacyHealth = z.infer<typeof LegacyHealthSchema>;
 export const LegacySummarySchema = z.object({
   now: z.string(),
   mode: z.string(),
+  /** Echo of the scoped account (api_id/pub_id) when one was requested; null/absent = aggregate. */
+  account: z.string().nullable().optional(),
   reconstructed: z.boolean(),
   method: z.string(),
   realized_pnl_net: z.number(),
@@ -202,3 +204,29 @@ export const LegacyDepthDistributionSchema = z.object({
 });
 export type LegacyDepthDistribution = z.infer<typeof LegacyDepthDistributionSchema>;
 export type LegacyDepthBucket = z.infer<typeof LegacyDepthBucketSchema>;
+
+// ---------------------------------------------------------------------------
+// GET /api/accounts  (journal_shim/app.py: accounts)
+//   The trading accounts (one per api_keys row) for the WTC account switcher.
+//   SAFE columns only: the public account id (pub_id), market + status flags,
+//   and per-account volume counts. NEVER api_key/secret_key or owner login.
+// ---------------------------------------------------------------------------
+
+export const LegacyAccountSchema = z.object({
+  pub_id: z.string(),
+  market: z.string(),
+  running: z.boolean(),
+  quarantined: z.boolean(),
+  quarantine_reason: z.string().nullable(),
+  orders: z.number().int().nonnegative(),
+  cycles: z.number().int().nonnegative(),
+  open_slots: z.number().int().nonnegative(),
+  symbols: z.number().int().nonnegative(),
+});
+
+export const LegacyAccountsSchema = z.object({
+  reconstructed: z.boolean(),
+  rows: z.array(LegacyAccountSchema),
+});
+export type LegacyAccount = z.infer<typeof LegacyAccountSchema>;
+export type LegacyAccounts = z.infer<typeof LegacyAccountsSchema>;

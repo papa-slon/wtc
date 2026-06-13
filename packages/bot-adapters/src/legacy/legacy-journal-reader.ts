@@ -29,6 +29,7 @@ import {
   LegacyActivitySchema,
   LegacyEquitySchema,
   LegacyDepthDistributionSchema,
+  LegacyAccountsSchema,
   type LegacyHealth,
   type LegacySummary,
   type LegacyPositions,
@@ -37,7 +38,16 @@ import {
   type LegacyActivity,
   type LegacyEquity,
   type LegacyDepthDistribution,
+  type LegacyAccounts,
 } from './legacy.shim.schemas.ts';
+
+/** Append `?api_id=<accountId>` (account scoping) to a path, merging with any
+ *  existing query string. The value is URL-encoded. No accountId = aggregate. */
+function withAccount(path: string, accountId?: string): string {
+  if (!accountId) return path;
+  const sep = path.includes('?') ? '&' : '?';
+  return `${path}${sep}api_id=${encodeURIComponent(accountId)}`;
+}
 
 export type LegacyJournalReadError = { error: string };
 export type LegacyJournalResult<T> = T | LegacyJournalReadError;
@@ -52,20 +62,16 @@ export interface LegacyJournalReader {
   readonly hasToken: boolean;
   /** GET /api/health — `reconstructed` flag + bot trading `mode` (LIVE). Open (no token) on the shim. */
   getHealth(): Promise<LegacyJournalResult<LegacyHealth>>;
-  /** GET /api/summary — reconstructed PnL/fees, cycle counts, accounts, tp_pct/fee_rate, `method`. */
-  getSummary(): Promise<LegacyJournalResult<LegacySummary>>;
-  /** GET /api/positions — open "stuck bag" rows (depth, averaged entry, age). mark/uPnL intentionally absent. */
-  getPositions(): Promise<LegacyJournalResult<LegacyPositions>>;
-  /** GET /api/symbol_breakdown — per-symbol cycles + reconstructed net PnL + avg depth + contribution. */
-  getSymbolBreakdown(): Promise<LegacyJournalResult<LegacySymbolBreakdown>>;
-  /** GET /api/signals — RED(CCI)/YELLOW(RSI) mix + per-month over_time counts. */
-  getSignals(): Promise<LegacyJournalResult<LegacySignals>>;
-  /** GET /api/activity?limit — cycle opens + take-profit closes (newest first). */
-  getActivity(limit?: number): Promise<LegacyJournalResult<LegacyActivity>>;
-  /** GET /api/equity — relative cumulative reconstructed PnL curve + underwater drawdown (baseline 0). */
-  getEquity(): Promise<LegacyJournalResult<LegacyEquity>>;
-  /** GET /api/depth_distribution — averaging-depth histogram (all vs open) = the "how stuck" view. */
-  getDepthDistribution(): Promise<LegacyJournalResult<LegacyDepthDistribution>>;
+  /** GET /api/accounts — the trading accounts for the switcher (SAFE columns only; never keys). */
+  getAccounts(): Promise<LegacyJournalResult<LegacyAccounts>>;
+  /** Each read below takes an optional `accountId` (= pub_id) to scope to one account; omit = aggregate. */
+  getSummary(accountId?: string): Promise<LegacyJournalResult<LegacySummary>>;
+  getPositions(accountId?: string): Promise<LegacyJournalResult<LegacyPositions>>;
+  getSymbolBreakdown(accountId?: string): Promise<LegacyJournalResult<LegacySymbolBreakdown>>;
+  getSignals(accountId?: string): Promise<LegacyJournalResult<LegacySignals>>;
+  getActivity(limit?: number, accountId?: string): Promise<LegacyJournalResult<LegacyActivity>>;
+  getEquity(accountId?: string): Promise<LegacyJournalResult<LegacyEquity>>;
+  getDepthDistribution(accountId?: string): Promise<LegacyJournalResult<LegacyDepthDistribution>>;
 }
 
 async function getJson(url: string, token: string | undefined, timeoutMs: number): Promise<unknown> {
@@ -120,27 +126,30 @@ export function createLegacyJournalReader(baseUrl: string, token?: string, timeo
     getHealth() {
       return fetchAndParse('/api/health', LegacyHealthSchema);
     },
-    getSummary() {
-      return fetchAndParse('/api/summary', LegacySummarySchema);
+    getAccounts() {
+      return fetchAndParse('/api/accounts', LegacyAccountsSchema);
     },
-    getPositions() {
-      return fetchAndParse('/api/positions', LegacyPositionsSchema);
+    getSummary(accountId) {
+      return fetchAndParse(withAccount('/api/summary', accountId), LegacySummarySchema);
     },
-    getSymbolBreakdown() {
-      return fetchAndParse('/api/symbol_breakdown', LegacySymbolBreakdownSchema);
+    getPositions(accountId) {
+      return fetchAndParse(withAccount('/api/positions', accountId), LegacyPositionsSchema);
     },
-    getSignals() {
-      return fetchAndParse('/api/signals', LegacySignalsSchema);
+    getSymbolBreakdown(accountId) {
+      return fetchAndParse(withAccount('/api/symbol_breakdown', accountId), LegacySymbolBreakdownSchema);
     },
-    getActivity(limit = 80) {
+    getSignals(accountId) {
+      return fetchAndParse(withAccount('/api/signals', accountId), LegacySignalsSchema);
+    },
+    getActivity(limit = 80, accountId) {
       const l = Math.min(500, Math.max(10, Math.floor(limit)));
-      return fetchAndParse(`/api/activity?limit=${l}`, LegacyActivitySchema);
+      return fetchAndParse(withAccount(`/api/activity?limit=${l}`, accountId), LegacyActivitySchema);
     },
-    getEquity() {
-      return fetchAndParse('/api/equity', LegacyEquitySchema);
+    getEquity(accountId) {
+      return fetchAndParse(withAccount('/api/equity', accountId), LegacyEquitySchema);
     },
-    getDepthDistribution() {
-      return fetchAndParse('/api/depth_distribution', LegacyDepthDistributionSchema);
+    getDepthDistribution(accountId) {
+      return fetchAndParse(withAccount('/api/depth_distribution', accountId), LegacyDepthDistributionSchema);
     },
   };
 }

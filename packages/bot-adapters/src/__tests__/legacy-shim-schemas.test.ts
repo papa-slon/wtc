@@ -174,4 +174,30 @@ describe('Legacy journal reader — token gate + error envelope (never throws, n
     const headers = spy.mock.calls[0]?.[1]?.headers as Record<string, string> | undefined;
     expect(headers?.authorization).toBe('Bearer tok');
   });
+
+  it('getAccounts() hits /api/accounts and parses safe rows', async () => {
+    const spy = vi.fn((_url: string) => Promise.resolve({ ok: true, status: 200, json: async () => ({
+      reconstructed: true,
+      rows: [{ pub_id: 'ACCT_A', market: 'BINGX', running: true, quarantined: false, quarantine_reason: null, orders: 3, cycles: 1, open_slots: 1, symbols: 1 }],
+    }) }));
+    vi.stubGlobal('fetch', spy);
+    const reader = createLegacyJournalReader('http://localhost:8090', 'tok');
+    const res = await reader.getAccounts();
+    expect(spy.mock.calls[0]?.[0]).toContain('/api/accounts');
+    expect(isLegacyJournalError(res)).toBe(false);
+    if (!isLegacyJournalError(res)) expect(res.rows[0]?.pub_id).toBe('ACCT_A');
+  });
+
+  it('account scoping appends ?api_id= (merging with an existing query string)', async () => {
+    const spy = vi.fn((_url: string) => Promise.resolve({ ok: true, status: 200, json: async () => SUMMARY }));
+    vi.stubGlobal('fetch', spy);
+    const reader = createLegacyJournalReader('http://localhost:8090', 'tok');
+    await reader.getSummary('PUBID123');
+    expect(spy.mock.calls[0]?.[0]).toContain('/api/summary?api_id=PUBID123');
+    await reader.getActivity(50, 'PUBID123');
+    expect(spy.mock.calls[1]?.[0]).toContain('/api/activity?limit=50&api_id=PUBID123');
+    // No accountId = aggregate (no api_id param).
+    await reader.getEquity();
+    expect(spy.mock.calls[2]?.[0]).not.toContain('api_id=');
+  });
 });
