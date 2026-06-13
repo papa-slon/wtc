@@ -34,7 +34,9 @@ import type { BotConfigErrorCopy } from './config-error-copy';
  * FEATURE_LIVE_BOT_CONTROL=false: nothing here applies to the live bot.
  */
 
-const TF_OPTIONS: LegacySymbolConfig['timeframe'][] = ['1m', '3m', '5m', '15m', '1h'];
+// Suggestions only — the timeframe field is a free-text combobox so any
+// minute/hour TF (2m, 10m, 30m, 4h, …) is allowed, not a hard-limited set.
+const TF_SUGGESTIONS = ['1m', '2m', '3m', '5m', '10m', '15m', '30m', '1h', '2h', '4h'] as const;
 const LEGACY_SYMBOL_ROW_LIMIT = 14;
 const LEGACY_STAGE_ROW_LIMIT = 4;
 const ISSUE_SCROLL_MARGIN_TOP = 96;
@@ -183,6 +185,7 @@ export function LegacyAveragingConfigEditor({
   );
   const [capsOpen, setCapsOpen] = useState(false);
   const datalistId = useId();
+  const tfListId = useId();
 
   const options = useMemo(
     () => instrumentOptionsForBot('legacy_bot', rows.map((row) => row.symbol).filter(Boolean)),
@@ -258,6 +261,9 @@ export function LegacyAveragingConfigEditor({
           <option key={o.symbol} value={o.symbol} label={`${o.venue} - ${o.format}${o.source === 'runtime' ? ' - runtime' : ''}`} />
         ))}
       </datalist>
+      <datalist id={tfListId}>
+        {TF_SUGGESTIONS.map((tf) => <option key={tf} value={tf} />)}
+      </datalist>
 
       <div className="tset-coin-grid">
         {slots.map((slot) => {
@@ -326,13 +332,20 @@ export function LegacyAveragingConfigEditor({
                   options={[{ value: 'true', label: 'Enabled' }, { value: 'false', label: 'Paused' }]}
                   onChange={(v) => updateSlot(i, { active: v })}
                 />
-                <Segmented
-                  label="Timeframe"
-                  name={`legacy_tf_${i}`}
-                  value={slot.timeframe}
-                  options={TF_OPTIONS.map((tf) => ({ value: tf, label: tf }))}
-                  onChange={(v) => updateSlot(i, { timeframe: v })}
-                />
+                <label className="tset-field">
+                  <span className="tset-label">Timeframe</span>
+                  <input
+                    className="tset-input tset-mono"
+                    list={tfListId}
+                    name={`legacy_tf_${i}`}
+                    value={slot.timeframe}
+                    placeholder="3m"
+                    autoComplete="off"
+                    {...errAttrs}
+                    onChange={(e) => updateSlot(i, { timeframe: e.target.value })}
+                  />
+                  <span className="tset-hint">Any minute/hour TF — 1m, 2m, 5m, 15m, 1h, 4h…</span>
+                </label>
                 <Segmented
                   label="Trigger"
                   name={`legacy_signal_${i}`}

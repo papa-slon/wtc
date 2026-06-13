@@ -28,7 +28,15 @@ const booleanLike = z.preprocess((value) => {
   return value;
 }, z.boolean());
 
-const legacyTimeframe = z.enum(['1m', '3m', '5m', '15m', '1h']).default('3m');
+// The DCA bot resamples RSI/CCI from a 1m kline stream, so its timeframe is NOT
+// limited to a fixed set (2m, 10m, 30m, 4h, … are all valid). Accept any
+// minute/hour timeframe; this is saved as a WTC-versioned draft only and is
+// never pushed to the live bot.
+const legacyTimeframe = z
+  .string()
+  .trim()
+  .regex(/^[1-9][0-9]*(m|h)$/, 'Use a timeframe like 1m, 2m, 5m, 15m, 1h or 4h')
+  .default('3m');
 
 const numericCsv = z.string().trim().min(1).max(120).refine((value) => {
   return value.split(',').map((s) => s.trim()).every((part) => part !== '' && Number.isFinite(Number(part)));
@@ -198,7 +206,7 @@ const TORTILA_FIELDS: readonly BotConfigField[] = [
 const LEGACY_FIELDS: readonly BotConfigField[] = [
   { name: 'apiProfile', label: 'API profile label', type: 'text', placeholder: 'main-bingx', hint: 'Human label only. WTC never stores exchange keys in this config.' },
   { name: 'maxSymbols', label: 'Max symbols', type: 'number', step: '1', placeholder: '3', hint: 'Global startup cap from the legacy engine.' },
-  { name: 'defaultTimeframe', label: 'Default timeframe', type: 'select', placeholder: '3m', hint: 'Used for new rows only; live rows are per-symbol.', options: [{ value: '1m', label: '1m' }, { value: '3m', label: '3m' }, { value: '5m', label: '5m' }, { value: '15m', label: '15m' }, { value: '1h', label: '1h' }] },
+  { name: 'defaultTimeframe', label: 'Default timeframe', type: 'select', placeholder: '3m', hint: 'Used for new rows only; live rows are per-symbol.', options: [{ value: '1m', label: '1m' }, { value: '2m', label: '2m' }, { value: '3m', label: '3m' }, { value: '5m', label: '5m' }, { value: '10m', label: '10m' }, { value: '15m', label: '15m' }, { value: '30m', label: '30m' }, { value: '1h', label: '1h' }, { value: '2h', label: '2h' }, { value: '4h', label: '4h' }] },
   { name: 'defaultTakeProfitPercent', label: 'Default TP (%)', type: 'number', step: '0.05', placeholder: '0.5', hint: 'Reference default; every symbol row can override it.' },
   { name: 'defaultInitialEntryPercent', label: 'Default entry (%)', type: 'number', step: '0.1', placeholder: '2', hint: 'Reference initial allocation default.' },
   { name: 'defaultUseBalancePercent', label: 'Default balance (%)', type: 'number', step: '0.1', placeholder: '1.5', hint: 'Reference capital slice default.' },

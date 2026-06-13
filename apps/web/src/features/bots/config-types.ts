@@ -12,7 +12,9 @@ export interface TortilaSymbolConfig {
 
 export interface LegacySymbolConfig {
   symbol: string;
-  timeframe: '1m' | '3m' | '5m' | '15m' | '1h';
+  /** Any minute/hour timeframe (e.g. 1m, 2m, 5m, 15m, 30m, 1h, 4h) — validated
+   *  by `legacyTimeframe` in config.ts; not limited to a fixed set. */
+  timeframe: string;
   active: boolean;
   stage: number;
   useRsi: boolean;
