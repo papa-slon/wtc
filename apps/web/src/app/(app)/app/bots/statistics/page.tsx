@@ -5,6 +5,8 @@ import { requireUser } from '@/lib/session';
 import { BOT_CAPS, BOT_LIST, type BotMeta } from '@/features/bots/meta';
 import { TortilaOverview } from '@/features/bots/tortila-overview';
 import { loadTortilaLiveOverview, type TortilaLiveStatus } from '@/features/bots/tortila-overview-data';
+import { LegacyOverview, LEGACY_DCA_CAPS } from '@/features/bots/legacy-overview';
+import { loadLegacyLiveOverview } from '@/features/bots/legacy-overview-data';
 
 export const dynamic = 'force-dynamic';
 
@@ -99,20 +101,48 @@ async function TortilaPanel() {
   );
 }
 
-/** Legacy premium view is pending its read-only data source (see PART 3 shim). */
-function LegacyPanel({ meta }: { meta: BotMeta }) {
+/** Legacy DCA premium panel: one mode chip, one health chip, then the
+ *  reconstructed DCA dashboard. Reads the SAFE read-only journal shim — money
+ *  figures are reconstructed from the closed-cycle order ladder, never faked. */
+async function LegacyPanel({ meta }: { meta: BotMeta }) {
+  const live = await loadLegacyLiveOverview();
+  const health = liveHealthChip(live.status);
+  const modeLabel = live.mode === 'live' ? 'RECON · LIVE' : 'RECON · mode n/a';
+
   return (
-    <Card title="Legacy premium view">
-      <RiskWarningBanner
-        severity="info"
-        title="Premium view pending data source"
-        detail={`${meta.name} (RSI/CCI averaging engine) does not yet expose a journal-style read-only data source. The premium DCA dashboard — averaging depth, signal mix, per-symbol contribution and reconstructed PnL — renders here once that source is wired. No fabricated metrics are shown in the meantime.`}
-      />
-      <EmptyState
-        title="Awaiting Legacy data source"
-        hint="The Legacy read-only shim reconstructs PnL from closed cycles. Until it is deployed, this tab intentionally shows nothing rather than placeholder numbers."
-      />
-    </Card>
+    <div className="wtc-stack">
+      <div className="wtc-spread" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div className="wtc-row" style={{ gap: 8, flexWrap: 'wrap' }}>
+          <StatusPill tone="gold">{modeLabel}</StatusPill>
+          <StatusPill tone={health.tone}>{health.label}</StatusPill>
+        </div>
+        {live.status === 'live' && (
+          <span className="wtc-dim" style={{ fontSize: 12 }}>Read-only · reconstructed · journal {live.baseUrl}</span>
+        )}
+      </div>
+
+      {live.status === 'live' ? (
+        <LegacyOverview overview={live} caps={LEGACY_DCA_CAPS} />
+      ) : (
+        <Card title={`${meta.name} reconstructed view`}>
+          <RiskWarningBanner
+            severity={live.status === 'error' ? 'error' : live.status === 'empty' ? 'warning' : 'info'}
+            title={
+              live.status === 'empty'
+                ? 'Journal shim returned no data'
+                : live.status === 'error'
+                  ? 'Journal shim unreachable'
+                  : 'Reconstructed data source not configured'
+            }
+            detail={live.statusDetail ?? `${meta.name} (RSI/CCI averaging engine) reads a read-only journal shim that reconstructs PnL from closed cycles. The premium DCA dashboard — averaging depth, signal mix, per-symbol contribution and reconstructed PnL — renders here once that shim is reachable.`}
+          />
+          <EmptyState
+            title="No reconstructed numbers to show"
+            hint="The dashboard never fabricates a $0 account or placeholder positions. It intentionally shows nothing rather than fake metrics until the read-only shim is wired."
+          />
+        </Card>
+      )}
+    </div>
   );
 }
 

@@ -100,3 +100,31 @@ export type {
   TortilaActivity,
   TortilaActivityItem,
 } from './tortila/tortila.extended.schemas.ts';
+// Legacy DCA bot journal-shim reader: the SAFE read-only stats path consumed by the premium WTC
+// dashboard only. Explicitly NOT the blocked /api_management control adapter (that stays blocked in
+// factory.ts). All methods are read-only GET; LEGACY_JOURNAL_TOKEN never leaves the server. See
+// packages/bot-adapters/src/legacy/legacy-journal-reader.ts.
+export {
+  createLegacyJournalReader,
+  isLegacyJournalError,
+} from './legacy/legacy-journal-reader.ts';
+export type {
+  LegacyJournalReader,
+  LegacyJournalReadError,
+  LegacyJournalResult,
+} from './legacy/legacy-journal-reader.ts';
+export type {
+  LegacyHealth,
+  LegacySummary,
+  LegacyPositions,
+  LegacyPositionRow,
+  LegacySymbolBreakdown,
+  LegacySymbolBreakdownRow,
+  LegacySignals,
+  LegacySignalsOverTimeRow,
+  LegacyActivity,
+  LegacyActivityRow,
+  LegacyEquity,
+  LegacyDepthDistribution,
+  LegacyDepthBucket,
+} from './legacy/legacy.shim.schemas.ts';

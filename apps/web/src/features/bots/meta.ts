@@ -71,13 +71,17 @@ export const BOT_CAPS: Record<BotProductCode, BotCapabilities> = {
     hasTradeHistory: false,
     hasEquityCurve: false,
     takeProfit: 'supported',
-    stopLoss: 'supported',
-    trailingStop: 'supported',
+    // The DCA bot places NO stop-loss orders (audit: 0 ever) — averaging down to a
+    // fixed +0.45% TP is the entire exit model. Reporting these as "supported" would
+    // be a safety-misleading inaccuracy, so they are honestly 'not_supported'.
+    stopLoss: 'not_supported',
+    trailingStop: 'not_supported',
     liveAdapterBlocked: false,
     notes: [
-      'Live-read uses the existing legacy runtime by pub_id and WTC worker snapshots; WTC does not collect or store exchange keys for this bot.',
-      'Closed-trade analytics are not connected yet, so win rate and profit factor stay unavailable instead of being fabricated.',
-      'No exchange equity-curve endpoint — WTC shows wallet balance snapshots only.',
+      'DCA/averaging engine: fixed +0.45% take-profit, NO stop-loss — losing trades are held and averaged down, with a "Tetris" stage limiter capping concurrency.',
+      'Statistics are RECONSTRUCTED read-only from the closed-cycle order ladder via a separate read-only journal shim; WTC never collects or stores exchange keys for this bot.',
+      'Win rate / profit factor are intentionally not shown (≈100% by construction with a fixed TP and no stop-loss); averaging depth is the meaningful risk signal.',
+      'No live unrealized-PnL / mark pull and no exchange equity-curve endpoint — the reconstructed PnL curve is relative to a 0 baseline, not a wallet balance.',
       'No backtester for this bot.',
     ],
   },

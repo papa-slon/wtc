@@ -15,6 +15,10 @@ export function botAdapterOptions(): AdapterOptions {
     legacyBaseUrl: process.env.LEGACY_BOT_BASE_URL,
     // JOURNAL_READ_TOKEN: bearer auth for the journal. Absent in a real mode ⇒ readState not_configured.
     tortilaReadToken: process.env.JOURNAL_READ_TOKEN,
+    // SAFE read-only legacy journal shim (bot/journal_shim/) — NOT the blocked /api_management control
+    // path. Distinct env keys from the Tortila journal so the two bots' read paths never alias.
+    legacyJournalUrl: process.env.LEGACY_JOURNAL_URL,
+    legacyReadToken: process.env.LEGACY_JOURNAL_TOKEN,
   };
 }
 

@@ -343,6 +343,7 @@
  * untouched so billing/LMS/auth keep their softer consumer corners. The gold
  * standard journal uses 12px cards / 8px inner controls. */
 [data-testid="tortila-overview"],
+[data-testid="legacy-overview"],
 .tset-page {
   --tov-rad: 13px;
   --tov-rad-lg: 14px;
@@ -353,6 +354,37 @@
 [data-testid="tortila-overview"] .tov-pos-card,
 [data-testid="tortila-overview"] .tov-kpi { border-radius: var(--tov-rad); }
 [data-testid="tortila-overview"] .tov-hero { border-radius: var(--tov-rad-lg); }
+/* Legacy DCA dashboard reuses the same premium chrome (additive — never restyles tov-*). */
+[data-testid="legacy-overview"] .wtc-card,
+[data-testid="legacy-overview"] .tov-mini-card,
+[data-testid="legacy-overview"] .tov-pos-card,
+[data-testid="legacy-overview"] .tov-kpi { border-radius: var(--tov-rad); }
+[data-testid="legacy-overview"] .tov-hero { border-radius: var(--tov-rad-lg); }
+/* DCA "stuck bag" cards omit Tortila's price-ladder; collapse the reserved 32px
+   ladder rail so the card body is a single full-width column (no dead space). */
+[data-testid="legacy-overview"] .tov-pos-body { grid-template-columns: 1fr; }
+/* Small gold "recon" tag beside reconstructed money figures (legacy DCA bot). */
+.tov-recon-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--gold2);
+  border: 1px solid rgba(213, 169, 79, 0.4);
+  border-radius: 4px;
+  background: rgba(213, 169, 79, 0.06);
+  vertical-align: middle;
+}
+/* Per-coin collapsible "advanced" section inside a legacy coin card. */
+.tset-coin-adv { margin-top: 2px; border-top: 1px solid var(--stroke); padding-top: 10px; }
+.tset-coin-adv > summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--muted); list-style: none; user-select: none; }
+.tset-coin-adv > summary::-webkit-details-marker { display: none; }
+.tset-coin-adv > summary::before { content: '▸ '; color: var(--dim); }
+.tset-coin-adv[open] > summary::before { content: '▾ '; }
+.tset-coin-adv .tset-field-grid { margin-top: 10px; }
 /* Settings shell + coin editor. */
 .tset-page .wtc-card { border-radius: var(--tov-rad); }
 .tset-coin-card,

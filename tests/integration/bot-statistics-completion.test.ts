@@ -26,9 +26,11 @@ describe('bot statistics completion clarity', () => {
     expect(() => read('apps/web/src/features/bots/statistics-panels.tsx')).toThrow();
   });
 
-  it('Legacy tab renders a premium-pending placeholder without fabricating performance history', () => {
-    expect(userStatsPage).toMatch(/Premium view pending data source/);
-    expect(userStatsPage).toMatch(/No fabricated metrics are shown/);
+  it('Legacy tab renders the premium reconstructed DCA terminal without fabricating performance history', () => {
+    // Premium reconstructed DCA terminal via the safe read-only shim — never a fabricated account.
+    expect(userStatsPage).toMatch(/loadLegacyLiveOverview/);
+    expect(userStatsPage).toMatch(/<LegacyOverview/);
+    expect(userStatsPage).toMatch(/never fabricates a \$0 account or placeholder positions/);
     expect(userStatsPage).not.toMatch(/Legacy statistics cockpit/);
     expect(userStatsPage).not.toMatch(/Stage utilization/);
   });

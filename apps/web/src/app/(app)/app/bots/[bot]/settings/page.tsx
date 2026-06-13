@@ -42,7 +42,7 @@ import {
   tortilaSymbolConfigsFromConfig,
 } from '@/features/bots/config';
 import { TortilaCoinConfigEditor } from '@/features/bots/TortilaCoinConfigEditor';
-import { LegacyAveragingConfigTable } from '@/features/bots/LegacyAveragingConfigTable';
+import { LegacyAveragingConfigEditor } from '@/features/bots/LegacyAveragingConfigEditor';
 import { botConfigErrorCopy, botConfigErrorRedirect } from '@/features/bots/config-error-copy';
 
 interface LegacyProviderAccountView {
@@ -223,7 +223,6 @@ export default async function Page({
   const legacySnapshotStages = hasLegacySnapshotStages ? legacyStageConfigsFromConfig(legacyLiveConfig) : [];
   const legacyAccounts = meta.code === 'legacy_bot' ? legacyProviderAccounts(legacyLiveConfig) : [];
   const sourceLabel = state.sourceLabel;
-  const sourceDetail = state.sourceDetail;
   const modeMeta = BOT_OPERATION_MODES.find((m) => m.value === currentMode) ?? BOT_OPERATION_MODES[0]!;
   const hasSystemDefault = state.systemDefault !== null;
   const canCustomize = state.systemDefault?.allowUserOverride !== false;
@@ -341,12 +340,10 @@ export default async function Page({
             />
           )}
           {meta.code === 'legacy_bot' && (
-            <LegacyAveragingConfigTable
+            <LegacyAveragingConfigEditor
               rows={legacyRows}
               stages={legacyStages}
-              providerAccountCount={legacyAccounts.length}
-              sourceLabel={sourceLabel}
-              sourceDetail={sourceDetail}
+              canCustomize={canCustomize}
               saveIssue={configError?.target === 'legacy-row' || configError?.target === 'legacy-stage' ? configError : undefined}
             />
           )}

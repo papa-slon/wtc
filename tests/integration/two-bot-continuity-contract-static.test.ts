@@ -124,10 +124,11 @@ describe('two-bot continuity contract fixture', () => {
     expect(legacyLive).toContain('totalFeesUsd: undefined');
     expect(legacyLive).toContain('totalFundingUsd: undefined');
     expect(legacyLive).toContain('tradeCount: 0');
-    // The premium statistics page replaced the old Legacy cockpit with a premium-pending placeholder
-    // that still refuses to fabricate Legacy performance numbers.
-    expect(statsPage).toContain('Premium view pending data source');
-    expect(statsPage).toContain('No fabricated metrics are shown');
+    // The premium statistics page upgrades the Legacy tab to the reconstructed DCA terminal via the
+    // SAFE read-only journal shim, and still refuses to fabricate Legacy performance numbers.
+    expect(statsPage).toContain('loadLegacyLiveOverview');
+    expect(statsPage).toContain('LegacyOverview');
+    expect(statsPage).toContain('never fabricates a $0 account or placeholder positions');
     expect(statsPage).not.toMatch(/reconstructed PnL.*\$[0-9]/);
   });
 

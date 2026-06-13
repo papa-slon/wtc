@@ -17,10 +17,18 @@ export interface AdapterOptions {
   /** governs which adapter is returned; defaults to mock at every call site */
   mode: BotAdapterMode;
   tortilaBaseUrl?: string;
+  /** Old BLOCKED legacy control endpoint base (NOT used to activate a real adapter — see getBotAdapter). */
   legacyBaseUrl?: string;
   /** JOURNAL_READ_TOKEN — bearer token for the Tortila journal. When absent in a real mode the
    *  adapter's getHealth() reports readState 'not_configured' (it never silently runs unauthenticated). */
   tortilaReadToken?: string;
+  /** LEGACY_JOURNAL_URL — base URL of the SAFE read-only legacy journal shim (bot/journal_shim/).
+   *  This is the read-only stats path consumed ONLY by the premium dashboard via
+   *  createLegacyJournalReader; it is NOT the blocked /api_management control path and never
+   *  activates a real control adapter in getBotAdapter. */
+  legacyJournalUrl?: string;
+  /** LEGACY_JOURNAL_TOKEN — bearer token for the legacy journal shim. Distinct from JOURNAL_READ_TOKEN. */
+  legacyReadToken?: string;
 }
 
 /** Select the adapter for a bot. Real adapters require an explicit non-`mock` mode AND a base URL. */

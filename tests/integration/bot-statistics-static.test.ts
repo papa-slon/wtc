@@ -77,8 +77,16 @@ describe('bot statistics surface (premium + simple)', () => {
     expect(overviewIndex).toMatch(/Costs and tracking/);
   });
 
-  it('keeps a Legacy tab that shows a premium-pending placeholder, not the old Codex panels', () => {
-    expect(statsPage).toMatch(/Premium view pending data source/);
+  it('upgrades the Legacy tab to the premium reconstructed DCA terminal, not the old Codex panels', () => {
+    // The Legacy tab now reads the SAFE read-only journal shim and renders the premium reconstructed
+    // DCA overview (averaging depth, signal mix, reconstructed PnL) via the capabilities-driven wrapper.
+    expect(statsPage).toMatch(/loadLegacyLiveOverview/);
+    expect(statsPage).toMatch(/<LegacyOverview/);
+    expect(statsPage).toMatch(/LEGACY_DCA_CAPS/);
+    // Honest fallback: never fabricates when the shim is unconfigured / empty / unreachable.
+    expect(statsPage).toMatch(/No reconstructed numbers to show/);
+    expect(statsPage).toMatch(/never fabricates a \$0 account or placeholder positions/);
+    // No old Codex theater.
     expect(statsPage).not.toMatch(/LegacyOperationsPanel/);
     expect(statsPage).not.toMatch(/Legacy statistics cockpit/);
   });
