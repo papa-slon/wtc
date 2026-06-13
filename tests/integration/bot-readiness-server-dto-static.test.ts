@@ -64,8 +64,10 @@ describe('bot readiness server DTO boundary', () => {
     expect(botDetail).not.toMatch(/listExchangeKeys\(user\.id\)/);
     expect(botDetail).not.toMatch(/buildBotReadinessItems/);
 
-    expect(settings).toMatch(/loadBotReadinessForUser\(user, meta\.code, 'settings', \{ includeOperationalRows: false \}\)/);
-    expect(settings).toMatch(/const settingsReadiness = readiness\.items/);
+    // SETTINGS_SPEC: the premium settings page no longer renders a readiness map,
+    // so it does not load readiness items at all. It must still not use the old
+    // local builder.
+    expect(settings).not.toMatch(/loadBotReadinessForUser/);
     expect(settings).not.toMatch(/buildBotReadinessItems/);
 
     expect(setup).toMatch(/loadBotReadinessForUser\(user, meta\.code, 'setup-review', \{ includeOperationalRows: false \}\)/);

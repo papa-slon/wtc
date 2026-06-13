@@ -38,6 +38,21 @@ import {
   type TortilaMarks,
   type TortilaActivity,
 } from './tortila.extended.schemas.ts';
+import {
+  TortilaSummarySchema,
+  TortilaTradeListSchema,
+  type TortilaSummary,
+  type TortilaTradeList,
+} from './tortila.schemas.ts';
+
+/** Filters accepted by the journal `/api/trades/list` endpoint (app.py:802). */
+export interface TortilaTradeListQuery {
+  page?: number;
+  pageSize?: number;
+  symbol?: string;
+  side?: string;
+  exitReason?: string;
+}
 
 export type TortilaJournalReadError = { error: string };
 export type TortilaJournalResult<T> = T | TortilaJournalReadError;
@@ -50,6 +65,8 @@ export interface TortilaJournalReader {
   /** Configured base URL (no trailing slash) and token presence — never the token value. */
   readonly baseUrl: string;
   readonly hasToken: boolean;
+  /** GET /api/summary — carries the demo/live `mode` flag + at_ath used by the hero. */
+  getSummary(): Promise<TortilaJournalResult<TortilaSummary>>;
   getAdvanced(): Promise<TortilaJournalResult<TortilaAdvancedMetrics>>;
   getSymbolBreakdown(): Promise<TortilaJournalResult<TortilaSymbolBreakdown>>;
   getMonthly(): Promise<TortilaJournalResult<TortilaMonthly>>;
@@ -58,6 +75,8 @@ export interface TortilaJournalReader {
   getDrawdownSeries(): Promise<TortilaJournalResult<TortilaDrawdownSeries>>;
   getMarks(): Promise<TortilaJournalResult<TortilaMarks>>;
   getActivity(limit?: number): Promise<TortilaJournalResult<TortilaActivity>>;
+  /** GET /api/trades/list — paginated, filterable trade history (group I). */
+  getTradesList(query?: TortilaTradeListQuery): Promise<TortilaJournalResult<TortilaTradeList>>;
 }
 
 async function getJson(url: string, token: string | undefined, timeoutMs: number): Promise<unknown> {
@@ -107,6 +126,9 @@ export function createTortilaJournalReader(baseUrl: string, token?: string, time
   return {
     baseUrl: base,
     hasToken,
+    getSummary() {
+      return fetchAndParse('/api/summary', TortilaSummarySchema);
+    },
     getAdvanced() {
       return fetchAndParse('/api/metrics/advanced', TortilaAdvancedMetricsSchema);
     },
@@ -133,6 +155,17 @@ export function createTortilaJournalReader(baseUrl: string, token?: string, time
     getActivity(limit = 100) {
       const l = Math.min(500, Math.max(10, Math.floor(limit)));
       return fetchAndParse(`/api/activity?limit=${l}`, TortilaActivitySchema);
+    },
+    getTradesList(query = {}) {
+      const params = new URLSearchParams();
+      const page = Math.max(1, Math.floor(query.page ?? 1));
+      const pageSize = Math.min(500, Math.max(10, Math.floor(query.pageSize ?? 50)));
+      params.set('page', String(page));
+      params.set('page_size', String(pageSize));
+      if (query.symbol) params.set('symbol', query.symbol);
+      if (query.side) params.set('side', query.side);
+      if (query.exitReason) params.set('exit_reason', query.exitReason);
+      return fetchAndParse(`/api/trades/list?${params.toString()}`, TortilaTradeListSchema);
     },
   };
 }

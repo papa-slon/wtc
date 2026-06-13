@@ -14,13 +14,14 @@ import type { CanonicalMetrics, CanonicalPosition, CanonicalTrade, EquityPoint }
 import { Card, RiskWarningBanner } from '@wtc/ui';
 import { AutoRefresh } from './auto-refresh';
 import { Sparkline } from './sparkline';
-import { EquityChart, DrawdownChart } from './equity-chart';
+import { EquityPanel } from './equity-panel';
 import { CalendarHeatmap } from './calendar-heatmap';
 import { MonthlyBars } from './monthly-bars';
 import { DistributionChart } from './distribution-chart';
 import { SymbolContribution } from './symbol-bars';
 import { PositionCard } from './position-card';
 import { ActivityFeed } from './activity-feed';
+import { TradeHistory } from './trade-history';
 import {
   fmtMoneyOrDash,
   fmtMoneyCompact,
@@ -29,7 +30,6 @@ import {
   fmtPf,
   fmtSignedOrDash,
   signClass,
-  shortSymbol,
   fmtShortTs,
 } from './format';
 import type { TortilaOverviewPayload } from '../tortila-overview-data';
@@ -94,7 +94,12 @@ function Hero({
     <section className="tov-hero">
       <div className="tov-hero-left">
         <div className="tov-hero-meta">
-          <span className={`tov-chip ${mode === 'live' ? 'live' : 'demo'}`}>{(mode === 'unknown' ? 'DEMO' : mode).toUpperCase()}</span>
+          {/* G6: never fabricate DEMO. Render a neutral MODE N/A chip when the
+              journal has not reported a mode, and only add the VST (demo paper
+              venue) tag when mode is actually demo. */}
+          <span className={`tov-chip ${mode === 'live' ? 'live' : mode === 'demo' ? 'demo' : ''}`}>
+            {mode === 'unknown' ? 'MODE N/A' : mode.toUpperCase()}
+          </span>
           <span className="tov-chip">Tortila . BingX{mode === 'demo' ? ' . VST' : ''}</span>
           {atAth && <span className="tov-chip ath">+ ATH</span>}
         </div>
@@ -115,20 +120,20 @@ function Hero({
         </div>
       </div>
       <div className="tov-hero-right">
-        <KpiCell label="Sharpe"        value={fmtNumberOrDash(sharpe, 2)} />
-        <KpiCell label="Sortino"       value={fmtNumberOrDash(sortino, 2)} />
-        <KpiCell label="Profit factor" value={fmtPf(pf)} />
-        <KpiCell label="Max DD"        value={maxDd !== null ? `${maxDd.toFixed(2)}%` : 'n/a'} tone={maxDd && maxDd > 0 ? 'down' : 'neutral'} />
-        <KpiCell label="Time in mkt"   value={tim !== null ? `${tim.toFixed(0)}%` : 'n/a'} />
-        <KpiCell label="Expect/trade"  value={fmtSignedOrDash(expectancy ?? null, 2)} tone={expectancy !== null && expectancy < 0 ? 'down' : expectancy !== null && expectancy > 0 ? 'up' : 'neutral'} />
+        <KpiCell label="Sharpe"        value={fmtNumberOrDash(sharpe, 2)} tip="Sharpe ratio — annualised return per unit of total volatility. Higher is better." />
+        <KpiCell label="Sortino"       value={fmtNumberOrDash(sortino, 2)} tip="Sortino ratio — like Sharpe, but only penalises downside volatility." />
+        <KpiCell label="Profit factor" value={fmtPf(pf)} tip="Profit factor = gross profit / gross loss. Above 1 means net profitable." />
+        <KpiCell label="Max DD"        value={maxDd !== null ? `${maxDd.toFixed(2)}%` : 'n/a'} tone={maxDd && maxDd > 0 ? 'down' : 'neutral'} tip="Maximum drawdown — largest peak-to-trough equity decline." />
+        <KpiCell label="Time in mkt"   value={tim !== null ? `${tim.toFixed(0)}%` : 'n/a'} tip="Time in market — share of the tracked period with at least one open position." />
+        <KpiCell label="Expect/trade"  value={fmtSignedOrDash(expectancy ?? null, 2)} tone={expectancy !== null && expectancy < 0 ? 'down' : expectancy !== null && expectancy > 0 ? 'up' : 'neutral'} tip="Expectancy — average net P&L per closed trade, in USDT." />
       </div>
     </section>
   );
 }
 
-function KpiCell({ label, value, tone = 'neutral' }: { label: string; value: string; tone?: 'up' | 'down' | 'neutral' }) {
+function KpiCell({ label, value, tone = 'neutral', tip }: { label: string; value: string; tone?: 'up' | 'down' | 'neutral'; tip?: string }) {
   return (
-    <div className="tov-kpi">
+    <div className="tov-kpi" data-tip={tip} tabIndex={tip ? 0 : undefined} title={tip}>
       <div className="tov-kpi-label">{label}</div>
       <div className={`tov-kpi-val ${tone === 'up' ? 'up' : tone === 'down' ? 'down' : ''}`}>{value}</div>
     </div>
@@ -334,8 +339,11 @@ export function TortilaOverview({
     );
   });
 
-  // Trade table: most recent 30 closed trades.
+  // Activity fallback stream: most recent 30 closed trades (the trade-history
+  // table itself is now a paged/filtered client island — see TradeHistory).
   const recentTrades = trades.filter((t) => t.closedAt !== null).slice(0, 30);
+  // Distinct full-form symbols across all trades, for the trade-history filter.
+  const tradeSymbols = Array.from(new Set(trades.map((t) => t.symbol)));
 
   const sectionUnavailable = (msg: string | null) => (msg ? (
     <RiskWarningBanner severity="info" title="Section unavailable" detail={msg} />
@@ -400,17 +408,13 @@ export function TortilaOverview({
 
       <Card title="Equity curve & drawdown">
         {equityCurve.length >= 2 ? (
-          <>
-            <EquityChart
-              ts={equityCurve.map((p) => new Date(p.t).toISOString())}
-              equity={equityCurve.map((p) => p.equity)}
-              initialEquity={firstEquity}
-              height={260}
-            />
-            {ddSeries && ddSeries.dd_pct.length >= 2 && (
-              <DrawdownChart ts={ddSeries.ts} ddPct={ddSeries.dd_pct} height={120} />
-            )}
-          </>
+          <EquityPanel
+            ts={equityCurve.map((p) => new Date(p.t).toISOString())}
+            equity={equityCurve.map((p) => p.equity)}
+            initialEquity={firstEquity}
+            ddTs={ddSeries && ddSeries.dd_pct.length >= 2 ? ddSeries.ts : undefined}
+            ddPct={ddSeries && ddSeries.dd_pct.length >= 2 ? ddSeries.dd_pct : undefined}
+          />
         ) : (
           <div className="tov-empty-mini">Equity history will appear once the bot snapshots equity (typically every 15 min).</div>
         )}
@@ -483,55 +487,8 @@ export function TortilaOverview({
         )}
       </Card>
 
-      <Card title="Trade history . last 30 closed">
-        {recentTrades.length === 0 ? (
-          <div className="tov-empty-mini">No closed trades.</div>
-        ) : (
-          <div className="wtc-table-wrap">
-            <table className="tov-trade-table">
-              <thead>
-                <tr>
-                  <th>Closed</th>
-                  <th>Symbol</th>
-                  <th>Side</th>
-                  <th className="num">U</th>
-                  <th className="num">Entry</th>
-                  <th className="num">Exit</th>
-                  <th className="num">Ret%</th>
-                  <th className="num">Hold</th>
-                  <th className="num">Gross</th>
-                  <th className="num">Fees</th>
-                  <th className="num">Fund</th>
-                  <th className="num">Net</th>
-                  <th>Reason</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentTrades.map((t) => {
-                  const net = t.realizedPnl - t.fee + t.funding;
-                  const upDown = signClass(net);
-                  return (
-                    <tr key={t.id}>
-                      <td data-label="Closed">{fmtShortTs(t.closedAt ? new Date(t.closedAt).toISOString() : null)}</td>
-                      <td data-label="Symbol">{shortSymbol(t.symbol)}</td>
-                      <td data-label="Side"><span className={`tov-chip ${t.side}`}>{t.side.toUpperCase()}</span></td>
-                      <td data-label="U" className="num">—</td>
-                      <td data-label="Entry" className="num">{t.entryPrice !== undefined ? t.entryPrice.toFixed(4) : '—'}</td>
-                      <td data-label="Exit" className="num">{t.exitPrice !== undefined ? t.exitPrice.toFixed(4) : '—'}</td>
-                      <td data-label="Ret%" className={`num ${signClass(t.retPct ?? null)}`}>{t.retPct !== undefined ? `${(t.retPct >= 0 ? '+' : '')}${t.retPct.toFixed(2)}%` : '—'}</td>
-                      <td data-label="Hold" className="num">{t.holdHours !== undefined ? `${t.holdHours.toFixed(1)}h` : '—'}</td>
-                      <td data-label="Gross" className={`num ${signClass(t.realizedPnl)}`}>{fmtSignedOrDash(t.realizedPnl)}</td>
-                      <td data-label="Fees" className="num tov-down">{(-Math.abs(t.fee)).toFixed(2)}</td>
-                      <td data-label="Fund" className={`num ${signClass(t.funding)}`}>{fmtSignedOrDash(t.funding)}</td>
-                      <td data-label="Net" className={`num ${upDown}`}>{fmtSignedOrDash(net)}</td>
-                      <td data-label="Reason">{t.exitReason ?? '—'}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+      <Card title="Trade history">
+        <TradeHistory symbols={tradeSymbols} enabled={payload.configured} pageSize={50} />
       </Card>
 
       <Card title="Activity feed . trades + safety + decisions (newest first)">

@@ -19,10 +19,11 @@ export function SymbolContribution({ rows }: SymbolContributionBarsProps) {
         {rows.map((row) => {
           const pct = Math.abs(row.net_pnl) / maxAbs;
           const isPos = row.net_pnl >= 0;
+          const tip = `${shortSymbol(row.symbol)} . net ${fmtSignedOrDash(row.net_pnl)} . ${row.trades} trades . ${fmtNumberOrDash(row.win_rate_pct, 0)}% WR . contrib ${row.contribution_pct >= 0 ? '+' : ''}${row.contribution_pct.toFixed(1)}%`;
           return (
-            <div key={row.symbol} className="tov-sym-bar-row">
+            <div key={row.symbol} className="tov-sym-bar-row" title={tip}>
               <span className="name">{shortSymbol(row.symbol)}</span>
-              <div className="tov-sym-bar" aria-label={`${shortSymbol(row.symbol)} net P&L ${fmtSignedOrDash(row.net_pnl)}`}>
+              <div className="tov-sym-bar" aria-label={tip}>
                 <div className="tov-sym-bar-zero" />
                 <div
                   className={`tov-sym-bar-fill ${isPos ? 'up' : 'down'}`}

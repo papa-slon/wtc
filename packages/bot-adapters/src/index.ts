@@ -78,7 +78,13 @@ export type {
   TortilaJournalReader,
   TortilaJournalReadError,
   TortilaJournalResult,
+  TortilaTradeListQuery,
 } from './tortila/tortila-journal-reader.ts';
+export type {
+  TortilaSummary,
+  TortilaTradeList,
+  TortilaTradeRow,
+} from './tortila/tortila.schemas.ts';
 export type {
   TortilaAdvancedMetrics,
   TortilaSymbolBreakdown,

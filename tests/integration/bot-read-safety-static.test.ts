@@ -136,14 +136,11 @@ describe('bot read surfaces tolerate blocked/not-ready adapters', () => {
     expect(botDetail).toMatch(/BotLaunchReadinessPanel/);
     expect(botDetail).toMatch(/loadBotReadinessForUser\(user, meta\.code, 'dashboard', \{ read \}\)/);
     expect(botDetail).toMatch(/const readinessItems = readiness\.items/);
-    expect(settings).toMatch(/Settings readiness map/);
-    expect(settings).toMatch(/loadBotReadinessForUser\(user, meta\.code, 'settings'/);
-    expect(settings).toMatch(/includeOperationalRows: false/);
-    expect(settings).toMatch(/const settingsReadiness = readiness\.items/);
-    expect(settings).toMatch(/BotContinuityPanel/);
-    expect(settings).toMatch(/uncheckedBotContinuityHealth/);
-    expect(settings).toMatch(/title="Settings continuity monitor"/);
-    expect(settings).toMatch(/dataRowsLabel="settings evidence rows"/);
+    // SETTINGS_SPEC: the premium settings page deletes the readiness map +
+    // continuity monitor. The setup page keeps them (out of scope for the spec).
+    expect(settings).not.toMatch(/Settings readiness map/);
+    expect(settings).not.toMatch(/BotContinuityPanel/);
+    expect(settings).not.toMatch(/Settings continuity monitor/);
     expect(settings).toMatch(/TORTILA_EMBEDDED_FIELD_NAMES/);
     expect(settings).toMatch(/tortilaPortfolioCaps/);
     expect(settings).toMatch(/portfolioCaps=\{tortilaPortfolioCaps\}/);
@@ -259,15 +256,14 @@ describe('bot read surfaces tolerate blocked/not-ready adapters', () => {
     expect(botSetupControlCenter).toMatch(/User\/admin boundary/);
     expect(botSetupControlCenter).toMatch(/Live control boundary/);
     expect(botSetupControlCenter).not.toMatch(/providerPubId/);
-    expect(settings).toMatch(/BotSetupControlCenter/);
-    expect(settings).toMatch(/mode="settings"/);
-    expect(settings).toMatch(/exchangeKeyState=\{readiness\.exchangeKeyState\}/);
-    expect(settings).toMatch(/legacyProviderState=\{readiness\.providerPubIdState\}/);
-    expect(settings).toMatch(/hasConfig=\{state\.source !== 'built_in'\}/);
-    expect(settings).toMatch(/activeIssue=\{configError \?\? undefined\}/);
+    // SETTINGS_SPEC: the premium settings page deletes BotSetupControlCenter and
+    // the other constructor panels (including the engineer-speak "no live-control
+    // adapter actions" provenance card). It keeps the real save-error wiring + the
+    // single honest save-bar note that nothing reaches a live exchange/bot.
+    expect(settings).not.toMatch(/BotSetupControlCenter/);
+    expect(settings).not.toMatch(/no live-control adapter actions/);
     expect(settings).toMatch(/saveIssue=\{configError \?\? undefined\}/);
-    expect(settings).toMatch(/legacyStageCapacityIssue=\{legacyStageCapacityIssue\}/);
-    expect(settings).toMatch(/no live-control adapter actions/);
+    expect(settings).toMatch(/Nothing is pushed to a live exchange or bot/);
     expect(setup).toMatch(/BotSetupControlCenter/);
     expect(setup).toMatch(/mode="setup"/);
     expect(setup).toMatch(/exchangeKeyState=\{readiness\.exchangeKeyState\}/);
@@ -588,7 +584,9 @@ describe('bot config captures manual/auto intent without live control', () => {
     expect(symbolTable).toMatch(/Generated SYMBOL_CONFIGS/);
     expect(symbolTable).toMatch(/symbol@tf@system@risk@stop@add@max_units@atr@tp_rr/);
     expect(config).toMatch(/symbol_custom_/);
-    expect(settings).toMatch(/TortilaSymbolConfigTable/);
+    // Settings uses the premium TortilaCoinConfigEditor (same save contract);
+    // setup/admin keep the shared TortilaSymbolConfigTable.
+    expect(settings).toMatch(/TortilaCoinConfigEditor/);
     expect(setup).toMatch(/TortilaSymbolConfigTable/);
     expect(config).toMatch(/symbolConfigs: z\.array/);
   });
@@ -678,8 +676,9 @@ describe('bot config captures manual/auto intent without live control', () => {
     expect(botDetail).not.toMatch(/legacyAccounts\.length \|\| 1/);
     expect(statistics).not.toMatch(/legacyAccounts\.length \|\| 1/);
     expect(legacyTable).not.toMatch(/providerCount \|\| 1/);
-    expect(settings).toMatch(/Configuration source/);
-    expect(settings).toMatch(/Resolved source/);
+    // The "Configuration source" / "Resolved source" provenance cards were removed
+    // from the decluttered premium settings shell (SETTINGS_SPEC). The zero-coercion
+    // guard is what this test protects; the legacy empty-state still proves it.
     expect(settings).toMatch(/0 provider pub_id mapped/);
     expect(setup).toMatch(/Setup source/);
     expect(setup).toMatch(/Save custom settings first/);

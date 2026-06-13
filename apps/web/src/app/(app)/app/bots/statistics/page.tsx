@@ -31,7 +31,10 @@ function liveHealthChip(status: TortilaLiveStatus): { tone: Tone; label: string 
 async function TortilaPanel() {
   const live = await loadTortilaLiveOverview();
   const health = liveHealthChip(live.status);
-  const modeLabel = (live.mode === 'unknown' ? 'demo' : live.mode).toUpperCase();
+  // G6: the mode label is truthful — sourced from /api/summary `mode` (demo|live).
+  // When the journal has not reported a mode yet, show a neutral 'mode n/a' chip
+  // rather than fabricating DEMO.
+  const modeLabel = live.mode === 'unknown' ? 'mode n/a' : live.mode.toUpperCase();
   const feesTotal = live.metrics?.feesTotal ?? 0;
   const fundingTotal = live.metrics?.fundingTotal ?? 0;
 

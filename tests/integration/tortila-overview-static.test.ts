@@ -144,8 +144,9 @@ describe('Tortila overview: all 12 sections are rendered', () => {
 
   it('performance overview, equity & drawdown, risk panel', () => {
     expect(overviewIndex).toMatch(/function PerformanceOverview/);
-    expect(overviewIndex).toMatch(/EquityChart/);
-    expect(overviewIndex).toMatch(/DrawdownChart/);
+    // G3/G4: the equity + drawdown charts are now an interactive client panel
+    // (period tabs + hover crosshair) rather than two static SVGs.
+    expect(overviewIndex).toMatch(/EquityPanel/);
     expect(overviewIndex).toMatch(/function RiskPanel/);
   });
 
@@ -155,7 +156,9 @@ describe('Tortila overview: all 12 sections are rendered', () => {
     expect(overviewIndex).toMatch(/MonthlyBars/);
     expect(overviewIndex).toMatch(/CalendarHeatmap/);
     expect(overviewIndex).toMatch(/DistributionChart/);
-    expect(overviewIndex).toMatch(/Trade history . last 30 closed/);
+    // G1: trade history is a filterable, paginated client island.
+    expect(overviewIndex).toMatch(/Trade history/);
+    expect(overviewIndex).toMatch(/TradeHistory/);
     expect(overviewIndex).toMatch(/ActivityFeed/);
     expect(overviewIndex).toMatch(/Costs and tracking/);
   });

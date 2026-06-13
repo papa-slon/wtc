@@ -11,7 +11,10 @@ import {
   type TortilaJournalReadError,
   type TortilaMarks,
   type TortilaMonthly,
+  type TortilaSummary,
   type TortilaSymbolBreakdown,
+  type TortilaTradeList,
+  type TortilaTradeListQuery,
 } from '@wtc/bot-adapters';
 import type { CanonicalMetrics, CanonicalPosition, CanonicalTrade, EquityPoint } from '@wtc/analytics';
 import { botAdapterOptions } from '@/lib/server-config';
@@ -33,6 +36,8 @@ export interface TortilaOverviewPayload {
   /** Adapter mode from BOT_ADAPTER_MODE; the page uses this to decide between
    *  mock-warning vs real-data badges. */
   adapterMode: 'mock' | 'read-only' | 'audited';
+  /** /api/summary slice — the authoritative source for demo/live `mode` + at_ath. */
+  summary: TortilaOverviewSlice<TortilaSummary>;
   advanced: TortilaOverviewSlice<TortilaAdvancedMetrics>;
   symbolBreakdown: TortilaOverviewSlice<TortilaSymbolBreakdown>;
   monthly: TortilaOverviewSlice<TortilaMonthly>;
@@ -74,6 +79,7 @@ export async function loadTortilaOverviewPayload(): Promise<TortilaOverviewPaylo
       baseUrl,
       assembledAt,
       adapterMode: opts.mode,
+      summary: { data: null, error: reason },
       advanced: { data: null, error: reason },
       symbolBreakdown: { data: null, error: reason },
       monthly: { data: null, error: reason },
@@ -86,7 +92,8 @@ export async function loadTortilaOverviewPayload(): Promise<TortilaOverviewPaylo
   }
 
   const reader = createTortilaJournalReader(baseUrl, opts.tortilaReadToken);
-  const [advanced, symbolBreakdown, monthly, calendar, distribution, drawdownSeries, marks, activity] = await Promise.all([
+  const [summary, advanced, symbolBreakdown, monthly, calendar, distribution, drawdownSeries, marks, activity] = await Promise.all([
+    reader.getSummary(),
     reader.getAdvanced(),
     reader.getSymbolBreakdown(),
     reader.getMonthly(),
@@ -102,6 +109,7 @@ export async function loadTortilaOverviewPayload(): Promise<TortilaOverviewPaylo
     baseUrl: reader.baseUrl,
     assembledAt,
     adapterMode: opts.mode,
+    summary: wrap(summary),
     advanced: wrap(advanced),
     symbolBreakdown: wrap(symbolBreakdown),
     monthly: wrap(monthly),
@@ -111,6 +119,32 @@ export async function loadTortilaOverviewPayload(): Promise<TortilaOverviewPaylo
     marks: wrap(marks),
     activity: wrap(activity),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Trade-history page read (G1). The trade-history table is a client island that
+// pages + filters via the journal `/api/trades/list` endpoint. This loader is
+// the server-side half: it carries the bearer token (which never leaves the
+// module) and returns either the parsed page or an honest `{ error }` envelope.
+// The Next.js route handler that calls this is session + entitlement gated.
+// ---------------------------------------------------------------------------
+
+export interface TortilaTradesPageResult {
+  data: TortilaTradeList | null;
+  error: string | null;
+}
+
+export async function loadTortilaTradesPage(query: TortilaTradeListQuery): Promise<TortilaTradesPageResult> {
+  const opts = botAdapterOptions();
+  const baseUrl = opts.tortilaBaseUrl ?? '';
+  const configured = opts.mode !== 'mock' && Boolean(baseUrl) && Boolean(opts.tortilaReadToken);
+  if (!configured) {
+    return { data: null, error: notConfiguredReason(opts, baseUrl) };
+  }
+  const reader = createTortilaJournalReader(baseUrl, opts.tortilaReadToken);
+  const result = await reader.getTradesList(query);
+  if (isTortilaJournalError(result)) return { data: null, error: result.error };
+  return { data: result, error: null };
 }
 
 // ---------------------------------------------------------------------------
@@ -226,8 +260,13 @@ export async function loadTortilaLiveOverview(): Promise<TortilaLiveOverview> {
       };
     }
 
-    const mode: 'demo' | 'live' | 'unknown' = 'unknown';
-    const atAth = metrics.currentDrawdownPct !== null && metrics.currentDrawdownPct < 1e-6;
+    // G6: thread the truthful demo/live flag from /api/summary instead of a
+    // hard-coded constant. The canary is VST/demo, but this MUST come from data.
+    const summary = payload.summary.data;
+    const mode: 'demo' | 'live' | 'unknown' = summary?.mode ?? 'unknown';
+    // Prefer the journal's own all-time-high flag; fall back to the
+    // drawdown-derived guess when /api/summary is unavailable.
+    const atAth = summary?.at_ath ?? (metrics.currentDrawdownPct !== null && metrics.currentDrawdownPct < 1e-6);
     return {
       status: 'live',
       statusDetail: null,

@@ -69,7 +69,9 @@ describe('bot statistics surface (premium + simple)', () => {
   });
 
   it('renders the full premium dashboard section family from TortilaOverview', () => {
-    for (const sym of ['Sparkline', 'EquityChart', 'DrawdownChart', 'PositionCard', 'SymbolContribution', 'MonthlyBars', 'CalendarHeatmap', 'DistributionChart', 'ActivityFeed']) {
+    // EquityPanel replaces the static EquityChart/DrawdownChart (G3/G4 — period
+    // tabs + hover); TradeHistory replaces the static 30-row table (G1/G2).
+    for (const sym of ['Sparkline', 'EquityPanel', 'PositionCard', 'SymbolContribution', 'MonthlyBars', 'CalendarHeatmap', 'DistributionChart', 'TradeHistory', 'ActivityFeed']) {
       expect(overviewIndex).toContain(sym);
     }
     expect(overviewIndex).toMatch(/Costs and tracking/);

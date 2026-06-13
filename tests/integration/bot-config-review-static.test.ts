@@ -98,18 +98,23 @@ describe('bot config effective review guardrails', () => {
 
     expect(dashboard).toContain('BotOperationMapPanel');
     expect(dashboard).toContain('operationReview.metrics');
-    expect(settings).toContain('buildBotConfigReview');
-    expect(settings).toContain('firstLegacyStageCapacityIssue');
-    expect(settings).toContain('legacyStageCapacityIssue={legacyStageCapacityIssue}');
+    // SETTINGS_SPEC: the premium settings page no longer builds the config review
+    // or stage-capacity issue (those fed the deleted panels). It keeps the real
+    // save-error copy path.
+    expect(settings).not.toContain('buildBotConfigReview');
+    expect(settings).not.toContain('BotConfigReviewPanel');
     expect(settings).toContain('botConfigErrorCopy');
     expect(settings).toContain('botConfigErrorRedirect');
     expect(settings).toContain('firstFormIssue: botConfigFirstFormIssue');
-    expect(settings).toContain('<BotConfigReviewPanel review={configReview} />');
+    // SETTINGS_SPEC: the premium settings page deletes the BotConfigReviewPanel /
+    // operation-map noise. It keeps the real save contract + the clean coin editor.
+    expect(settings).not.toContain('<BotConfigReviewPanel');
+    expect(settings).not.toContain('BotOperationMapPanel');
+    expect(settings).not.toContain('How this bot will operate');
+    expect(settings).toContain('TortilaCoinConfigEditor');
     expect(settings).toContain('TORTILA_EMBEDDED_FIELD_NAMES');
     expect(settings).toContain('tortilaPortfolioCaps');
     expect(settings).toContain('portfolioCaps={tortilaPortfolioCaps}');
-    expect(settings).toContain('How this bot will operate');
-    expect(settings).toContain('BotOperationMapPanel');
     expect(settings).toContain('system v${state.systemDefault.version}');
     expect(settings).toContain('custom v${state.version}');
     expect(setup).toContain('Current setup settings review');
@@ -165,8 +170,8 @@ describe('bot config effective review guardrails', () => {
     expect(setupCenter).toContain('Live exchange ping is still not run');
     expect(setupCenter).toContain('Start, stop, live diagnostics, live apply, and position-closing actions are not available');
     expect(setupCenter).not.toContain('providerPubId');
-    expect(settings).toContain('legacyProviderState={readiness.providerPubIdState}');
-    expect(settings).toContain('activeIssue={configError ?? undefined}');
+    // The clean settings page drops the readiness/setup-control-center props; it
+    // only wires the real save-error copy into the coin editor.
     expect(settings).toContain('saveIssue={configError ?? undefined}');
     expect(setup).toContain('legacyProviderState={readiness.providerPubIdState}');
     expect(setup).toContain('activeIssue={configError ?? undefined}');
