@@ -89,7 +89,7 @@ describe('Tortila settings: save contract is intact after the premium redesign',
     expect(settings).toContain('name="operationMode"');
     // The action chain itself is untouched.
     expect(settings).toContain('handleSaveBotConfigAction');
-    expect(settings).toContain('persistConfig: (userId, productCode, config, note) => persistBotConfig');
+    expect(settings).toContain('persistConfig: (userId, productCode, config, note, accountId) => persistBotConfig');
   });
 
   it('still renders the compatibility / advanced top-level fields (symbols, leverage, timeframe, ...)', () => {

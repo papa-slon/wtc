@@ -1818,14 +1818,32 @@ export async function getBotInstance(db: Db, id: string): Promise<BotInstanceRow
 export async function listBotInstancesForUser(db: Db, userId: string): Promise<BotInstanceRow[]> {
   return db.select().from(s.botInstances).where(eq(s.botInstances.userId, userId));
 }
-/** Get-or-create the single bot instance for (user, product). Used by the settings surface so a user
- *  can persist config before any live wiring exists. Never contacts a live bot. */
-export async function ensureBotInstance(db: Db, input: { userId: string; productCode: string; exchangeAccountId?: string }): Promise<BotInstanceRow> {
-  const [existing] = await db.select().from(s.botInstances).where(and(eq(s.botInstances.userId, input.userId), eq(s.botInstances.productCode, input.productCode))).limit(1);
+/** Get-or-create a bot instance for (user, product, accountId?). accountId=null|undefined targets the
+ *  legacy aggregate/default bucket (account_id IS NULL); a non-null value targets a named account.
+ *  NEVER use eq(col, null) — SQL `col = NULL` is always false and would spawn duplicates.
+ *  Never contacts a live bot. */
+export async function ensureBotInstance(db: Db, input: { userId: string; productCode: string; exchangeAccountId?: string; accountId?: string | null }): Promise<BotInstanceRow> {
+  const where = input.accountId == null
+    ? and(eq(s.botInstances.userId, input.userId), eq(s.botInstances.productCode, input.productCode), isNull(s.botInstances.accountId))
+    : and(eq(s.botInstances.userId, input.userId), eq(s.botInstances.productCode, input.productCode), eq(s.botInstances.accountId, input.accountId));
+  const [existing] = await db.select().from(s.botInstances).where(where).limit(1);
   if (existing) return existing;
-  const [row] = await db.insert(s.botInstances).values({ userId: input.userId, productCode: input.productCode, exchangeAccountId: input.exchangeAccountId ?? null }).returning();
+  const [row] = await db.insert(s.botInstances).values({ userId: input.userId, productCode: input.productCode, exchangeAccountId: input.exchangeAccountId ?? null, accountId: input.accountId ?? null }).returning();
   if (!row) throw new Error('failed to insert bot instance');
   return row;
+}
+
+/** Read-only lookup of a bot instance for (user, product, accountId?). Returns null when no row exists
+ *  — does NOT insert. accountId=null|undefined targets the aggregate bucket (IS NULL predicate). */
+export async function getBotInstanceForUserProductAccount(
+  db: Db,
+  { userId, productCode, accountId }: { userId: string; productCode: string; accountId?: string | null },
+): Promise<BotInstanceRow | null> {
+  const where = accountId == null
+    ? and(eq(s.botInstances.userId, userId), eq(s.botInstances.productCode, productCode), isNull(s.botInstances.accountId))
+    : and(eq(s.botInstances.userId, userId), eq(s.botInstances.productCode, productCode), eq(s.botInstances.accountId, accountId));
+  const [row] = await db.select().from(s.botInstances).where(where).limit(1);
+  return row ?? null;
 }
 
 export async function listBotProviderAccountsForUser(db: Db, userId: string, opts?: { productCode?: string }): Promise<BotProviderAccountRow[]> {
@@ -1854,7 +1872,7 @@ export async function summarizeUserBotProviderMapping(
   const [instance] = await db
     .select({ id: s.botInstances.id })
     .from(s.botInstances)
-    .where(and(eq(s.botInstances.userId, input.userId), eq(s.botInstances.productCode, input.productCode)))
+    .where(and(eq(s.botInstances.userId, input.userId), eq(s.botInstances.productCode, input.productCode), isNull(s.botInstances.accountId)))
     .limit(1);
   if (!instance) {
     return { botInstanceId: null, activeCount: 0, latestUpdatedAt: null, status: 'missing_instance' };

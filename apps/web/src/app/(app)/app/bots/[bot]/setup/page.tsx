@@ -91,8 +91,8 @@ const botConfigActionDependencies: BotConfigActionDependencies = {
   configFromForm: botConfigFormInput,
   parseConfig: parseBotConfigActionConfig,
   findPreset: botConfigPresetFor,
-  persistConfig: (userId, productCode, config, note) => persistBotConfig(userId, productCode, config, note),
-  selectSystemDefault: (userId, productCode) => selectSystemDefaultBotConfig(userId, productCode),
+  persistConfig: (userId, productCode, config, note, _accountId) => persistBotConfig(userId, productCode, config, note, undefined),
+  selectSystemDefault: (userId, productCode, _accountId) => selectSystemDefaultBotConfig(userId, productCode, undefined),
 };
 
 function setupActionRoutes(bot: string): BotConfigActionRoutes {

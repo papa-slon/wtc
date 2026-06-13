@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   PRODUCTS,
@@ -1010,7 +1010,7 @@ export async function loadAdminUserBotDetailFromDb(db: Db, userId: string, now =
         exchangeAccountId: schema.botInstances.exchangeAccountId,
       })
       .from(schema.botInstances)
-      .where(and(eq(schema.botInstances.userId, userId), inArray(schema.botInstances.productCode, ADMIN_BOT_PRODUCT_CODE_VALUES))),
+      .where(and(eq(schema.botInstances.userId, userId), inArray(schema.botInstances.productCode, ADMIN_BOT_PRODUCT_CODE_VALUES), isNull(schema.botInstances.accountId))),
     db
       .select({
         id: schema.exchangeAccounts.id,

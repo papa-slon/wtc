@@ -392,7 +392,7 @@ describe('bot read surfaces tolerate blocked/not-ready adapters', () => {
   });
 
   it('production user DB snapshots are scoped by user bot instance and Legacy provider mapping', () => {
-    expect(data).toMatch(/where\(and\(eq\(schema\.botInstances\.userId, userId\), eq\(schema\.botInstances\.productCode, productCode\)\)\)/);
+    expect(data).toMatch(/where\(and\(eq\(schema\.botInstances\.userId, userId\), eq\(schema\.botInstances\.productCode, productCode\), isNull\(schema\.botInstances\.accountId\)\)\)/);
     expect(data).toMatch(/schema\.botProviderAccounts/);
     expect(data).toMatch(/providerMappingIssue/);
     expect(data).toMatch(/userScopedSnapshotRequired/);

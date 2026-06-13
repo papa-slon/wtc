@@ -3,11 +3,11 @@ import { z } from 'zod';
 import { getServerDb } from '@/lib/backend';
 import {
   ensureBotInstance,
+  getBotInstanceForUserProductAccount,
   getPublishedBotGlobalConfig,
   saveBotConfig,
   getCurrentBotConfig,
   listBotConfigVersions,
-  listBotInstancesForUser,
   listBotSafetyEvents,
 } from '@wtc/db';
 import type { BotGlobalConfigRow } from '@wtc/db';
@@ -1009,12 +1009,12 @@ function demoConfigs(): Map<string, DemoConfigVersion[]> {
   return demoGlobal.__WTC_DEMO_BOT_CONFIGS__;
 }
 
-function demoKey(userId: string, productCode: string): string {
-  return `${userId}:${productCode}`;
+function demoKey(userId: string, productCode: string, accountId?: string | null): string {
+  return accountId ? `${userId}:${productCode}:${accountId}` : `${userId}:${productCode}`;
 }
 
-function loadDemoBotConfig(userId: string, productCode: string): BotConfigState {
-  const versions = demoConfigs().get(demoKey(userId, productCode)) ?? [];
+function loadDemoBotConfig(userId: string, productCode: string, accountId?: string | null): BotConfigState {
+  const versions = demoConfigs().get(demoKey(userId, productCode, accountId)) ?? [];
   const current = versions.at(-1) ?? null;
   return configState({
     mode: 'demo',
@@ -1030,17 +1030,16 @@ function loadDemoBotConfig(userId: string, productCode: string): BotConfigState 
   });
 }
 
-export async function loadBotConfig(userId: string, productCode: string): Promise<BotConfigState> {
+export async function loadBotConfig(userId: string, productCode: string, accountId?: string): Promise<BotConfigState> {
   const db = getServerDb();
-  if (!db) return loadDemoBotConfig(userId, productCode);
-  const [systemDefaultRow, instances] = await Promise.all([
+  if (!db) return loadDemoBotConfig(userId, productCode, accountId ?? null);
+  const [systemDefaultRow, inst] = await Promise.all([
     getPublishedBotGlobalConfig(db, productCode),
-    listBotInstancesForUser(db, userId),
+    getBotInstanceForUserProductAccount(db, { userId, productCode, accountId: accountId ?? null }),
   ]);
   let systemDefault = publishedSystemDefault(systemDefaultRow);
   const systemDefaultConfig = publishedSystemDefaultConfig(productCode, systemDefaultRow);
   if (systemDefault && !systemDefaultConfig) systemDefault = null;
-  const inst = instances.find((i) => i.productCode === productCode);
   if (!inst) {
     return configState({
       mode: 'postgres',
@@ -1090,11 +1089,11 @@ export async function loadBotConfig(userId: string, productCode: string): Promis
   });
 }
 
-export async function persistBotConfig(userId: string, productCode: string, config: Record<string, unknown>, note?: string): Promise<'saved' | 'demo'> {
+export async function persistBotConfig(userId: string, productCode: string, config: Record<string, unknown>, note?: string, accountId?: string | null): Promise<'saved' | 'demo'> {
   const safeConfig = safeUserBotConfigForProduct(productCode, config);
   const db = getServerDb();
   if (!db) {
-    const key = demoKey(userId, productCode);
+    const key = demoKey(userId, productCode, accountId);
     const versions = demoConfigs().get(key) ?? [];
     versions.push({ version: versions.length + 1, createdAt: Date.now(), note: note ?? null, config: safeConfig });
     demoConfigs().set(key, versions);
@@ -1104,19 +1103,19 @@ export async function persistBotConfig(userId: string, productCode: string, conf
   const systemDefault = publishedSystemDefault(systemDefaultRow);
   const systemDefaultConfig = publishedSystemDefaultConfig(productCode, systemDefaultRow);
   if (systemDefault && systemDefaultConfig && !systemDefault.allowUserOverride) throw new Error('bot_config_override_disabled');
-  const inst = await ensureBotInstance(db, { userId, productCode });
+  const inst = await ensureBotInstance(db, { userId, productCode, accountId: accountId ?? null });
   await saveBotConfig(db, { botInstanceId: inst.id, config: safeConfig, changedBy: userId, note });
   return 'saved';
 }
 
-export async function selectSystemDefaultBotConfig(userId: string, productCode: string): Promise<'saved' | 'unavailable'> {
+export async function selectSystemDefaultBotConfig(userId: string, productCode: string, accountId?: string | null): Promise<'saved' | 'unavailable'> {
   const db = getServerDb();
   if (!db) return 'unavailable';
   const systemDefaultRow = await getPublishedBotGlobalConfig(db, productCode);
   const systemDefault = publishedSystemDefault(systemDefaultRow);
   const systemDefaultConfig = publishedSystemDefaultConfig(productCode, systemDefaultRow);
   if (!systemDefault || !systemDefaultConfig) return 'unavailable';
-  const inst = await ensureBotInstance(db, { userId, productCode });
+  const inst = await ensureBotInstance(db, { userId, productCode, accountId: accountId ?? null });
   await saveBotConfig(db, {
     botInstanceId: inst.id,
     config: systemDefaultSelectionConfig(systemDefault),

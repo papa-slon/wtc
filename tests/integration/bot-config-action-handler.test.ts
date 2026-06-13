@@ -136,7 +136,7 @@ describe('bot config action handler runtime boundaries', () => {
     expect(d.formIssues).toHaveBeenCalledWith('tortila_bot', expect.any(FormData));
     expect(d.configFromForm).toHaveBeenCalledWith('tortila_bot', expect.any(FormData));
     expect(d.parseConfig).toHaveBeenCalledWith('tortila_bot', manualConfig);
-    expect(d.persistConfig).toHaveBeenCalledWith('user-1', 'tortila_bot', manualConfig, 'manual edit');
+    expect(d.persistConfig).toHaveBeenCalledWith('user-1', 'tortila_bot', manualConfig, 'manual edit', undefined);
   });
 
   it('redirects setup custom saves to review without importing Next redirect into the helper', async () => {
@@ -148,7 +148,7 @@ describe('bot config action handler runtime boundaries', () => {
       redirectTo: '/app/bots/legacy/setup?step=review',
       revalidatePaths: [],
     });
-    expect(d.persistConfig).toHaveBeenCalledWith('user-1', 'legacy_bot', manualConfig, 'wizard manual edit');
+    expect(d.persistConfig).toHaveBeenCalledWith('user-1', 'legacy_bot', manualConfig, 'wizard manual edit', undefined);
   });
 
   it('rejects forbidden hidden FormData fields before form parsing or persistence', async () => {
@@ -335,7 +335,7 @@ describe('bot config action handler runtime boundaries', () => {
     const settings = deps();
     const settingsOutcome = await handleApplyBotPresetAction(form([['bot', 'tortila'], ['presetId', 'known']]), settingsRoutes, settings);
     expect(settingsOutcome).toEqual({ kind: 'success', revalidatePaths: ['/app/bots/tortila/settings'] });
-    expect(settings.persistConfig).toHaveBeenCalledWith('user-1', 'tortila_bot', presetConfig, 'preset:known');
+    expect(settings.persistConfig).toHaveBeenCalledWith('user-1', 'tortila_bot', presetConfig, 'preset:known', undefined);
 
     const missingSettings = deps();
     await expect(handleApplyBotPresetAction(form([['bot', 'tortila'], ['presetId', 'missing']]), settingsRoutes, missingSettings))
@@ -352,7 +352,7 @@ describe('bot config action handler runtime boundaries', () => {
     const selected = deps();
     const selectedOutcome = await handleUseSystemDefaultBotConfigAction(form([['bot', 'legacy']]), setupRoutes, selected);
     expect(selectedOutcome).toEqual({ kind: 'redirect', redirectTo: '/app/bots/legacy/setup?step=review', revalidatePaths: [] });
-    expect(selected.selectSystemDefault).toHaveBeenCalledWith('user-1', 'legacy_bot');
+    expect(selected.selectSystemDefault).toHaveBeenCalledWith('user-1', 'legacy_bot', undefined);
     expect(selected.persistConfig).not.toHaveBeenCalled();
 
     const unavailable = deps({ selectSystemDefault: vi.fn(async (): Promise<'unavailable'> => 'unavailable') });
@@ -410,4 +410,58 @@ describe('bot config action handler runtime boundaries', () => {
 
     expect(await userBotWriteCounts(db)).toEqual(before);
   }, 30_000);
+
+  // ── RBAC: account field CONSERVATIVE gate ────────────────────────────────────
+  it('RBAC (conservative): non-admin POST with a non-empty account field calls persistConfig with accountId undefined (coerced to NULL bucket)', async () => {
+    // user fixture: { id: 'user-1', roles: ['user'] } — NOT an admin.
+    // Even when the hidden account field carries a non-empty pub_id, the RBAC gate
+    // in resolveActionContext MUST strip it (roles.includes('admin') is false).
+    const capturedAccountId: Array<string | null | undefined> = [];
+    const d = deps({
+      persistConfig: vi.fn(async (_userId, _productCode, _config, _note, accountId) => {
+        capturedAccountId.push(accountId);
+        return 'saved';
+      }),
+    });
+
+    const outcome = await handleSaveBotConfigAction(
+      form([['bot', 'tortila'], ['account', 'some-pub-id-123']]),
+      settingsRoutes,
+      d,
+      'manual edit',
+    );
+
+    expect(outcome).toEqual({ kind: 'success', revalidatePaths: ['/app/bots/tortila/settings'] });
+    // persistConfig must have been called with accountId=undefined (the NULL bucket).
+    expect(d.persistConfig).toHaveBeenCalledTimes(1);
+    expect(capturedAccountId[0]).toBeUndefined();
+    // Confirm via toHaveBeenCalledWith too.
+    expect(d.persistConfig).toHaveBeenCalledWith('user-1', 'tortila_bot', manualConfig, 'manual edit', undefined);
+  });
+
+  it('RBAC (conservative): admin POST with a non-empty account field passes that accountId through to persistConfig', async () => {
+    // admin fixture: roles includes 'admin' — the gate MUST pass the accountId through.
+    const adminUser = { id: 'admin-1', roles: ['admin'] };
+    const capturedAccountId: Array<string | null | undefined> = [];
+    const d = deps({
+      requireUser: vi.fn(async () => adminUser),
+      persistConfig: vi.fn(async (_userId, _productCode, _config, _note, accountId) => {
+        capturedAccountId.push(accountId);
+        return 'saved';
+      }),
+    });
+
+    const outcome = await handleSaveBotConfigAction(
+      form([['bot', 'tortila'], ['account', 'some-pub-id-123']]),
+      settingsRoutes,
+      d,
+      'manual edit',
+    );
+
+    expect(outcome).toEqual({ kind: 'success', revalidatePaths: ['/app/bots/tortila/settings'] });
+    // persistConfig must have been called with the actual accountId.
+    expect(d.persistConfig).toHaveBeenCalledTimes(1);
+    expect(capturedAccountId[0]).toBe('some-pub-id-123');
+    expect(d.persistConfig).toHaveBeenCalledWith('admin-1', 'tortila_bot', manualConfig, 'manual edit', 'some-pub-id-123');
+  });
 });

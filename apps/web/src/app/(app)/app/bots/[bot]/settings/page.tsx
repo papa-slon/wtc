@@ -1,7 +1,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { requireUser } from '@/lib/session';
+import { requireUser, isAdmin } from '@/lib/session';
 import { botAccessForUser } from '@/lib/access';
 import { CsrfField, assertCsrf } from '@/lib/csrf';
 import { listExchangeKeys, recordExchangeKeyMetadataCheck } from '@/lib/backend';
@@ -9,6 +9,7 @@ import { exchangeKeyMetadataCheckSchema } from '@wtc/shared';
 import { Card, SectionHeader, StatusPill, EmptyState, buttonClasses, MetricCard, RiskWarningBanner } from '@wtc/ui';
 import { fmtDate, fmtMoney } from '@/lib/format';
 import { loadBot, BotAccessRequired, loadBotReadModelForUser } from '@/features/bots/data';
+import { loadLegacyAccounts } from '@/features/bots/legacy-overview-data';
 import { BotSubNav } from '@/components/BotSubNav';
 import { botMeta, type BotProductCode } from '@/features/bots/meta';
 import {
@@ -76,6 +77,11 @@ function shortPubId(value: string): string {
   return value.length > 14 ? `${value.slice(0, 8)}...${value.slice(-4)}` : value;
 }
 
+/** Mask a public account id for display (mirrors statistics/page.tsx maskPubId). */
+function maskPubId(s: string): string {
+  return s.length > 12 ? `${s.slice(0, 8)}…${s.slice(-4)}` : s;
+}
+
 function numberFrom(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -116,8 +122,8 @@ const botConfigActionDependencies: BotConfigActionDependencies = {
   configFromForm: botConfigFormInput,
   parseConfig: parseBotConfigActionConfig,
   findPreset: botConfigPresetFor,
-  persistConfig: (userId, productCode, config, note) => persistBotConfig(userId, productCode, config, note),
-  selectSystemDefault: (userId, productCode) => selectSystemDefaultBotConfig(userId, productCode),
+  persistConfig: (userId, productCode, config, note, accountId) => persistBotConfig(userId, productCode, config, note, accountId),
+  selectSystemDefault: (userId, productCode, accountId) => selectSystemDefaultBotConfig(userId, productCode, accountId),
 };
 
 function settingsActionRoutes(slug: string): BotConfigActionRoutes {
@@ -183,7 +189,7 @@ export default async function Page({
   searchParams,
 }: {
   params: Promise<{ bot: string }>;
-  searchParams: Promise<{ err?: string; keyCheck?: string; issue?: string; row?: string }>;
+  searchParams: Promise<{ err?: string; keyCheck?: string; issue?: string; row?: string; account?: string | string[] }>;
 }) {
   const { bot } = await params;
   const sp = await searchParams;
@@ -191,10 +197,13 @@ export default async function Page({
   if (!access.allowed) return <BotAccessRequired meta={meta} section="Settings" />;
 
   const user = await requireUser();
-  const [state, legacyRead, exchangeKeys] = await Promise.all([
-    loadBotConfig(user.id, meta.code),
+  const account = Array.isArray(sp.account) ? sp.account[0] : sp.account;
+  const effectiveAccount = isAdmin(user) ? account : undefined;
+  const [state, legacyRead, exchangeKeys, legacyAccountsData] = await Promise.all([
+    loadBotConfig(user.id, meta.code, effectiveAccount),
     meta.code === 'legacy_bot' ? loadBotReadModelForUser(user.id, meta.code, ['config']) : Promise.resolve(null),
     meta.code === 'tortila_bot' ? listExchangeKeys(user.id) : Promise.resolve([]),
+    meta.code === 'legacy_bot' && isAdmin(user) ? loadLegacyAccounts() : Promise.resolve(null),
   ]);
   const legacyLiveConfig =
     meta.code === 'legacy_bot' && legacyRead?.config.data?.raw && typeof legacyRead.config.data.raw === 'object'
@@ -243,6 +252,7 @@ export default async function Page({
   // default exists and is not already the active source (replaces the deleted
   // provenance ladder cards).
   const offerSystemDefault = hasSystemDefault && state.source !== 'system_default';
+  const selectorAccounts = legacyAccountsData?.accounts ?? [];
 
   return (
     <div className="wtc-stack tset-page">
@@ -263,6 +273,7 @@ export default async function Page({
             <form action={useSystemDefaultAction}>
               <CsrfField />
               <input type="hidden" name="bot" value={bot} />
+              <input type="hidden" name="account" value={effectiveAccount ?? ''} />
               <button className={buttonClasses('ghost')} type="submit" style={{ fontSize: 13 }}>Use system default</button>
             </form>
           )}
@@ -306,6 +317,36 @@ export default async function Page({
         />
       )}
 
+      {/* Account selector — legacy_bot only, admin-gated. Mirrors statistics/page.tsx LegacyPanel. */}
+      {meta.code === 'legacy_bot' && isAdmin(user) && selectorAccounts.length > 0 && (
+        <div className="wtc-stack" style={{ gap: 6 }}>
+          <div className="wtc-row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <StatusPill tone="neutral">{effectiveAccount ? `account ${maskPubId(effectiveAccount)}` : 'all accounts'}</StatusPill>
+          </div>
+          <div className="wtc-row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span className="wtc-dim" style={{ fontSize: 12 }}>Account (admin):</span>
+            <Link
+              href="/app/bots/legacy/settings"
+              aria-current={!effectiveAccount ? 'page' : undefined}
+              className={buttonClasses(!effectiveAccount ? 'secondary' : 'ghost')}
+            >
+              All ({selectorAccounts.length})
+            </Link>
+            {selectorAccounts.map((a) => (
+              <Link
+                key={a.pub_id}
+                href={`/app/bots/legacy/settings?account=${encodeURIComponent(a.pub_id)}`}
+                aria-current={effectiveAccount === a.pub_id ? 'page' : undefined}
+                className={buttonClasses(effectiveAccount === a.pub_id ? 'secondary' : 'ghost')}
+                title={`${a.market} · ${a.running ? 'running' : 'paused'}${a.quarantined ? ' · quarantined' : ''} · ${a.cycles} cycles · ${a.open_slots} open · ${a.symbols} symbols`}
+              >
+                {maskPubId(a.pub_id)}{a.quarantined ? ' ⚠' : ''}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* THE EDITOR — first thing the user sees. Save contract unchanged:
           <form id="custom-settings" action={saveBotConfigAction}> with CsrfField,
           hidden bot, and the exact same input name attributes. */}
@@ -320,6 +361,7 @@ export default async function Page({
         <form id="custom-settings" action={saveBotConfigAction} className="wtc-stack" style={{ gap: 16 }}>
           <CsrfField />
           <input type="hidden" name="bot" value={bot} />
+          <input type="hidden" name="account" value={effectiveAccount ?? ''} />
           <label className="wtc-stack" style={{ gap: 4, maxWidth: 360 }}>
             <span style={{ fontSize: 13 }}>Strategy mode</span>
             <select className="wtc-input" name="operationMode" defaultValue={cur.operationMode != null ? String(cur.operationMode) : defaults.operationMode}>
@@ -476,6 +518,7 @@ export default async function Page({
             <form key={preset.id} action={applyBotPresetAction} className="wtc-card wtc-stack" style={{ gap: 10 }}>
               <CsrfField />
               <input type="hidden" name="bot" value={bot} />
+              <input type="hidden" name="account" value={effectiveAccount ?? ''} />
               <input type="hidden" name="presetId" value={preset.id} />
               <div className="wtc-spread">
                 <h3 style={{ margin: 0, fontSize: 16 }}>{preset.name}</h3>

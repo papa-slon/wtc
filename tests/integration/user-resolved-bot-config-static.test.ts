@@ -40,7 +40,7 @@ describe('user resolved bot config source guardrails', () => {
     const quickPath = read('apps/web/src/features/bots/BotSettingsQuickPath.tsx');
 
     const settingsAccess = settings.indexOf('if (!access.allowed) return <BotAccessRequired');
-    const settingsLoad = settings.indexOf('loadBotConfig(user.id, meta.code)');
+    const settingsLoad = settings.indexOf('loadBotConfig(user.id, meta.code, effectiveAccount)');
     expect(settingsAccess).toBeGreaterThanOrEqual(0);
     expect(settingsLoad).toBeGreaterThan(settingsAccess);
     // SETTINGS_SPEC: the BotSettingsQuickPath ladder AND the "Settings source" /

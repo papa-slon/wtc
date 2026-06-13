@@ -24,7 +24,7 @@ import { SectionHeader, RiskWarningBanner, buttonClasses } from '@wtc/ui';
 import { BotSubNav } from '@/components/BotSubNav';
 import { botMeta, type BotMeta } from '@/features/bots/meta';
 import { buildSafeRuntimeConfigView } from '@/features/bots/runtime-config-sanitizer';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { schema } from '@wtc/db';
 
 /** Resolve a bot slug → meta + the current user's access. 404s on an unknown slug. */
@@ -445,7 +445,7 @@ async function loadDbBotReadModelForUser(userId: string, productCode: BotProduct
       id: schema.botInstances.id,
     })
     .from(schema.botInstances)
-    .where(and(eq(schema.botInstances.userId, userId), eq(schema.botInstances.productCode, productCode)))
+    .where(and(eq(schema.botInstances.userId, userId), eq(schema.botInstances.productCode, productCode), isNull(schema.botInstances.accountId)))
     .limit(1);
 
   if (!instance) {

@@ -135,13 +135,26 @@ export const exchangeApiKeySecrets = pgTable('exchange_api_key_secrets', {
 });
 
 // --- Bots ---
-export const botInstances = pgTable('bot_instances', {
-  id: id(),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  productCode: text('product_code').notNull(), // tortila_bot | legacy_bot
-  exchangeAccountId: uuid('exchange_account_id').references(() => exchangeAccounts.id),
-  createdAt: createdAt(),
-});
+export const botInstances = pgTable(
+  'bot_instances',
+  {
+    id: id(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    productCode: text('product_code').notNull(), // tortila_bot | legacy_bot
+    exchangeAccountId: uuid('exchange_account_id').references(() => exchangeAccounts.id),
+    accountId: text('account_id'), // NULL = legacy aggregate bucket; else api_keys.pub_id
+    createdAt: createdAt(),
+  },
+  (t) => ({
+    // Postgres treats NULLs as distinct in a plain unique index → two partial indexes.
+    uniqUserProductAccount: uniqueIndex('bi_user_product_account_idx')
+      .on(t.userId, t.productCode, t.accountId)
+      .where(sql`"account_id" IS NOT NULL`),
+    uniqUserProductDefault: uniqueIndex('bi_user_product_default_idx')
+      .on(t.userId, t.productCode)
+      .where(sql`"account_id" IS NULL`),
+  }),
+);
 
 export const botProviderAccounts = pgTable(
   'bot_provider_accounts',

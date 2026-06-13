@@ -44,8 +44,8 @@ export interface BotConfigActionDependencies {
   configFromForm: (productCode: BotProductCode, formData: FormData) => Record<string, unknown>;
   parseConfig: (productCode: BotProductCode, config: Record<string, unknown>) => BotConfigParseResult;
   findPreset: (productCode: BotProductCode, presetId: string) => BotConfigActionPreset | undefined;
-  persistConfig: (userId: string, productCode: BotProductCode, config: Record<string, unknown>, note: string) => Promise<unknown>;
-  selectSystemDefault: (userId: string, productCode: BotProductCode) => Promise<'saved' | 'unavailable'>;
+  persistConfig: (userId: string, productCode: BotProductCode, config: Record<string, unknown>, note: string, accountId?: string | null) => Promise<unknown>;
+  selectSystemDefault: (userId: string, productCode: BotProductCode, accountId?: string | null) => Promise<'saved' | 'unavailable'>;
 }
 
 const FORBIDDEN_BOT_CONFIG_ACTION_FORM_KEYS = new Set([
@@ -118,6 +118,7 @@ interface ReadyActionContext {
   slug: string;
   user: BotConfigActionUser;
   productCode: BotProductCode;
+  accountId?: string;
 }
 
 async function resolveActionContext(
@@ -130,7 +131,9 @@ async function resolveActionContext(
   const user = await deps.requireUser();
   const access = await deps.botAccessForUser(user, meta.code);
   if (!access.allowed) return null;
-  return { slug, user, productCode: meta.code };
+  const requestedAccount = String(formData.get('account') ?? '') || undefined;
+  const accountId = (requestedAccount && user.roles.includes('admin')) ? requestedAccount : undefined;
+  return { slug, user, productCode: meta.code, accountId };
 }
 
 function isLockedDefaultError(err: unknown): boolean {
@@ -145,10 +148,11 @@ async function persistWithLockedDefaultRedirect(
     note: string;
     routes: BotConfigActionRoutes;
     deps: BotConfigActionDependencies;
+    accountId?: string;
   },
 ): Promise<BotConfigActionOutcome | null> {
   try {
-    await input.deps.persistConfig(input.userId, input.productCode, input.config, input.note);
+    await input.deps.persistConfig(input.userId, input.productCode, input.config, input.note, input.accountId);
     return null;
   } catch (err) {
     if (isLockedDefaultError(err)) return redirectOutcome(input.routes.lockedError);
@@ -183,6 +187,7 @@ export async function handleSaveBotConfigAction(
     note,
     routes,
     deps,
+    accountId: ctx.accountId,
   });
   if (locked) return locked;
   return successOutcome(routes);
@@ -211,6 +216,7 @@ export async function handleApplyBotPresetAction(
     note: `preset:${preset.id}`,
     routes,
     deps,
+    accountId: ctx.accountId,
   });
   if (locked) return locked;
   return successOutcome(routes);
@@ -225,7 +231,7 @@ export async function handleUseSystemDefaultBotConfigAction(
   if (!ctx) return noop();
   if (forbiddenBotConfigActionFormKey(formData)) return configErrorOutcome(routes, { code: 'forbidden-field' });
 
-  const result = await deps.selectSystemDefault(ctx.user.id, ctx.productCode);
+  const result = await deps.selectSystemDefault(ctx.user.id, ctx.productCode, ctx.accountId);
   if (result !== 'saved') return redirectOutcome(routes.systemDefaultError);
   return successOutcome(routes);
 }
