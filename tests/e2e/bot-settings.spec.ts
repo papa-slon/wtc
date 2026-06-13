@@ -25,16 +25,8 @@ function setupLayer(page: Page, label: string) {
   return page.locator('td[data-label="Setup layer"]', { hasText: label });
 }
 
-function quickPathLayer(page: Page, label: string) {
-  return page.locator('tr').filter({ has: page.locator('td[data-label="Layer"]', { hasText: label }) });
-}
-
 function resolutionCell(page: Page, label: string) {
   return page.locator(`td[data-label="${label}"]`);
-}
-
-function resolutionStage(page: Page, label: string) {
-  return page.locator('tr').filter({ has: page.locator('td[data-label="Stage bucket"]', { hasText: label }) });
 }
 
 function tortilaPortfolioGuardrail(page: Page, label: string) {
@@ -81,15 +73,13 @@ test('bot settings workbench renders safe coin configuration for Tortila and Leg
   // ----- Premium Tortila settings page (redesigned per-coin editor) -----
   // Resolved-source status pill sits beside the kept "Configuration" heading.
   await expect(
-    page.locator('.wtc-pill').filter({ hasText: /built-in fallback|custom v\d+|system v\d+/ }).first(),
+    page.locator('.wtc-pill').filter({ hasText: /default settings|custom v\d+|system v\d+/ }).first(),
   ).toBeVisible();
   // Bot section tab strip with Settings active.
   const tortilaSubNav = page.getByRole('navigation', { name: 'Bot sections' });
   await expect(tortilaSubNav).toBeVisible();
   await expect(tortilaSubNav.getByRole('link', { name: 'Settings', exact: true })).toHaveAttribute('aria-current', 'page');
   // Source + reference cards.
-  await expect(page.getByRole('heading', { name: 'Configuration source', exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Settings source', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Reference profiles', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Private exchange connection', exact: true })).toBeVisible();
   await expect(page.getByText(/No encrypted exchange key saved|No live exchange ping is claimed|Exchange ping unavailable|Check WTC vault readiness/).first()).toBeVisible();
@@ -169,52 +159,50 @@ test('bot settings workbench renders safe coin configuration for Tortila and Leg
 
   await page.goto('/app/bots/legacy/settings');
   await expect(page.getByRole('heading', { name: 'Configuration', exact: true })).toBeVisible();
-  await expect(page.getByText('Bot setup control center')).toBeVisible();
-  await expect(page.getByText('Settings continuity monitor')).toBeVisible();
-  await expect(page.locator('td[data-label="Proof"]', { hasText: 'settings evidence rows' }).first()).toBeVisible();
-  await expect(setupLayer(page, 'Default or custom')).toBeVisible();
-  await expect(setupLayer(page, 'Provider pub_id')).toBeVisible();
-  await expect(setupLayer(page, 'Coin and stage map')).toBeVisible();
-  await expect(page.getByText('Basic settings path')).toBeVisible();
-  await expect(quickPathLayer(page, '2. Coin trigger').locator('td[data-label="What it means"]')).toContainText('each active coin consumes one trigger slot');
-  await expect(quickPathLayer(page, '3. Stage slots').locator('td[data-label="What it means"]')).toContainText('Multiple RSI or CCI coins');
-  await expect(quickPathLayer(page, '4. Provider link').locator('td[data-label="What it means"]')).toContainText('read-only evidence');
-  await expect(quickPathLayer(page, '6. Save and export').locator('td[data-label="Status"]')).toContainText('Export blocked');
-  await expect(quickPathLayer(page, '7. Live boundary').locator('td[data-label="What it means"]')).toContainText('provider mutation');
-  await expect(page.getByText('Effective settings review')).toBeVisible();
-  await expect(page.getByText('Effective Legacy settings review')).toBeVisible();
-  await expect(page.getByText('How this bot will operate')).toBeVisible();
-  await expect(operationLayer(page, '2. Coin trigger map')).toBeVisible();
-  await expect(operationLayer(page, '4. Runtime evidence')).toBeVisible();
-  await expect(page.getByText('Signal map')).toBeVisible();
-  await expect(page.getByText('Legacy strategy map')).toBeVisible();
-  await expect(page.getByText('Search the Legacy/BingX catalog').first()).toBeVisible();
-  await expect(page.getByText('One coin uses one trigger: RSI or CCI')).toBeVisible();
-  await expect(page.getByText('A coin consumes one slot in its selected stage and trigger bucket')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Trigger resolution map' })).toBeVisible();
-  await expect(page.getByText('independent trigger candidates')).toBeVisible();
-  await expect(page.getByText('WTC does not assign a hidden priority order from this page')).toBeVisible();
-  await expect(page.getByText('Paused rows and blank coin rows are excluded from this draft map')).toBeVisible();
-  await expect(resolutionCell(page, 'RSI candidates').first()).toBeVisible();
-  await expect(resolutionCell(page, 'CCI candidates').first()).toBeVisible();
-  await expect(resolutionCell(page, 'RSI candidates').filter({ hasText: '#1' }).first()).toBeVisible();
-  await page.locator('select[name="legacy_signal_0"]').selectOption('cci');
-  await expect(resolutionCell(page, 'CCI candidates').filter({ hasText: '#1' }).first()).toBeVisible();
-  await page.locator('input[name="legacy_stage_0"]').fill('2');
-  await expect(resolutionStage(page, 'Stage 2').locator('td[data-label="CCI candidates"]')).toContainText('#1');
-  await expect(page.getByText(/Stage 1 \/ RSI slot|Stage 1 \/ CCI slot/).first()).toBeVisible();
-  await expect(page.getByText(/RSI trigger threshold|CCI trigger threshold/).first()).toBeVisible();
-  await expect(page.getByText('Stage slot group').first()).toBeVisible();
-  await expect(page.getByText('Manual symbol override').first()).toBeVisible();
-  await expect(page.locator('input[name="legacy_symbol_0"]')).toHaveAttribute('list', 'legacy_symbol_0-catalog');
-  await expect(page.getByText('Delay filter').first()).toBeVisible();
-  await expect(page.getByText('Delta filter').first()).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Stage capacity' })).toBeVisible();
-  await expect(page.getByText('RSI used').first()).toBeVisible();
-  await expect(page.getByText('CCI used').first()).toBeVisible();
-  await expect(page.getByText(/inside capacity|full|over capacity/).first()).toBeVisible();
+  // ----- Premium Legacy settings page (redesigned per-coin averaging editor) -----
+  // Resolved-source status pill sits beside the kept "Configuration" heading.
+  await expect(
+    page.locator('.wtc-pill').filter({ hasText: /default settings|custom v\d+|system v\d+/ }).first(),
+  ).toBeVisible();
+  // Bot section tab strip with Settings active.
+  const legacySubNav = page.getByRole('navigation', { name: 'Bot sections' });
+  await expect(legacySubNav).toBeVisible();
+  await expect(legacySubNav.getByRole('link', { name: 'Settings', exact: true })).toHaveAttribute('aria-current', 'page');
+
+  // Save form keeps its id + Strategy mode select + Save button (byte-compatible action).
+  const legacyForm = page.locator('form#custom-settings');
+  await expect(legacyForm).toBeVisible();
+  await expect(legacyForm.locator('select[name="operationMode"]')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save custom settings' })).toBeVisible();
+
+  // Premium per-coin averaging cards replace the old strategy-map / trigger-resolution /
+  // manual-symbol-override tables. The first card renders the saved AAVE coin.
+  await expect(legacyForm.getByText('Your coins')).toBeVisible();
+  await expect(legacyForm.locator('.tset-note', { hasText: /active coins?/ })).toBeVisible();
+  const legacyCoin0 = page.locator('input[name="legacy_symbol_0"]');
+  await expect(legacyCoin0).toHaveValue('AAVE-USDT');
+  const legacyListId = await legacyCoin0.getAttribute('list');
+  expect(legacyListId, 'legacy coin combobox is wired to a catalog datalist').toBeTruthy();
+  await expect(page.locator(`datalist[id="${legacyListId}"]`)).toHaveCount(1);
+  const legacyCard0 = page.locator('#legacy-symbol-1');
+  const legacyChip0 = legacyCard0.locator('.tset-sys-chip');
+  await expect(legacyChip0).toContainText('Stage 1');
+  await expect(legacyChip0).toContainText('RSI');
+  // One trigger per coin, exposed as a byte-stable hidden select behind a segmented control.
+  await expect(legacyCard0.locator('select[name="legacy_signal_0"]')).toHaveCount(1);
+
+  // Stage capacity is a collapsed group; the stage-slot inputs appear only after expanding.
+  await expect(page.locator('input[name="legacy_stage_rsi_0"]')).toBeHidden();
+  await page.getByText('Stage capacity').click();
   await expect(page.locator('input[name="legacy_stage_rsi_0"]')).toBeVisible();
   await expect(page.locator('input[name="legacy_stage_cci_0"]')).toBeVisible();
+  // 12 active stage-1 coins against only 3 RSI / 2 CCI slots — the inline readout is honestly "over".
+  await expect(page.locator('#legacy-stage-1')).toContainText('over');
+
+  // Live coin-card chip reacts to a trigger flip (the deleted resolution-map table is gone).
+  await legacyCard0.getByRole('button', { name: 'CCI', exact: true }).click();
+  await expect(legacyChip0).toContainText('CCI');
+  await expect(page.getByText('Connection verified')).toHaveCount(0);
   const legacyExportBlocked = page.getByRole('button', { name: 'Export requires mapped pub_id' });
   await expect(legacyExportBlocked).toBeDisabled();
   await expect(legacyExportBlocked).toHaveAttribute('title', 'Legacy export requires exactly one active mapped pub_id');
@@ -244,6 +232,10 @@ test('Tortila invalid coin settings return a row-targeted save error', async ({ 
 
   await page.goto('/app/bots/tortila/settings');
   await page.locator('input[name="risk_0"]').fill('9');
+  // The premium coin card guards ranges client-side (type=number, max=3). Disable native form
+  // validation so the out-of-range draft reaches the SERVER and exercises its validation +
+  // inline-error path (defense in depth — the server must reject even a bypassed client).
+  await page.locator('form#custom-settings').evaluate((f) => f.setAttribute('novalidate', ''));
   await page.getByRole('button', { name: 'Save custom settings' }).click();
 
   await expect(page).toHaveURL(/\/app\/bots\/tortila\/settings\?err=config&issue=tortila-row-risk&row=1/);
@@ -253,7 +245,7 @@ test('Tortila invalid coin settings return a row-targeted save error', async ({ 
   // inline inside the offending coin card and the input is flagged + wired to that alert.
   await expect(page.locator('input[name="risk_0"]')).toHaveAttribute('aria-invalid', 'true');
   await expect(page.locator('input[name="risk_0"]')).toHaveAttribute('aria-describedby', 'tortila-symbol-1-save-error');
-  await expect(page.getByText(/this failed draft was not saved and was not applied to the live bot/)).toBeVisible();
+  await expect(page.getByText(/this failed draft was not saved/)).toBeVisible();
   await expect(rowAlert.getByText('Fix Tortila coin slot 1')).toBeVisible();
   await expect(rowAlert.getByText('Risk % must be between 0.1 and 3')).toBeVisible();
   await expect(page.getByText('Connection verified')).toHaveCount(0);
@@ -318,12 +310,15 @@ test('Tortila invalid portfolio caps return a top-level caps save error', async 
   // Portfolio caps live in a collapsed <details>; open it before editing a cap.
   await page.locator('summary.tset-caps-summary', { hasText: 'Portfolio caps' }).click();
   await page.locator('input[name="maxOpenSymbols"]').fill('21');
+  // Premium caps guard ranges client-side (max=20); disable native form validation so the
+  // out-of-range draft reaches the server's caps validation + inline-error path.
+  await page.locator('form#custom-settings').evaluate((f) => f.setAttribute('novalidate', ''));
   await page.getByRole('button', { name: 'Save custom settings' }).click();
 
   await expect(page).toHaveURL(/\/app\/bots\/tortila\/settings\?err=config&issue=tortila-portfolio-limit/);
   // No setup-control-center fix links on the premium page; the cap error surfaces a
   // page-level banner and an inline caps alert, and must not spill into a coin-row alert.
-  await expect(page.getByText(/this failed draft was not saved and was not applied to the live bot/)).toBeVisible();
+  await expect(page.getByText(/this failed draft was not saved/)).toBeVisible();
   await expect(page.locator('#tortila-symbol-1-save-error')).toHaveCount(0);
   const portfolioAlert = page.locator('#tortila-portfolio-caps-save-error');
   await expect(portfolioAlert).toBeVisible();
@@ -354,6 +349,7 @@ test('Tortila invalid portfolio caps return a top-level caps save error', async 
   // Open the collapsed portfolio caps <details> before editing the throttle cap.
   await page.locator('summary.tset-caps-summary', { hasText: 'Portfolio caps' }).click();
   await page.locator('input[name="maxNewEntriesPerTick"]').fill('21');
+  await page.locator('form#custom-settings').evaluate((f) => f.setAttribute('novalidate', ''));
   await page.getByRole('button', { name: 'Save custom settings' }).click();
 
   await expect(page).toHaveURL(/\/app\/bots\/tortila\/settings\?err=config&issue=tortila-entry-throttle/);
@@ -370,21 +366,19 @@ test('Legacy invalid averaging ladder returns a row-targeted save error', async 
   await loginUser(page);
 
   await page.goto('/app/bots/legacy/settings');
-  await page.getByText('Position sizing, averaging ladder, delay/delta filters').first().click();
+  // The averaging ladder lives in the per-coin "Position sizing & averaging ladder" group.
+  await page.locator('#legacy-symbol-1').getByText('Position sizing & averaging ladder').click();
   await page.locator('input[name="legacy_levels_0"]').fill('4');
   await page.getByRole('button', { name: 'Save custom settings' }).click();
 
   await expect(page).toHaveURL(/\/app\/bots\/legacy\/settings\?err=config&issue=legacy-row-ladder&row=1/);
-  await expect(setupLayer(page, 'Validation issue')).toBeVisible();
-  const fixRowLink = page.getByRole('link', { name: 'Fix row' });
-  await expect(fixRowLink).toHaveAttribute('href', '#legacy-symbol-1');
+  // Premium settings page: the error renders inline inside the offending coin card
+  // (no setup-control-center "Fix row" link), and the page banner confirms rejection.
   const rowAlert = page.locator('#legacy-symbol-1 [role="alert"]');
   await expect(rowAlert).toBeVisible();
-  await fixRowLink.click();
-  await expect(page).toHaveURL(/#legacy-symbol-1$/);
-  expect(await targetInViewport(page, '#legacy-symbol-1 [role="alert"]'), 'Legacy row alert is visible after Fix row').toBe(true);
   await expect(rowAlert.getByText('Fix Legacy coin slot 1')).toBeVisible();
   await expect(rowAlert.getByText('Drop ladder and volume ladder must be comma-separated numbers')).toBeVisible();
+  await expect(page.getByText(/this failed draft was not saved/)).toBeVisible();
   await expect(page.getByText(/Connection verified|applyConfig|startBot|stopBot/)).toHaveCount(0);
   expect(await noHScroll(page), 'Legacy invalid settings scrolls horizontally').toBe(true);
 });
@@ -393,18 +387,17 @@ test('Legacy invalid stage capacity returns a stage-targeted save error', async 
   await loginUser(page);
 
   await page.goto('/app/bots/legacy/settings');
+  // Stage capacity is a collapsed group; open it before editing a stage slot.
+  await page.getByText('Stage capacity').click();
   await page.locator('input[name="legacy_stage_rsi_0"]').fill('99');
   await page.getByRole('button', { name: 'Save custom settings' }).click();
 
   await expect(page).toHaveURL(/\/app\/bots\/legacy\/settings\?err=config&issue=legacy-stage-capacity&row=1/);
-  await expect(setupLayer(page, 'Validation issue')).toBeVisible();
-  const fixStageLink = page.getByRole('link', { name: 'Fix stage' });
-  await expect(fixStageLink).toHaveAttribute('href', '#legacy-stage-1');
+  // Premium settings page: the stage error renders inline inside the offending stage row.
+  // The group is force-opened on a stage save error, so the alert is reachable without a
+  // setup-control-center "Fix stage" link.
   const stageAlert = page.locator('#legacy-stage-1-save-error');
   await expect(stageAlert).toBeVisible();
-  await fixStageLink.click();
-  await expect(page).toHaveURL(/#legacy-stage-1$/);
-  expect(await targetInViewport(page, '#legacy-stage-1-save-error'), 'Legacy stage alert is visible after Fix stage').toBe(true);
   await expect(stageAlert.getByText('Fix Legacy stage row 1')).toBeVisible();
   await expect(stageAlert.getByText('RSI and CCI capacities must be whole numbers from 0 to 50')).toBeVisible();
   await expect(page.getByText(/Connection verified|applyConfig|startBot|stopBot/)).toHaveCount(0);
@@ -520,29 +513,21 @@ test('Legacy stage over-capacity advisory routes from setup control center', asy
   await loginUser(page);
 
   await page.goto('/app/bots/legacy/settings');
-  const draftRsiSlots = await fillLegacyStageDraftCap(page, 'legacy_stage_rsi_0');
-  const draftCciSlots = await fillLegacyStageDraftCap(page, 'legacy_stage_cci_0');
-  const liveStagePreview = page.locator('#legacy-stage-1');
-  await expect(liveStagePreview.getByText(new RegExp(`/${draftRsiSlots} RSI used`))).toBeVisible();
-  await expect(liveStagePreview.getByText(new RegExp(`/${draftCciSlots} CCI used`))).toBeVisible();
-  await expect(liveStagePreview.getByText('over capacity')).toBeVisible();
-  await expect(setupLayer(page, 'Draft stage capacity warning')).toBeVisible();
-  await expect(page.getByText(/Unsaved draft preview: Stage 1 uses .* RSI slots and .* CCI slots/)).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Review stage' })).toHaveAttribute('href', '#legacy-stage-1');
-  await expect(page.getByText(/\d+ over capacity/).first()).toBeVisible();
-  await page.getByRole('button', { name: 'Save custom settings' }).click();
-
-  await expect(setupLayer(page, 'Stage capacity warning')).toBeVisible();
-  await expect(page.getByText(/Stage 1 uses .* RSI slots and .* CCI slots/)).toBeVisible();
-  const settingsReviewStageLink = page.getByRole('link', { name: 'Review stage' });
-  await expect(settingsReviewStageLink).toHaveAttribute('href', '#legacy-stage-1');
-  await settingsReviewStageLink.click();
-  await expect(page).toHaveURL(/#legacy-stage-1$/);
-  expect(await targetInViewport(page, '#legacy-stage-1'), 'Legacy over-capacity stage is visible from settings Review stage').toBe(true);
-  await expect(page.getByText('over capacity').first()).toBeVisible();
+  // The premium editor surfaces over-capacity honestly inline (no control-center advisory):
+  // Stage 1 holds 12 active stage-1 coins against only 3 RSI / 2 CCI slots.
+  await page.getByText('Stage capacity').click();
+  const stage1 = page.locator('#legacy-stage-1');
+  await expect(stage1).toContainText('over');
+  // The byte-stable stage-cap inputs drive that live readout: widen both caps past the
+  // active counts and the over-capacity flag clears in place — no save, no fabrication.
+  await page.locator('input[name="legacy_stage_rsi_0"]').fill('20');
+  await page.locator('input[name="legacy_stage_cci_0"]').fill('20');
+  await expect(stage1).not.toContainText('over');
   await expect(page.getByText(/Connection verified|applyConfig|startBot|stopBot/)).toHaveCount(0);
   expect(await noHScroll(page), 'Legacy over-capacity settings scrolls horizontally').toBe(true);
 
+  // The setup wizard keeps its control-center advisory routing (unchanged old surface);
+  // the built-in default is already over its stage-1 RSI capacity.
   await page.goto('/app/bots/legacy/setup?step=strategy');
   await expect(setupLayer(page, 'Stage capacity warning')).toBeVisible();
   const setupReviewStageLink = page.getByRole('link', { name: 'Review stage' });

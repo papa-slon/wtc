@@ -130,29 +130,18 @@ test('bot dashboard sub-tabs render with unified analytics (Tortila)', async ({ 
 
   await page.goto('/app/bots/statistics?bot=tortila');
   await expect(page.getByRole('heading', { name: 'Trading bot performance' })).toBeVisible();
-  await expect(page.getByText('Portfolio snapshot')).toBeVisible();
-  await expect(page.getByText('Statistics continuity monitor')).toBeVisible();
-  await expect(page.getByText('Statistics operation map')).toBeVisible();
-  await expect(page.getByText('Statistics evidence ladder')).toBeVisible();
-  await expect(page.getByText('Statistics command center')).toBeVisible();
-  await expect(page.getByText('Admin mirror')).toBeVisible();
-  await expect(page.getByText('Live boundary')).toBeVisible();
-  await expect(page.getByText('Different strategies are not blended into one fake win rate')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Equity curve', exact: true })).toBeVisible();
-    await expect(page.getByText('Performance diagnostics')).toBeVisible();
-    await expect(page.getByText('Monthly returns')).toBeVisible();
-    await expect(page.getByText('Symbol contribution')).toBeVisible();
-    await expect(page.getByText('Open risk exposure')).toBeVisible();
-    await page.screenshot({ path: shot('bot-statistics-journal', info.project.name), fullPage: true });
-  
+  // Premium statistics terminal: in mock mode the journal is not contacted, so the page renders
+  // the honest not-configured fallback. The deleted Codex audit panels must stay gone.
+  await expect(page.getByText('No live numbers to show')).toBeVisible();
+  await expect(page.getByText('never fabricates a $0 account or stale positions')).toBeVisible();
+  await expect(page.getByText('Portfolio snapshot')).toHaveCount(0);
+  await expect(page.getByText('Statistics continuity monitor')).toHaveCount(0);
+  await page.screenshot({ path: shot('bot-statistics-journal', info.project.name), fullPage: true });
+
   await page.goto('/app/bots/statistics?bot=legacy');
   await expect(page.getByRole('heading', { name: 'Trading bot performance' })).toBeVisible();
-  await expect(page.getByText('Statistics operation map')).toBeVisible();
-  await expect(page.getByText('Statistics command center')).toBeVisible();
-  await expect(page.getByText('Live boundary')).toBeVisible();
-  await expect(page.getByText('Legacy operations')).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Averaging bot configuration coverage', exact: true })).toBeVisible();
-    await expect(page.getByText('Provider pub_id', { exact: true })).toBeVisible();
+  await expect(page.getByText('No reconstructed numbers to show')).toBeVisible();
+  await expect(page.getByText('never fabricates a $0 account or placeholder positions')).toBeVisible();
 
   // Trades sub-tab — net-of-fees metric is present (fees never hidden)
   await page.goto('/app/bots/tortila/trades');
@@ -269,18 +258,14 @@ test('Phase 2.3 no live-control buttons enabled on bot pages', async ({ page }, 
   await loginUser(page);
   await page.goto('/app/bots/tortila');
 
-  // Start/stop buttons must be present and DISABLED (safety policy)
-  const startBtn = page.getByRole('button', { name: 'Start bot (disabled)' });
-  const stopBtn = page.getByRole('button', { name: 'Stop bot (disabled)' });
-  await expect(startBtn).toBeVisible();
-  await expect(stopBtn).toBeVisible();
-  await expect(startBtn).toBeDisabled();
-  await expect(stopBtn).toBeDisabled();
+  // The premium bot room replaced the old Start/Stop (disabled) buttons with a single disabled
+  // "Start bot unavailable" control + a "live start disabled" pill and a read-only live-actions metric.
   await expect(page.getByRole('button', { name: 'Start bot unavailable' })).toBeDisabled();
-
-  // Safety policy note is visible
-  await expect(page.getByText('This room is read-only monitoring. Start, stop, and live config apply are not available here.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Start bot (disabled)' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Stop bot (disabled)' })).toHaveCount(0);
   await expect(page.getByText('live start disabled')).toBeVisible();
+  await expect(page.getByText('read-only monitoring').first()).toBeVisible();
+  await expect(page.getByText(/does not start, stop, apply config/)).toBeVisible();
 
   await page.screenshot({ path: shot('bot-controls-disabled', info.project.name), fullPage: true });
 });
@@ -337,18 +322,14 @@ test('Phase 2.4 E2E-31/32: bot/tortila renders with mock pill + Start/Stop DISAB
   await expect(page.getByText('Runtime status notes')).toBeVisible();
   await expect(page.getByText('TP reconciliation / restore not implemented')).toBeVisible();
 
-  // Start/Stop buttons must be present and DISABLED (safety policy — all adapters)
-  const startBtn = page.getByRole('button', { name: 'Start bot (disabled)' });
-  const stopBtn = page.getByRole('button', { name: 'Stop bot (disabled)' });
-  await expect(startBtn).toBeVisible();
-  await expect(stopBtn).toBeVisible();
-  await expect(startBtn).toBeDisabled();
-  await expect(stopBtn).toBeDisabled();
+  // The premium bot room replaced the old Start/Stop (disabled) buttons with a single disabled
+  // "Start bot unavailable" control + a "live start disabled" pill and a read-only live-actions metric.
   await expect(page.getByRole('button', { name: 'Start bot unavailable' })).toBeDisabled();
-
-  // Safety policy note is visible
-  await expect(page.getByText('This room is read-only monitoring. Start, stop, and live config apply are not available here.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Start bot (disabled)' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Stop bot (disabled)' })).toHaveCount(0);
   await expect(page.getByText('live start disabled')).toBeVisible();
+  await expect(page.getByText('read-only monitoring').first()).toBeVisible();
+  await expect(page.getByText(/does not start, stop, apply config/)).toBeVisible();
 
   await page.screenshot({ path: shot('bot-tortila-phase24', info.project.name), fullPage: true });
 });

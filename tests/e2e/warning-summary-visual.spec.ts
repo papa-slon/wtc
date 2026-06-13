@@ -80,8 +80,10 @@ test('user bot warning summaries render without all-clear copy or overflow', asy
     await page.screenshot({ path: shot(`warning-summary-${bot}-safety`, info.project.name), fullPage: true });
 
     await page.goto(`/app/bots/statistics?bot=${bot}`);
-    await expect(page.getByText('Risk and status notes')).toBeVisible();
-    await expect(page.getByText('scope: adapter warning read').first()).toBeVisible();
+    // The premium statistics terminal reads live data; in mock mode it renders the honest
+    // not-configured fallback (the old "Risk and status notes" warning panel is gone). It still
+    // shows no all-clear copy, no fabricated account, and no overflow.
+    await expect(page.getByText(/No live numbers to show|No reconstructed numbers to show/)).toBeVisible();
     await assertWarningSurface(page, `/app/bots/statistics?bot=${bot}`);
     await page.screenshot({ path: shot(`warning-summary-${bot}-statistics`, info.project.name), fullPage: true });
   }
